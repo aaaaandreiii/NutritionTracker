@@ -1,509 +1,457 @@
 import React, { useState } from 'react';
-import { ChefHat, Plus, X, Sparkles, RefreshCw, Clock, CheckCircle2, Check, ListPlus, Play, Trash2 } from 'lucide-react';
-import { dailyDozenCategories, mealSlots } from '../data/constants';
-import { fetchAIRecipe } from '../services/geminiService';
+import { ChefHat, Plus, Check, Loader2, Sparkles, BookOpen, AlertCircle } from 'lucide-react';
+import { DAILY_DOZEN_CATEGORIES } from '../data/constants';
 
 export default function RecipesHub({
   recipes,
   setRecipes,
   pantry,
-  setPantry,
-  groceryList,
   setGroceryList,
-  deficits,
-  selectedPreset,
-  triggerToast,
-  handleAddToGrocery
+  groceryList,
+  handleCookAndLogRecipe,
+  dailyDozenDeficits
 }) {
-  const [isAddingManualRecipe, setIsAddingManualRecipe] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [aiCustomPrompt, setAiCustomPrompt] = useState('');
-
-  // Manual Recipe state definition
-  const [manualRecipeForm, setManualRecipeForm] = useState({
+  const [activeTab, setActiveTab] = useState('list'); // 'list' | 'add' | 'ai'
+  const [loading, setLoading] = useState(false);
+  const [newRecipe, setNewRecipe] = useState({
     name: '',
-    tagline: '',
-    prepTime: '10 mins',
-    cookTime: '15 mins',
-    cals: 250,
-    dozenServings: dailyDozenCategories.reduce((acc, c) => ({ ...acc, [c.id]: 0 }), {}),
-    ingredients: [{ name: '', amount: '', category: '' }],
-    steps: ['']
+    ingredients: '',
+    instructions: '',
+    prepTime: '20 mins',
+    difficulty: 'Easy',
+    servings: {}
   });
 
-  const handleGenerateAIRecipe = async (e) => {
-    e.preventDefault();
-    setIsGenerating(true);
-    
-    try {
-      const parsedRecipe = await fetchAIRecipe(pantry, deficits, selectedPreset, aiCustomPrompt);
-      
-      if (parsedRecipe) {
-        parsedRecipe.id = `ai_rec_${Date.now()}`;
-        
-        // Sanitize servings multiplier structure
-        const safeDozen = {};
-        dailyDozenCategories.forEach(cat => {
-          safeDozen[cat.id] = Number(parsedRecipe.dozenServings[cat.id]) || 0;
-        });
-        parsedRecipe.dozenServings = safeDozen;
+  // Local Offline Recipe Generation Engine (No API Keys needed!)
+  const handleGenerateLocalRecipe = () => {
+    setLoading(true);
 
-        setRecipes(prev => [parsedRecipe, ...prev]);
-        setAiCustomPrompt('');
-        triggerToast(`Connected! Formulated & unlocked: "${parsedRecipe.name}"!`, "success");
-      }
-    } catch (err) {
-      console.error(err);
-      triggerToast("Failed to connect to the dynamic AI kitchen. Double check your API configuration.", "warning");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+    setTimeout(() => {
+      // Find what category is most deficient to customize the result
+      const topDeficits = dailyDozenDeficits.length > 0 ? dailyDozenDeficits : [{ key: 'beans', lacking: 1 }];
+      const focusCategory = topDeficits[0].key;
+      const categoryLabel = DAILY_DOZEN_CATEGORIES.find(c => c.key === focusCategory)?.name || "Superfoods";
 
-  const handleSaveManualRecipe = (e) => {
-    e.preventDefault();
-    const { name, tagline, prepTime, cookTime, cals, dozenServings, ingredients, steps } = manualRecipeForm;
-    if (!name.trim()) return;
-
-    const formattedIngredients = ingredients.filter(i => i.name.trim());
-    const formattedSteps = steps.filter(s => s.trim());
-
-    const newRecipe = {
-      id: `manual_rec_${Date.now()}`,
-      name,
-      tagline: tagline || "A customized diet formula.",
-      prepTime,
-      cookTime,
-      cals: Number(cals) || 200,
-      dozenServings: { ...dozenServings },
-      ingredients: formattedIngredients,
-      steps: formattedSteps
-    };
-
-    setRecipes(prev => [newRecipe, ...prev]);
-    setIsAddingManualRecipe(false);
-    
-    // Reset structural state
-    setManualRecipeForm({
-      name: '',
-      tagline: '',
-      prepTime: '10 mins',
-      cookTime: '15 mins',
-      cals: 250,
-      dozenServings: dailyDozenCategories.reduce((acc, c) => ({ ...acc, [c.id]: 0 }), {}),
-      ingredients: [{ name: '', amount: '', category: '' }],
-      steps: ['']
-    });
-    triggerToast(`Added custom recipe "${newRecipe.name}" successfully!`, "success");
-  };
-
-  const handleDeleteRecipe = (recipeId) => {
-    if (window.confirm("Delete this recipe from your collection?")) {
-      setRecipes(prev => prev.filter(r => r.id !== recipeId));
-      triggerToast("Recipe deleted.", "info");
-    }
-  };
-
-  const handleAddMissingRecipeIngredientsToGrocery = (recipe) => {
-    let addedCount = 0;
-    recipe.ingredients.forEach(ing => {
-      const isStocked = pantry.some(p => p.name.toLowerCase() === ing.name.toLowerCase() && p.quantity > 0);
-      const inGrocery = groceryList.some(g => g.name.toLowerCase() === ing.name.toLowerCase());
-      
-      if (!isStocked && !inGrocery) {
-        const servingsMap = {};
-        if (ing.category) {
-          servingsMap[ing.category] = 1;
+      // Prepare a pool of Dr. Greger friendly recipes matching different categories
+      const recipesPool = [
+        {
+          name: "Golden Turmeric Lentil Stew",
+          focus: "beans",
+          servings: { beans: 2, spices: 1, other_veggies: 1 },
+          ingredients: ["Red Lentils", "Spinach", "Carrots", "Turmeric", "Black Pepper", "Garlic", "Vegetable Broth"],
+          instructions: [
+            "Rinse 1 cup red lentils under cold water.",
+            "In a large pot, simmer carrots, garlic, red lentils, and vegetable broth for 15 minutes.",
+            "Stir in 1 tsp turmeric and a pinch of black pepper (to activate curcumin absorption).",
+            "Fold in fresh spinach and let wilt for 2 minutes before serving."
+          ],
+          prepTime: "20 mins",
+          difficulty: "Easy"
+        },
+        {
+          name: "Powerhouse Antioxidant Oatmeal Bowl",
+          focus: "berries",
+          servings: { berries: 1, other_fruits: 1, nuts_seeds: 1, whole_grains: 1 },
+          ingredients: ["Rolled Oats", "Blueberries", "Banana", "Flaxseed (ground)", "Walnuts", "Soy Milk"],
+          instructions: [
+            "Combine rolled oats and soy milk in a saucepan; cook over medium heat for 5 minutes.",
+            "Pour oats into a bowl and stir in 1 tbsp of ground flaxseed immediately.",
+            "Top with wild blueberries, sliced banana, and walnut halves."
+          ],
+          prepTime: "10 mins",
+          difficulty: "Easy"
+        },
+        {
+          name: "Crispy Cruciferous Ginger Tofu Stir-Fry",
+          focus: "cruciferous",
+          servings: { cruciferous: 2, beans: 1.5, spices: 0.5, other_veggies: 1 },
+          ingredients: ["Extra Firm Tofu", "Broccoli Florets", "Brussels Sprouts", "Ginger", "Bell Pepper", "Tamari"],
+          instructions: [
+            "Press and cube the tofu, baking or air-frying at 400°F (200°C) until golden.",
+            "Sauté chopped broccoli and shredded Brussels sprouts with a splash of water and ginger.",
+            "Add sliced bell peppers and the cooked tofu.",
+            "Drizzle with tamari and stir-fry for 3-4 minutes."
+          ],
+          prepTime: "15 mins",
+          difficulty: "Medium"
+        },
+        {
+          name: "Mediterranean Greens & Bean Salad",
+          focus: "greens",
+          servings: { greens: 2, beans: 1.5, other_veggies: 1 },
+          ingredients: ["Kale (shredded)", "Garbanzo Beans (chickpeas)", "Cherry Tomatoes", "Cucumber", "Lemon Juice", "Tahini"],
+          instructions: [
+            "Massage shredded kale with a squeeze of lemon juice to soften.",
+            "Rinse and drain canned garbanzo beans, then toss with the massaged kale.",
+            "Toss in sliced tomatoes and diced cucumbers.",
+            "Whisk tahini and lemon juice with water to make a creamy oil-free dressing, and toss."
+          ],
+          prepTime: "12 mins",
+          difficulty: "Easy"
         }
+      ];
 
-        const foodObj = {
-          id: `g_ing_${Date.now()}_${Math.random()}`,
-          name: ing.name,
-          cals: 100,
-          servings: servingsMap,
-          quantity: 1
-        };
-        handleAddToGrocery(foodObj);
-        addedCount++;
-      }
-    });
+      // Find best match or default
+      const recipeMatch = recipesPool.find(r => r.focus === focusCategory) || recipesPool[0];
 
-    if (addedCount === 0) {
-      triggerToast("All required ingredients already stocked locally!", "info");
-    } else {
-      triggerToast(`Added ${addedCount} missing ingredients to the grocery list.`, "success");
-    }
-  };
-
-  const handleCookAndLogRecipe = (recipe, mealSlotId, setIntake) => {
-    let deductedFromPantry = [];
-    
-    setPantry(prev => {
-      return prev.map(pItem => {
-        const match = recipe.ingredients.find(ing => ing.name.toLowerCase() === pItem.name.toLowerCase());
-        if (match && pItem.quantity > 0) {
-          deductedFromPantry.push(pItem.name);
-          return { ...pItem, quantity: Math.max(0, pItem.quantity - 1) };
-        }
-        return pItem;
+      // Build recipe object incorporating local pantry items if matching names exist
+      const enrichedIngredients = recipeMatch.ingredients.map(ing => {
+        const matchesPantry = pantry.some(p => p.name.toLowerCase().includes(ing.toLowerCase()));
+        return matchesPantry ? `${ing} (In Pantry)` : ing;
       });
-    });
 
-    const mealObj = {
-      id: `logged_recipe_${recipe.id}_${Date.now()}`,
-      name: recipe.name,
-      cals: recipe.cals,
-      servings: recipe.dozenServings,
-      servingsMultiplier: 1.0
-    };
+      const generatedRecipe = {
+        id: 'local-' + Date.now(),
+        name: `💡 Local Chef's ${recipeMatch.name}`,
+        ingredients: enrichedIngredients,
+        instructions: recipeMatch.instructions,
+        servings: recipeMatch.servings,
+        prepTime: recipeMatch.prepTime,
+        difficulty: recipeMatch.difficulty
+      };
 
-    setIntake(prev => ({
-      ...prev,
-      [mealSlotId]: [...prev[mealSlotId], mealObj]
-    }));
-
-    if (deductedFromPantry.length > 0) {
-      triggerToast(`Cooking complete! Deducted (${deductedFromPantry.join(', ')}) from Pantry stock.`, "success");
-    } else {
-      triggerToast(`Cooking complete! Logged recipe to ${mealSlotId}.`, "success");
-    }
+      setRecipes([generatedRecipe, ...recipes]);
+      setActiveTab('list');
+      setLoading(false);
+    }, 900);
   };
 
-  // Helper form functions
-  const handleUpdateFormIngredient = (index, key, value) => {
-    setManualRecipeForm(prev => {
-      const updated = [...prev.ingredients];
-      updated[index] = { ...updated[index], [key]: value };
-      return { ...prev, ingredients: updated };
+  // Check how many ingredients are present in current pantry
+  const checkPantryCoverage = (recipeIngredients) => {
+    let owned = 0;
+    recipeIngredients.forEach(ing => {
+      const isStocked = pantry.some(p => 
+        ing.toLowerCase().includes(p.name.toLowerCase()) || 
+        p.name.toLowerCase().includes(ing.toLowerCase())
+      );
+      if (isStocked) owned++;
+    });
+    return { owned, total: recipeIngredients.length };
+  };
+
+  // Add all missing ingredients to grocery list
+  const handleAddMissingToGrocery = (recipeIngredients) => {
+    const missing = recipeIngredients.filter(ing => {
+      return !pantry.some(p => 
+        ing.toLowerCase().includes(p.name.toLowerCase()) || 
+        p.name.toLowerCase().includes(ing.toLowerCase())
+      );
+    });
+
+    const newGroceryItems = missing.map(name => {
+      // clean pantry tag
+      const cleanName = name.replace('(In Pantry)', '').trim();
+      return {
+        id: Date.now() + Math.random().toString(),
+        name: cleanName,
+        category: 'other_veggies', // default category
+        checked: false
+      };
+    });
+
+    setGroceryList([...groceryList, ...newGroceryItems]);
+  };
+
+  // Manual Recipe Form Handler
+  const handleManualSubmit = (e) => {
+    e.preventDefault();
+    if (!newRecipe.name || !newRecipe.ingredients) return;
+
+    const parsedIngredients = newRecipe.ingredients.split(',').map(i => i.trim());
+    const parsedInstructions = newRecipe.instructions.split('\n').filter(i => i.trim());
+
+    const createdRecipe = {
+      id: Date.now().toString(),
+      name: newRecipe.name,
+      ingredients: parsedIngredients,
+      instructions: parsedInstructions,
+      prepTime: newRecipe.prepTime,
+      difficulty: newRecipe.difficulty,
+      servings: newRecipe.servings
+    };
+
+    setRecipes([createdRecipe, ...recipes]);
+    setNewRecipe({
+      name: '',
+      ingredients: '',
+      instructions: '',
+      prepTime: '20 mins',
+      difficulty: 'Easy',
+      servings: {}
+    });
+    setActiveTab('list');
+  };
+
+  const handleServingsChange = (catKey, value) => {
+    const valNum = parseFloat(value) || 0;
+    setNewRecipe({
+      ...newRecipe,
+      servings: {
+        ...newRecipe.servings,
+        [catKey]: valNum
+      }
     });
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-300">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+    <div className="space-y-6">
+      {/* HEADER TABS */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
         <div>
-          <h2 className="text-2xl font-serif text-gray-900 font-bold flex items-center gap-2">
-            <ChefHat className="text-purple-500" />
-            Healthy Culinary Hub
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <ChefHat className="w-5 h-5 text-amber-500" /> Recipes & Healthy Cooking
           </h2>
-          <p className="text-xs text-gray-400 mt-1">
-            Discover plant-based cooking. Run AI infinite kitchen cycles to dynamically adapt recipes to active goals.
-          </p>
+          <p className="text-xs text-zinc-400 mt-1">Cook whole-food, plant-based recipes with dynamic serving calculations</p>
         </div>
-        <button 
-          onClick={() => setIsAddingManualRecipe(!isAddingManualRecipe)}
-          className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm shadow-purple-500/10 shrink-0"
-        >
-          {isAddingManualRecipe ? <X size={14} /> : <Plus size={14} />}
-          <span>{isAddingManualRecipe ? "Collapse Builder" : "Create Manual Recipe"}</span>
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => setActiveTab('list')}
+            className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              activeTab === 'list'
+                ? 'bg-amber-600 border-amber-500 text-white'
+                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5 inline mr-1" /> Recipe Catalog
+          </button>
+          <button
+            onClick={() => setActiveTab('add')}
+            className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              activeTab === 'add'
+                ? 'bg-amber-600 border-amber-500 text-white'
+                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+            }`}
+          >
+            <Plus className="w-3.5 h-3.5 inline mr-1" /> Create Recipe
+          </button>
+        </div>
       </div>
 
-      {isAddingManualRecipe && (
-        <form onSubmit={handleSaveManualRecipe} className="bg-white border border-purple-100 rounded-3xl p-6 shadow-md animate-in slide-in-from-top-4 duration-300 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-3.5">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Recipe Title</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. Grandma's Garden Lentil Stew" 
-                  value={manualRecipeForm.name}
-                  onChange={(e) => setManualRecipeForm(prev => ({ ...prev, name: e.target.value }))}
-                  required
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Tagline Description</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. Rich in therapeutic fibers and anti-inflammatory spices." 
-                  value={manualRecipeForm.tagline}
-                  onChange={(e) => setManualRecipeForm(prev => ({ ...prev, tagline: e.target.value }))}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Prep Time</label>
-                  <input 
-                    type="text" 
-                    placeholder="10 mins" 
-                    value={manualRecipeForm.prepTime}
-                    onChange={(e) => setManualRecipeForm(prev => ({ ...prev, prepTime: e.target.value }))}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Cook Time</label>
-                  <input 
-                    type="text" 
-                    placeholder="20 mins" 
-                    value={manualRecipeForm.cookTime}
-                    onChange={(e) => setManualRecipeForm(prev => ({ ...prev, cookTime: e.target.value }))}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Calories</label>
-                  <input 
-                    type="number" 
-                    placeholder="320" 
-                    value={manualRecipeForm.cals}
-                    onChange={(e) => setManualRecipeForm(prev => ({ ...prev, cals: parseInt(e.target.value) || 0 }))}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none"
-                  />
-                </div>
-              </div>
+      {/* QUICK OFFLINE RECIPE RECOMMENDER */}
+      {activeTab === 'list' && (
+        <div className="bg-gradient-to-r from-amber-950/20 to-zinc-900 border border-amber-900/30 rounded-2xl p-5 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-amber-400">
+              <Sparkles className="w-4 h-4" />
+              <h3 className="text-sm font-semibold">Local AI Chef Suggestion</h3>
             </div>
+            <p className="text-xs text-zinc-300">
+              Instantly create a dynamic recipe tailored to your current 
+              <span className="text-rose-400 font-semibold"> Daily Dozen deficits</span>. Zero setup needed!
+            </p>
+          </div>
+          <button
+            onClick={handleGenerateLocalRecipe}
+            disabled={loading}
+            className="w-full md:w-auto bg-amber-600 hover:bg-amber-500 disabled:bg-amber-900 text-white text-xs px-5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md shrink-0"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Analyzing Kitchen...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5" /> Suggest Recipe
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase">Ingredients List</label>
-                  <button 
-                    type="button" 
-                    onClick={() => setManualRecipeForm(prev => ({ ...prev, ingredients: [...prev.ingredients, { name: '', amount: '', category: '' }] }))}
-                    className="text-[9px] font-bold text-purple-600 hover:text-purple-700 flex items-center gap-0.5"
+      {/* RENDER MODES */}
+      {activeTab === 'list' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {recipes.map(recipe => {
+            const { owned, total } = checkPantryCoverage(recipe.ingredients);
+            const missingCount = total - owned;
+            const isFullyStocked = missingCount === 0;
+
+            return (
+              <div key={recipe.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl hover:border-zinc-700 transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <h3 className="text-base font-bold text-white">{recipe.name}</h3>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full border shrink-0 ${
+                      isFullyStocked 
+                        ? 'bg-emerald-950/50 text-emerald-400 border-emerald-800' 
+                        : 'bg-amber-950/40 text-amber-400 border-amber-900'
+                    }`}>
+                      {isFullyStocked ? 'Pantry Fully Stocked' : `${owned}/${total} Ingredients`}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs text-zinc-400 mb-4">
+                    <span>⏱ {recipe.prepTime}</span>
+                    <span>•</span>
+                    <span>📈 {recipe.difficulty}</span>
+                  </div>
+
+                  {/* Daily Dozen Portions Box */}
+                  <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 mb-4">
+                    <div className="text-[10px] uppercase font-bold text-zinc-500 mb-1">Serving Contribution:</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.entries(recipe.servings).map(([key, val]) => {
+                        const label = DAILY_DOZEN_CATEGORIES.find(c => c.key === key)?.name || key;
+                        return (
+                          <span key={key} className="text-[10px] bg-zinc-900 text-zinc-300 border border-zinc-800 px-2 py-0.5 rounded">
+                            {label}: <strong className="text-white">+{val}</strong>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Ingredients Listing */}
+                  <div className="mb-4">
+                    <div className="text-xs font-semibold text-zinc-300 mb-1.5">Ingredients:</div>
+                    <ul className="text-xs text-zinc-400 space-y-1">
+                      {recipe.ingredients.map((ing, idx) => {
+                        const inStock = pantry.some(p => 
+                          ing.toLowerCase().includes(p.name.toLowerCase()) || 
+                          p.name.toLowerCase().includes(ing.toLowerCase())
+                        );
+                        return (
+                          <li key={idx} className="flex items-center gap-1.5">
+                            <span className={`w-1.5 h-1.5 rounded-full ${inStock ? 'bg-emerald-500' : 'bg-zinc-700'}`}></span>
+                            <span className={inStock ? 'text-zinc-200' : 'text-zinc-500'}>{ing}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+
+                  {/* Instructions */}
+                  <div className="mb-5">
+                    <div className="text-xs font-semibold text-zinc-300 mb-1.5">Instructions:</div>
+                    <ol className="text-xs text-zinc-500 space-y-1.5 list-decimal pl-4">
+                      {recipe.instructions.map((step, idx) => (
+                        <li key={idx}>{step}</li>
+                      ))}
+                    </ol>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 border-t border-zinc-800/80 pt-4">
+                  {!isFullyStocked && (
+                    <button
+                      onClick={() => handleAddMissingToGrocery(recipe.ingredients)}
+                      className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs py-2 rounded-xl transition-colors font-medium border border-zinc-700/60"
+                    >
+                      Buy Missing (+{missingCount})
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleCookAndLogRecipe(recipe)}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-2 rounded-xl transition-colors font-semibold shadow"
                   >
-                    + Add Ingredient
+                    Cook & Log Meal
                   </button>
                 </div>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {manualRecipeForm.ingredients.map((ing, idx) => (
-                    <div key={idx} className="flex gap-1.5 items-center">
-                      <input 
-                        type="text" 
-                        placeholder="Ingredient Name" 
-                        value={ing.name}
-                        onChange={(e) => handleUpdateFormIngredient(idx, 'name', e.target.value)}
-                        className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none"
-                      />
-                      <input 
-                        type="text" 
-                        placeholder="Qty" 
-                        value={ing.amount}
-                        onChange={(e) => handleUpdateFormIngredient(idx, 'amount', e.target.value)}
-                        className="w-20 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs"
-                      />
-                      <select 
-                        value={ing.category}
-                        onChange={(e) => handleUpdateFormIngredient(idx, 'category', e.target.value)}
-                        className="w-24 bg-gray-50 border border-gray-200 rounded-lg px-1.5 py-1 text-[10px] text-gray-500"
-                      >
-                        <option value="">No Group</option>
-                        {dailyDozenCategories.map(c => (
-                          <option key={c.id} value={c.id}>{c.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* MANUAL CREATOR TAB */
+        <form onSubmit={handleManualSubmit} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-5 max-w-2xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-zinc-400 uppercase mb-1.5">Recipe Name</label>
+              <input
+                type="text"
+                placeholder="e.g., Savory Tempeh Quinoa"
+                value={newRecipe.name}
+                onChange={(e) => setNewRecipe({ ...newRecipe, name: e.target.value })}
+                className="w-full bg-zinc-950 text-white rounded-lg p-2.5 text-sm border border-zinc-800 placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-bold text-zinc-400 uppercase mb-1.5">Prep Time</label>
+                <input
+                  type="text"
+                  placeholder="e.g., 20 mins"
+                  value={newRecipe.prepTime}
+                  onChange={(e) => setNewRecipe({ ...newRecipe, prepTime: e.target.value })}
+                  className="w-full bg-zinc-950 text-white rounded-lg p-2.5 text-sm border border-zinc-800 placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-zinc-400 uppercase mb-1.5">Difficulty</label>
+                <select
+                  value={newRecipe.difficulty}
+                  onChange={(e) => setNewRecipe({ ...newRecipe, difficulty: e.target.value })}
+                  className="w-full bg-zinc-950 text-white rounded-lg p-2.5 text-sm border border-zinc-800 focus:outline-none focus:border-amber-500"
+                >
+                  <option>Easy</option>
+                  <option>Medium</option>
+                  <option>Hard</option>
+                </select>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
-            <button 
-              type="button" 
-              onClick={() => setIsAddingManualRecipe(false)}
-              className="px-4 py-2 bg-gray-100 text-gray-500 text-xs font-bold rounded-xl"
+          <div>
+            <label className="block text-xs font-bold text-zinc-400 uppercase mb-1.5">Ingredients (Comma Separated)</label>
+            <textarea
+              rows="2"
+              placeholder="e.g., 1 cup Quinoa, 1 cup Black Beans, Handful of spinach"
+              value={newRecipe.ingredients}
+              onChange={(e) => setNewRecipe({ ...newRecipe, ingredients: e.target.value })}
+              className="w-full bg-zinc-950 text-white rounded-lg p-2.5 text-sm border border-zinc-800 placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-zinc-400 uppercase mb-1.5">Cooking Instructions (One per line)</label>
+            <textarea
+              rows="3"
+              placeholder="e.g., Boil quinoa for 15 minutes.&#10;Stir in rinsed black beans.&#10;Fold in raw spinach."
+              value={newRecipe.instructions}
+              onChange={(e) => setNewRecipe({ ...newRecipe, instructions: e.target.value })}
+              className="w-full bg-zinc-950 text-white rounded-lg p-2.5 text-sm border border-zinc-800 placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-zinc-400 uppercase mb-1.5">Assign Daily Dozen Servings (Portions)</label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-zinc-950 p-4 rounded-xl border border-zinc-800">
+              {DAILY_DOZEN_CATEGORIES.map(cat => (
+                <div key={cat.key} className="flex flex-col gap-1">
+                  <span className="text-[11px] text-zinc-400 truncate">{cat.name}</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    placeholder="0"
+                    value={newRecipe.servings[cat.key] || ''}
+                    onChange={(e) => handleServingsChange(cat.key, e.target.value)}
+                    className="w-full bg-zinc-900 text-white rounded p-1.5 text-xs border border-zinc-800 text-center"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('list')}
+              className="flex-1 bg-zinc-850 hover:bg-zinc-800 text-zinc-300 text-xs py-2.5 rounded-lg font-medium border border-zinc-800"
             >
               Cancel
             </button>
-            <button 
+            <button
               type="submit"
-              className="px-6 py-2 bg-purple-500 text-white text-xs font-bold rounded-xl"
+              className="flex-1 bg-amber-600 hover:bg-amber-500 text-white text-xs py-2.5 rounded-lg font-bold"
             >
-              Save Custom Formula
+              Save Recipe
             </button>
           </div>
         </form>
       )}
-
-      {/* AI Infinite Kitchen Generator UI */}
-      <div className="bg-gradient-to-r from-purple-50/60 to-emerald-50/40 border border-purple-100/60 rounded-3xl p-6 shadow-sm">
-        <div className="flex items-start gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-purple-100 flex items-center justify-center text-purple-600 shrink-0">
-            <Sparkles size={20} className="animate-pulse" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-1 font-serif">
-              AI Infinite Kitchen System
-              <span className="text-[8px] bg-emerald-500 text-white font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider">Dynamic Feed</span>
-            </h3>
-            <p className="text-xs text-gray-500 leading-relaxed mt-0.5 max-w-xl">
-              Construct customized, nutrient-dense recipes leveraging items currently at home in your <span className="font-bold text-blue-700">pantry</span> mapped to active daily deficiencies.
-            </p>
-
-            <form onSubmit={handleGenerateAIRecipe} className="mt-4 flex flex-col sm:flex-row gap-2.5">
-              <input 
-                type="text" 
-                placeholder="Target specific themes (e.g. 'high protein breakfast', 'anti-inflammatory stew')..." 
-                value={aiCustomPrompt}
-                onChange={(e) => setAiCustomPrompt(e.target.value)}
-                disabled={isGenerating}
-                className="flex-1 bg-white border border-gray-200 rounded-2xl px-4 py-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
-              />
-              <button 
-                type="submit"
-                disabled={isGenerating}
-                className="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold text-xs rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 shrink-0 flex items-center justify-center gap-1.5"
-              >
-                {isGenerating ? (
-                  <>
-                    <RefreshCw size={14} className="animate-spin" />
-                    <span>Analyzing Portions...</span>
-                  </>
-                ) : (
-                  <>
-                    <ChefHat size={14} />
-                    <span>Run AI Recipe Assembly</span>
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-
-      {/* Dynamic Recipes Grid view */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {recipes.map(recipe => {
-          const ingredientsWithStockStatus = recipe.ingredients.map(ing => {
-            const pantryMatch = pantry.find(p => p.name.toLowerCase() === ing.name.toLowerCase() && p.quantity > 0);
-            return { ...ing, isStocked: !!pantryMatch, stockQty: pantryMatch ? pantryMatch.quantity : 0 };
-          });
-
-          const stockedCount = ingredientsWithStockStatus.filter(i => i.isStocked).length;
-          const totalCount = recipe.ingredients.length;
-
-          return (
-            <div key={recipe.id} className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative">
-              {recipe.id.startsWith('manual_rec_') || recipe.id.startsWith('ai_rec_') ? (
-                <button 
-                  onClick={() => handleDeleteRecipe(recipe.id)}
-                  className="absolute right-4 top-4 p-1.5 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
-                  title="Purge recipe"
-                >
-                  <Trash2 size={13} />
-                </button>
-              ) : null}
-
-              <div>
-                <div className="flex justify-between items-start mb-3">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full flex items-center gap-1">
-                    {recipe.id.startsWith('ai_rec_') && <Sparkles size={10} />}
-                    {recipe.id.startsWith('ai_rec_') ? 'AI Generation' : 'Local Formula'}
-                  </span>
-                  <div className="flex items-center gap-1.5 text-xs text-gray-400 font-semibold pr-8">
-                    <Clock size={13} />
-                    <span>{recipe.prepTime} prep • {recipe.cookTime} cook</span>
-                  </div>
-                </div>
-
-                <h3 className="text-lg font-bold text-gray-900 font-serif leading-snug mb-1 pr-6">{recipe.name}</h3>
-                <p className="text-xs text-gray-500 italic mb-4 leading-relaxed">"{recipe.tagline}"</p>
-
-                {/* Categories Hit Checklist */}
-                <div className="mb-4">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2 font-semibold">Targets Fulfillments:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {Object.entries(recipe.dozenServings).map(([catId, amount]) => {
-                      const cat = dailyDozenCategories.find(c => c.id === catId);
-                      if (!cat || amount <= 0) return null;
-                      return (
-                        <span key={catId} className={`text-[9px] px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 ${cat.bg} ${cat.text}`}>
-                          <CheckCircle2 size={10} />
-                          {cat.label}: +{amount}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Stock status indicator details */}
-                <div className="bg-gray-50 rounded-2xl p-4 mb-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-semibold">Ingredients Required:</span>
-                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
-                      {stockedCount} / {totalCount} Stocked
-                    </span>
-                  </div>
-                  <ul className="space-y-1.5">
-                    {ingredientsWithStockStatus.map((ing, idx) => (
-                      <li key={idx} className="flex justify-between items-center text-xs">
-                        <span className="text-gray-700 flex items-center gap-1.5 font-medium">
-                          <span className="text-gray-400">•</span>
-                          {ing.name} <span className="text-gray-400 text-[10px]">({ing.amount})</span>
-                        </span>
-                        
-                        {ing.isStocked ? (
-                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5">
-                            <Check size={10} /> In Stock ({ing.stockQty})
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full font-medium">
-                            Missing
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="mb-6">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2 font-semibold font-serif">Directions:</span>
-                  <ol className="list-decimal list-inside text-[11px] text-gray-600 space-y-1 leading-relaxed">
-                    {recipe.steps.map((step, idx) => (
-                      <li key={idx} className="pl-1">
-                        <span className="font-serif text-gray-800">{step}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              </div>
-
-              {/* Integrated Kitchen Actions */}
-              <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => handleAddMissingRecipeIngredientsToGrocery(recipe)}
-                  className="flex-1 bg-white border border-gray-200 text-gray-700 font-bold text-xs py-2.5 px-4 rounded-xl hover:bg-gray-50 flex items-center justify-center gap-2 transition-all shadow-sm"
-                >
-                  <ListPlus size={14} className="text-blue-500" />
-                  <span>Get Ingredients</span>
-                </button>
-
-                <div className="relative group/log flex-1">
-                  <button
-                    className="w-full bg-purple-500 text-white font-bold text-xs py-2.5 px-4 rounded-xl hover:bg-purple-600 flex items-center justify-center gap-2 transition-all shadow-md"
-                  >
-                    <Play size={12} fill="currentColor" />
-                    <span>Cook & Log Intake</span>
-                  </button>
-                  
-                  {/* Select target meal slot dropdown */}
-                  <div className="absolute bottom-full left-0 right-0 mb-1 hidden group-hover/log:block bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden py-1 z-20">
-                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider px-3 py-1 bg-gray-50">Select Slot:</p>
-                    {mealSlots.map(slot => (
-                      <button
-                        key={slot.id}
-                        type="button"
-                        onClick={() => handleCookAndLogRecipe(recipe, slot.id, setPantry)}
-                        className="w-full text-left px-4 py-2 text-xs hover:bg-purple-50 text-gray-700 font-semibold"
-                      >
-                        Add to {slot.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }

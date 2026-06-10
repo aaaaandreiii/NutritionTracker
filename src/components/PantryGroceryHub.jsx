@@ -1,362 +1,390 @@
 import React, { useState } from 'react';
-import { Archive, Trash2, ShoppingCart, Plus, CheckSquare, Square, Check, Sparkles } from 'lucide-react';
-import { dailyDozenCategories, foodDB } from '../data/constants';
+import { Plus, Trash2, Check, ShoppingBag, PlusCircle, AlertTriangle, Sparkles, ShoppingCart } from 'lucide-react';
+import { DAILY_DOZEN_CATEGORIES } from '../data/constants';
 
 export default function PantryGroceryHub({
   pantry,
   setPantry,
   groceryList,
   setGroceryList,
-  triggerToast,
-  grocerySuggestions,
-  handleAddToPantry,
-  handleAddToGrocery,
-  handleRemovePantryItem,
-  handleUpdatePantryQty,
-  handleGroceryCheckToggle,
-  handleStockCheckedGroceries,
-  handleRemoveGroceryItem
+  dailyDozenDeficits,
+  addLogFromPantry
 }) {
-  const [manualGroceryItem, setManualGroceryItem] = useState('');
-  
-  // Custom manual pantry item creator state
-  const [customName, setCustomName] = useState('');
-  const [customCals, setCustomCals] = useState('');
-  const [customCategoryServings, setCustomCategoryServings] = useState(
-    dailyDozenCategories.reduce((acc, cat) => ({ ...acc, [cat.id]: 0 }), {})
-  );
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemCategory, setNewItemCategory] = useState('beans');
+  const [newItemQty, setNewItemQty] = useState(1);
 
-  const handleAddManualGrocery = (e) => {
+  const [newGroceryItem, setNewGroceryItem] = useState('');
+  const [newGroceryCategory, setNewGroceryCategory] = useState('beans');
+
+  // Add Item to Pantry
+  const handleAddPantry = (e) => {
     e.preventDefault();
-    if (!manualGroceryItem.trim()) return;
+    if (!newItemName.trim()) return;
 
-    const matchedFood = foodDB.find(f => f.name.toLowerCase() === manualGroceryItem.trim().toLowerCase());
-    
-    const newGrocery = {
-      id: `g_manual_${Date.now()}`,
-      name: manualGroceryItem.trim(),
-      cals: matchedFood ? matchedFood.cals : 100,
-      servings: matchedFood ? matchedFood.servings : {},
-      quantity: 1,
-      checked: false
-    };
+    const existingIndex = pantry.findIndex(
+      item => item.name.toLowerCase() === newItemName.trim().toLowerCase()
+    );
 
-    setGroceryList(prev => [...prev, newGrocery]);
-    setManualGroceryItem('');
-    triggerToast(`Added "${newGrocery.name}" to the shopping list.`, 'success');
+    if (existingIndex > -1) {
+      const updated = [...pantry];
+      const calculatedQty = (updated[existingIndex].qty !== undefined ? updated[existingIndex].qty : updated[existingIndex].quantity || 0) + Number(newItemQty);
+      updated[existingIndex].qty = calculatedQty;
+      updated[existingIndex].quantity = calculatedQty;
+      setPantry(updated);
+    } else {
+      setPantry([
+        ...pantry,
+        {
+          id: Date.now().toString(),
+          name: newItemName.trim(),
+          category: newItemCategory,
+          qty: Number(newItemQty),
+          quantity: Number(newItemQty)
+        }
+      ]);
+    }
+    setNewItemName('');
+    setNewItemQty(1);
   };
 
-  const handleAddCustomPantrySubmit = (e) => {
-    e.preventDefault();
-    if (!customName.trim()) return;
+  // Delete from Pantry
+  const handleDeletePantry = (id) => {
+    setPantry(pantry.filter(item => item.id !== id));
+  };
 
-    const nonZeroServings = {};
-    Object.entries(customCategoryServings).forEach(([catId, val]) => {
-      if (val > 0) nonZeroServings[catId] = val;
+  // Adjust Pantry Quantity
+  const handleAdjustQty = (id, amount) => {
+    setPantry(pantry.map(item => {
+      if (item.id === id) {
+        const currentVal = item.qty !== undefined ? item.qty : item.quantity || 0;
+        const nextQty = currentVal + amount;
+        const safeQty = nextQty < 0 ? 0 : nextQty;
+        return { ...item, qty: safeQty, quantity: safeQty };
+      }
+      return item;
+    }));
+  };
+
+  // Add Item to Grocery List
+  const handleAddGrocery = (e) => {
+    e.preventDefault();
+    if (!newGroceryItem.trim()) return;
+
+    const existing = groceryList.find(
+      g => g.name.toLowerCase() === newGroceryItem.trim().toLowerCase()
+    );
+
+    if (!existing) {
+      setGroceryList([
+        ...groceryList,
+        {
+          id: Date.now().toString(),
+          name: newGroceryItem.trim(),
+          category: newGroceryCategory,
+          checked: false
+        }
+      ]);
+    }
+    setNewGroceryItem('');
+  };
+
+  // Toggle Grocery Checked status
+  const handleToggleGrocery = (id) => {
+    setGroceryList(groceryList.map(item => 
+      item.id === id ? { ...item, checked: !item.checked } : item
+    ));
+  };
+
+  // Purchase Checked Grocery Items (adds them to pantry, clears from grocery)
+  const handlePurchaseChecked = () => {
+    const checkedItems = groceryList.filter(item => item.checked);
+    if (checkedItems.length === 0) return;
+
+    const updatedPantry = [...pantry];
+    checkedItems.forEach(item => {
+      const existingIdx = updatedPantry.findIndex(
+        p => p.name.toLowerCase() === item.name.toLowerCase()
+      );
+      const itemQuantity = item.qty || item.quantity || 1;
+      if (existingIdx > -1) {
+        const calculatedQty = (updatedPantry[existingIdx].qty !== undefined ? updatedPantry[existingIdx].qty : updatedPantry[existingIdx].quantity || 0) + itemQuantity;
+        updatedPantry[existingIdx].qty = calculatedQty;
+        updatedPantry[existingIdx].quantity = calculatedQty;
+      } else {
+        updatedPantry.push({
+          id: Date.now().toString() + Math.random(),
+          name: item.name,
+          category: item.category,
+          qty: itemQuantity,
+          quantity: itemQuantity
+        });
+      }
     });
 
-    const newCustomFood = {
-      id: `p_custom_${Date.now()}`,
-      name: customName,
-      cals: parseInt(customCals) || 0,
-      servings: nonZeroServings,
-      quantity: 3
-    };
+    setPantry(updatedPantry);
+    setGroceryList(groceryList.filter(item => !item.checked));
+  };
 
-    setPantry(prev => [...prev, newCustomFood]);
-    
-    // Reset form fields
-    setCustomName('');
-    setCustomCals('');
-    setCustomCategoryServings(dailyDozenCategories.reduce((acc, cat) => ({ ...acc, [cat.id]: 0 }), {}));
-    
-    triggerToast(`Added "${newCustomFood.name}" straight to your Pantry!`, 'success');
+  // Add Recommended Deficiency Item to Grocery List
+  const handleAddSuggestedToGrocery = (name, category) => {
+    const existing = groceryList.find(g => g.name.toLowerCase() === name.toLowerCase());
+    if (!existing) {
+      setGroceryList([
+        ...groceryList,
+        {
+          id: Date.now().toString() + Math.random(),
+          name,
+          category,
+          checked: false
+        }
+      ]);
+    }
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in duration-300">
-      
-      {/* Left Segment: Pantry Management Column */}
-      <div className="lg:col-span-7 space-y-8">
-        <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <div>
-              <h2 className="text-xl font-serif text-gray-900 font-bold flex items-center gap-2">
-                <Archive size={18} className="text-blue-500" />
-                Pantry Inventory
-              </h2>
-              <p className="text-xs text-gray-400 mt-1">
-                Maintain home-stocked ingredients. Keeps meal slot recommendations highly accurate.
-              </p>
-            </div>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      {/* LEFT COLUMN: PANTRY MANAGEMENT */}
+      <div className="lg:col-span-7 bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5 text-emerald-400" /> My Pantry
+            </h2>
+            <p className="text-xs text-zinc-400 mt-1">Ingredients currently stocked in your kitchen</p>
           </div>
+          <span className="bg-emerald-950/50 text-emerald-400 border border-emerald-800/60 text-xs px-2.5 py-1 rounded-full font-medium">
+            {pantry.reduce((acc, curr) => acc + curr.qty, 0)} Items Stocked
+          </span>
+        </div>
 
-          {pantry.length === 0 ? (
-            <div className="text-center py-10 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
-              <Archive size={32} className="mx-auto text-gray-300 mb-2" />
-              <p className="text-xs text-gray-400 italic">No items logged at home. Use the checkers below to stock up.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-              {pantry.map(item => (
-                <div key={item.id} className="p-3 border border-gray-100 rounded-2xl bg-white flex flex-col justify-between shadow-xs">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-xs font-bold text-gray-800 block truncate">{item.name}</span>
-                      <span className="text-[10px] text-gray-400 block mt-0.5">{item.cals} kcal per item</span>
+        {/* Add Pantry Item Form */}
+        <form onSubmit={handleAddPantry} className="bg-zinc-950 p-4 rounded-xl border border-zinc-800/80 mb-6 flex flex-col md:flex-row gap-3">
+          <div className="flex-1">
+            <input
+              type="text"
+              placeholder="e.g., Organic Red Lentils"
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+              className="w-full bg-zinc-900 text-white rounded p-2 text-sm border border-zinc-800 placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+          <div className="flex gap-2">
+            <select
+              value={newItemCategory}
+              onChange={(e) => setNewItemCategory(e.target.value)}
+              className="bg-zinc-900 text-white rounded p-2 text-sm border border-zinc-800"
+            >
+              {DAILY_DOZEN_CATEGORIES.map(cat => (
+                <option key={cat.key} value={cat.key}>{cat.name}</option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min="1"
+              value={newItemQty}
+              onChange={(e) => setNewItemQty(e.target.value)}
+              className="w-16 bg-zinc-900 text-white rounded p-2 text-sm border border-zinc-800 text-center"
+            />
+            <button
+              type="submit"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded text-sm transition-colors flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> Add
+            </button>
+          </div>
+        </form>
+
+        {/* Pantry List */}
+        {pantry.length === 0 ? (
+          <div className="text-center py-12 bg-zinc-950 rounded-xl border border-dashed border-zinc-800">
+            <ShoppingBag className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+            <p className="text-zinc-400 text-sm">Your pantry is empty.</p>
+            <p className="text-xs text-zinc-600 mt-1">Add items above or move purchased items from your grocery list.</p>
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
+            {pantry.map(item => {
+              const catObj = DAILY_DOZEN_CATEGORIES.find(c => c.key === item.category);
+              const displayQty = item.qty !== undefined ? item.qty : item.quantity || 0;
+              return (
+                <div key={item.id} className="flex items-center justify-between bg-zinc-950 p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-colors">
+                  <div>
+                    <div className="font-medium text-white text-sm">{item.name}</div>
+                    <div className="text-xs text-zinc-500 flex items-center gap-1.5 mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      {catObj ? catObj.name : item.category}
                     </div>
-                    <button 
-                      onClick={() => handleRemovePantryItem(item.id)}
-                      className="p-1 text-gray-300 hover:text-rose-500 rounded"
-                      title="De-stock Pantry Item"
-                    >
-                      <Trash2 size={12} />
-                    </button>
                   </div>
-
-                  <div className="flex flex-wrap gap-1 my-2">
-                    {Object.entries(item.servings || {}).map(([catId, amt]) => {
-                      const catMeta = dailyDozenCategories.find(c => c.id === catId);
-                      if (!catMeta) return null;
-                      return (
-                        <span key={catId} className={`text-[8px] font-bold px-1 py-0.5 rounded ${catMeta.bg} ${catMeta.text}`}>
-                          {catMeta.label}: {amt}
-                        </span>
-                      );
-                    })}
-                  </div>
-
-                  <div className="flex items-center justify-between mt-1 pt-1.5 border-t border-gray-50">
-                    <span className="text-[9px] text-gray-400 font-bold uppercase">Inventory Qty</span>
-                    <div className="flex items-center gap-1">
-                      <button 
-                        onClick={() => handleUpdatePantryQty(item.id, Math.max(0, item.quantity - 1))}
-                        className="w-5 h-5 bg-gray-100 rounded text-xs hover:bg-gray-200 font-bold"
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center bg-zinc-900 rounded border border-zinc-800">
+                      <button
+                        onClick={() => handleAdjustQty(item.id, -1)}
+                        className="px-2.5 py-1 text-zinc-400 hover:text-white transition-colors"
                       >
                         -
                       </button>
-                      <span className="text-xs font-bold text-gray-800 px-2">{item.quantity}</span>
-                      <button 
-                        onClick={() => handleUpdatePantryQty(item.id, item.quantity + 1)}
-                        className="w-5 h-5 bg-gray-100 rounded text-xs hover:bg-gray-200 font-bold"
+                      <span className="px-2 text-sm font-semibold text-white">{displayQty}</span>
+                      <button
+                        onClick={() => handleAdjustQty(item.id, 1)}
+                        className="px-2.5 py-1 text-zinc-400 hover:text-white transition-colors"
                       >
                         +
                       </button>
                     </div>
+                    <button
+                      onClick={() => handleDeletePantry(item.id)}
+                      className="text-zinc-500 hover:text-rose-400 p-1 transition-colors"
+                      title="Remove from pantry"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* Preset Whole Foods Catalog additions */}
-          <div className="border-t border-gray-100 pt-6">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Preloaded Whole Foods (Quick Home Stocking)</h3>
-            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-1">
-              {foodDB.map(food => {
-                const inPantry = pantry.some(p => p.name.toLowerCase() === food.name.toLowerCase());
-                return (
-                  <button
-                    key={food.id}
-                    onClick={() => handleAddToPantry(food, 1)}
-                    className={`text-xs px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 transition-all ${
-                      inPantry 
-                        ? 'bg-blue-50 border-blue-200 text-blue-800' 
-                        : 'bg-white border-gray-100 hover:border-gray-200 text-gray-600'
-                    }`}
-                  >
-                    <Plus size={10} />
-                    <span>{food.name}</span>
-                    {inPantry && <span className="text-[8px] bg-blue-100 px-1 rounded font-bold">Have Stock</span>}
-                  </button>
-                );
-              })}
-            </div>
+              );
+            })}
           </div>
-
-          {/* Form to insert completely custom objects */}
-          <div className="border-t border-gray-100 pt-6 mt-6">
-            <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Add Custom Item to Pantry Stock</h3>
-            <form onSubmit={handleAddCustomPantrySubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Item Title</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Organic Black Chia Seeds" 
-                    value={customName}
-                    onChange={(e) => setCustomName(e.target.value)}
-                    required
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Estimated Calories</label>
-                  <input 
-                    type="number" 
-                    placeholder="e.g. 50" 
-                    value={customCals}
-                    onChange={(e) => setCustomCals(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white"
-                  />
-                </div>
-                <button 
-                  type="submit"
-                  disabled={!customName.trim()}
-                  className="w-full py-2.5 px-4 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shadow-sm shadow-blue-500/10"
-                >
-                  Confirm Stock Entry
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">Assign Dozen Portions</label>
-                <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto pr-1 border border-gray-50 p-2 rounded-xl bg-gray-50/20">
-                  {dailyDozenCategories.map(cat => (
-                    <div key={cat.id} className="flex items-center justify-between p-1 bg-white border border-gray-100 rounded-lg">
-                      <span className="text-[9px] text-gray-500 truncate mr-1 font-semibold">{cat.label}</span>
-                      <input 
-                        type="number" 
-                        step="0.5"
-                        min="0"
-                        max="5"
-                        value={customCategoryServings[cat.id]}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
-                          setCustomCategoryServings(prev => ({ ...prev, [cat.id]: val }));
-                        }}
-                        className="w-8 text-[10px] font-bold text-right border-none p-0 focus:ring-0"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Right Segment: Smart Shopping cart checklist list */}
+      {/* RIGHT COLUMN: GROCERY LIST & SMART RECOMMENDATIONS */}
       <div className="lg:col-span-5 space-y-8">
-        <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
-          <div className="mb-4">
-            <h2 className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
-              <ShoppingCart size={15} className="text-indigo-500" />
-              Active Grocery List
-            </h2>
-            <p className="text-xs text-gray-400 mt-1">Cross-reference items to instantly stock your home kitchen pantry.</p>
+        {/* GROCERY LIST CARD */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <ShoppingCart className="w-5 h-5 text-indigo-400" /> Grocery List
+              </h2>
+              <p className="text-xs text-zinc-400 mt-1">Manage food items to buy</p>
+            </div>
+            {groceryList.some(g => g.checked) && (
+              <button
+                onClick={handlePurchaseChecked}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium shadow"
+              >
+                <Check className="w-3.5 h-3.5" /> Buy Selected
+              </button>
+            )}
           </div>
 
-          <form onSubmit={handleAddManualGrocery} className="flex gap-2 my-4">
-            <input 
-              type="text" 
-              placeholder="Add grocery item manually..." 
-              value={manualGroceryItem}
-              onChange={(e) => setManualGroceryItem(e.target.value)}
-              className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white"
+          {/* Quick Add Grocery Form */}
+          <form onSubmit={handleAddGrocery} className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/85 flex gap-2 mb-4">
+            <input
+              type="text"
+              placeholder="Add item..."
+              value={newGroceryItem}
+              onChange={(e) => setNewGroceryItem(e.target.value)}
+              className="flex-1 bg-zinc-900 text-white rounded p-1.5 text-xs border border-zinc-800 focus:outline-none focus:border-indigo-500"
             />
-            <button 
-              type="submit"
-              className="px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+            <select
+              value={newGroceryCategory}
+              onChange={(e) => setNewGroceryCategory(e.target.value)}
+              className="bg-zinc-900 text-white rounded p-1.5 text-xs border border-zinc-800"
             >
-              <Plus size={14} />
-              <span>Add</span>
+              {DAILY_DOZEN_CATEGORIES.map(cat => (
+                <option key={cat.key} value={cat.key}>{cat.name}</option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="bg-indigo-600/80 hover:bg-indigo-500 text-white text-xs px-3 rounded flex items-center gap-1 transition-colors"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
             </button>
           </form>
 
+          {/* Grocery List Checkboxes */}
           {groceryList.length === 0 ? (
-            <div className="text-center py-8 bg-gray-50/50 rounded-2xl border border-dashed border-gray-100">
-              <ShoppingCart size={24} className="mx-auto text-gray-300 mb-1" />
-              <p className="text-[11px] text-gray-400 italic">No grocery items. Utilize recommendations or add items above!</p>
+            <div className="text-center py-8 bg-zinc-950 rounded-xl border border-dashed border-zinc-800">
+              <ShoppingCart className="w-10 h-10 text-zinc-700 mx-auto mb-2" />
+              <p className="text-zinc-500 text-xs">Your grocery list is empty.</p>
             </div>
           ) : (
-            <div className="space-y-2 mb-4 max-h-72 overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
               {groceryList.map(item => (
-                <div key={item.id} className="flex items-center justify-between p-2.5 bg-gray-50/30 border border-gray-100 rounded-xl hover:bg-gray-50/70 transition-all">
+                <div
+                  key={item.id}
+                  onClick={() => handleToggleGrocery(item.id)}
+                  className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer select-none transition-all ${
+                    item.checked
+                      ? 'bg-indigo-950/20 border-indigo-900/50 opacity-70'
+                      : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'
+                  }`}
+                >
                   <div className="flex items-center gap-2.5">
-                    <button 
-                      onClick={() => handleGroceryCheckToggle(item.id)}
-                      className="text-indigo-600 focus:outline-none"
-                    >
-                      {item.checked ? <CheckSquare size={16} /> : <Square size={16} className="text-gray-300" />}
-                    </button>
-                    <div>
-                      <span className={`text-xs font-semibold text-gray-800 ${item.checked ? 'line-through text-gray-400' : ''}`}>
-                        {item.name}
-                      </span>
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                      item.checked ? 'bg-indigo-600 border-indigo-500' : 'border-zinc-700'
+                    }`}>
+                      {item.checked && <Check className="w-3 h-3 text-white" />}
                     </div>
+                    <span className={`text-xs ${item.checked ? 'line-through text-zinc-500' : 'text-zinc-300'}`}>
+                      {item.name}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => handleRemoveGroceryItem(item.id)}
-                      className="text-gray-300 hover:text-rose-500 p-1"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
+                  <span className="text-[10px] uppercase tracking-wider text-zinc-600">
+                    {DAILY_DOZEN_CATEGORIES.find(c => c.key === item.category)?.name || item.category}
+                  </span>
                 </div>
               ))}
             </div>
           )}
-
-          {groceryList.length > 0 && (
-            <button 
-              onClick={handleStockCheckedGroceries}
-              className="w-full py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm shadow-indigo-500/10"
-            >
-              <Check size={14} />
-              <span>Checkout Checked Ingredients to Pantry</span>
-            </button>
-          )}
         </div>
 
-        {/* Dynamic grocery advisor segment */}
-        <div className="bg-[#EEF2F6] border border-blue-100 rounded-3xl p-6 shadow-sm">
-          <h3 className="text-xs font-bold text-blue-900 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-            <Sparkles size={14} className="text-blue-600" />
-            Deficiency Grocery Assistant
-          </h3>
-          <p className="text-xs text-blue-700/80 mb-4">
-            Highly recommended ingredients missing from your pantry that satisfy active daily dozen deficits:
+        {/* SMART GROCERY SUGGESTIONS */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-5 h-5 text-amber-400" />
+            <h3 className="text-md font-bold text-white">Smart Grocery Suggestions</h3>
+          </div>
+          <p className="text-xs text-zinc-400 mb-4">
+            Items suggested to purchase based on your current Daily Dozen deficits:
           </p>
 
-          {grocerySuggestions.length === 0 ? (
-            <div className="text-center py-6 bg-white/50 rounded-2xl">
-              <CheckCircle2 size={24} className="mx-auto text-emerald-500 mb-1" />
-              <p className="text-[11px] text-gray-500 italic">No items missing. Your home pantry satisfies all deficiencies!</p>
+          {dailyDozenDeficits.length === 0 ? (
+            <div className="p-4 bg-emerald-950/20 border border-emerald-900/40 rounded-xl text-center">
+              <p className="text-emerald-400 text-xs font-semibold">Targets Stocked!</p>
+              <p className="text-[11px] text-zinc-500 mt-0.5">You are fully on track to achieve all targets today.</p>
             </div>
           ) : (
             <div className="space-y-2.5">
-              {grocerySuggestions.map(sug => (
-                <div key={sug.id} className="bg-white p-3 rounded-2xl border border-blue-100 flex justify-between items-center shadow-xs">
-                  <div className="flex-1 pr-2">
-                    <span className="text-xs font-bold text-gray-800 block">{sug.name}</span>
-                    <div className="flex flex-wrap gap-1.5 mt-1 font-semibold">
-                      {sug.matchedCategories.map(({ catId, amt }) => {
-                        const meta = dailyDozenCategories.find(c => c.id === catId);
-                        return (
-                          <span key={catId} className={`text-[8px] px-1 py-0.5 rounded ${meta?.bg} ${meta?.text}`}>
-                            +{amt} {meta?.label}
-                          </span>
-                        );
-                      })}
+              {dailyDozenDeficits.slice(0, 3).map(def => {
+                const targetFood = DAILY_DOZEN_CATEGORIES.find(c => c.key === def.key);
+                const suggestedItem = targetFood ? targetFood.pantryItems[0] : null;
+
+                if (!suggestedItem) return null;
+
+                const alreadyInGrocery = groceryList.some(
+                  g => g.name.toLowerCase() === suggestedItem.toLowerCase()
+                );
+
+                return (
+                  <div key={def.key} className="flex items-center justify-between p-3 bg-zinc-950 rounded-xl border border-zinc-800">
+                    <div>
+                      <div className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
+                        <span className="text-rose-400 font-bold">-{def.lacking} serv.</span>
+                        lacking in {targetFood?.name}
+                      </div>
+                      <div className="text-xs font-bold text-white mt-1">👉 Buy {suggestedItem}</div>
                     </div>
+                    <button
+                      onClick={() => handleAddSuggestedToGrocery(suggestedItem, def.key)}
+                      disabled={alreadyInGrocery}
+                      className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors ${
+                        alreadyInGrocery
+                          ? 'bg-zinc-900 text-zinc-600 border border-zinc-800'
+                          : 'bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-zinc-700'
+                      }`}
+                    >
+                      {alreadyInGrocery ? 'Added' : 'Add to List'}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handleAddToGrocery(sug)}
-                    className="px-2.5 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-bold rounded-lg flex items-center gap-1 shrink-0 transition-colors"
-                  >
-                    <Plus size={10} />
-                    <span>Buy Checklist</span>
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
-
       </div>
-
     </div>
   );
 }

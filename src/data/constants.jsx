@@ -77,19 +77,21 @@ export const CategoryIcons = {
 };
 
 export const dailyDozenCategories = [
-  { id: 'beans', label: 'Beans & Legumes', target: 3, unit: 'servings', color: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50/75', description: 'Chickpeas, black beans, lentils, edamame, tofu, hummus.' },
-  { id: 'berries', label: 'Berries', target: 1, unit: 'serving', color: 'bg-purple-500', text: 'text-purple-700', bg: 'bg-purple-50/75', description: 'Blueberries, raspberries, strawberries, blackberries, cherries.' },
-  { id: 'otherFruits', label: 'Other Fruits', target: 3, unit: 'servings', color: 'bg-pink-500', text: 'text-pink-700', bg: 'bg-pink-50/75', description: 'Apples, bananas, citrus fruits, grapes, pears, mangoes.' },
-  { id: 'cruciferous', label: 'Cruciferous Veg', target: 1, unit: 'serving', color: 'bg-green-600', text: 'text-green-800', bg: 'bg-green-50/75', description: 'Broccoli, kale, cabbage, brussels sprouts, cauliflower, arugula.' },
-  { id: 'greens', label: 'Salad Greens', target: 2, unit: 'servings', color: 'bg-teal-500', text: 'text-teal-700', bg: 'bg-teal-50/75', description: 'Spinach, mixed greens, Swiss chard, romaine lettuce.' },
-  { id: 'otherVeggies', label: 'Other Veggies', target: 2, unit: 'servings', color: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50/75', description: 'Carrots, bell peppers, tomatoes, mushrooms, garlic, onions.' },
-  { id: 'flaxseeds', label: 'Flaxseeds', target: 1, unit: 'serving', color: 'bg-orange-500', text: 'text-orange-700', bg: 'bg-orange-50/75', description: '1 tbsp ground flaxseeds daily.' },
-  { id: 'nutsSeeds', label: 'Nuts & Seeds', target: 1, unit: 'serving', color: 'bg-rose-500', text: 'text-rose-700', bg: 'bg-rose-50/75', description: 'Walnuts, almonds, chia seeds, pumpkin seeds, hemp seeds.' },
-  { id: 'herbsSpices', label: 'Herbs & Spices', target: 1, unit: 'serving', color: 'bg-yellow-600', text: 'text-yellow-800', bg: 'bg-yellow-50/75', description: '1/4 tsp turmeric plus any other fresh/dry herbs.' },
-  { id: 'wholeGrains', label: 'Whole Grains', target: 3, unit: 'servings', color: 'bg-amber-600', text: 'text-amber-800', bg: 'bg-amber-50/75', description: 'Oatmeal, brown rice, quinoa, wild rice, whole wheat pasta.' },
-  { id: 'beverages', label: 'Beverages', target: 5, unit: 'servings', color: 'bg-blue-500', text: 'text-blue-700', bg: 'bg-blue-50/75', description: 'Water, green tea, hibiscus tea (approx. 12 oz / 350ml per serving).' },
-  { id: 'exercise', label: 'Exercise', target: 1, unit: 'session', color: 'bg-indigo-500', text: 'text-indigo-700', bg: 'bg-indigo-50/75', description: '40 mins of vigorous or 90 mins of moderate physical activity.' }
+  { id: 'beans', key: 'beans', label: 'Beans & Legumes', name: 'Beans & Legumes', target: 3, unit: 'servings', color: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50/75', description: 'Chickpeas, black beans, lentils, edamame, tofu, hummus.', pantryItems: ['Chickpeas', 'Lentils', 'Black Beans', 'Tofu'] },
+  { id: 'berries', key: 'berries', label: 'Berries', name: 'Berries', target: 1, unit: 'serving', color: 'bg-purple-500', text: 'text-purple-700', bg: 'bg-purple-50/75', description: 'Blueberries, raspberries, strawberries, blackberries, cherries.', pantryItems: ['Blueberries', 'Strawberries', 'Raspberries'] },
+  { id: 'otherFruits', key: 'otherFruits', label: 'Other Fruits', name: 'Other Fruits', target: 3, unit: 'servings', color: 'bg-pink-500', text: 'text-pink-700', bg: 'bg-pink-50/75', description: 'Apples, bananas, citrus fruits, grapes, pears, mangoes.', pantryItems: ['Apples', 'Bananas', 'Oranges'] },
+  { id: 'cruciferous', key: 'cruciferous', label: 'Cruciferous Veg', name: 'Cruciferous Veg', target: 1, unit: 'serving', color: 'bg-green-600', text: 'text-green-800', bg: 'bg-green-50/75', description: 'Broccoli, kale, cabbage, brussels sprouts, cauliflower, arugula.', pantryItems: ['Broccoli', 'Kale', 'Brussels Sprouts'] },
+  { id: 'greens', key: 'greens', label: 'Salad Greens', name: 'Salad Greens', target: 2, unit: 'servings', color: 'bg-teal-500', text: 'text-teal-700', bg: 'bg-teal-50/75', description: 'Spinach, mixed greens, Swiss chard, romaine lettuce.', pantryItems: ['Spinach', 'Romaine Lettuce', 'Mixed Greens'] },
+  { id: 'otherVeggies', key: 'otherVeggies', label: 'Other Veggies', name: 'Other Veggies', target: 2, unit: 'servings', color: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50/75', description: 'Carrots, bell peppers, tomatoes, mushrooms, garlic, onions.', pantryItems: ['Carrots', 'Bell Peppers', 'Tomatoes'] },
+  { id: 'flaxseeds', key: 'flaxseeds', label: 'Flaxseeds', name: 'Flaxseeds', target: 1, unit: 'serving', color: 'bg-orange-500', text: 'text-orange-700', bg: 'bg-orange-50/75', description: '1 tbsp ground flaxseeds daily.', pantryItems: ['Ground Flaxseeds'] },
+  { id: 'nutsSeeds', key: 'nutsSeeds', label: 'Nuts & Seeds', name: 'Nuts & Seeds', target: 1, unit: 'serving', color: 'bg-rose-500', text: 'text-rose-700', bg: 'bg-rose-50/75', description: 'Walnuts, almonds, chia seeds, pumpkin seeds, hemp seeds.', pantryItems: ['Walnuts', 'Almonds', 'Chia Seeds'] },
+  { id: 'herbsSpices', key: 'herbsSpices', label: 'Herbs & Spices', name: 'Herbs & Spices', target: 1, unit: 'serving', color: 'bg-yellow-600', text: 'text-yellow-800', bg: 'bg-yellow-50/75', description: '1/4 tsp turmeric plus any other fresh/dry herbs.', pantryItems: ['Turmeric', 'Ginger', 'Turmeric Spice'] },
+  { id: 'wholeGrains', key: 'wholeGrains', label: 'Whole Grains', name: 'Whole Grains', target: 3, unit: 'servings', color: 'bg-amber-600', text: 'text-amber-800', bg: 'bg-amber-50/75', description: 'Oatmeal, brown rice, quinoa, wild rice, whole wheat pasta.', pantryItems: ['Oatmeal', 'Brown Rice', 'Quinoa'] },
+  { id: 'beverages', key: 'beverages', label: 'Beverages', name: 'Beverages', target: 5, unit: 'servings', color: 'bg-blue-500', text: 'text-blue-700', bg: 'bg-blue-50/75', description: 'Water, green tea, hibiscus tea (approx. 12 oz / 350ml per serving).', pantryItems: ['Green Tea', 'Hibiscus Tea', 'Water'] },
+  { id: 'exercise', key: 'exercise', label: 'Exercise', name: 'Exercise', target: 1, unit: 'session', color: 'bg-indigo-500', text: 'text-indigo-700', bg: 'bg-indigo-50/75', description: '40 mins of vigorous or 90 mins of moderate physical activity.', pantryItems: ['Moderate Exercise', 'Vigorous Activity'] }
 ];
+
+export const DAILY_DOZEN_CATEGORIES = dailyDozenCategories;
 
 export const foodDB = [
   { id: 'f1', name: 'Power Oats w/ Flax & Berries', cals: 320, servings: { wholeGrains: 2, berries: 1, flaxseeds: 1 }, tags: ['breakfast', 'morningSnack'] },
