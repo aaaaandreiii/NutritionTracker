@@ -76,7 +76,7 @@ export const CategoryIcons = {
   )
 };
 
-export const dailyDozenCategories = [
+export const DAILY_DOZEN_CATEGORIES = [
   { id: 'beans', key: 'beans', label: 'Beans & Legumes', name: 'Beans & Legumes', target: 3, unit: 'servings', color: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50/75', description: 'Chickpeas, black beans, lentils, edamame, tofu, hummus.', pantryItems: ['Chickpeas', 'Lentils', 'Black Beans', 'Tofu'] },
   { id: 'berries', key: 'berries', label: 'Berries', name: 'Berries', target: 1, unit: 'serving', color: 'bg-purple-500', text: 'text-purple-700', bg: 'bg-purple-50/75', description: 'Blueberries, raspberries, strawberries, blackberries, cherries.', pantryItems: ['Blueberries', 'Strawberries', 'Raspberries'] },
   { id: 'otherFruits', key: 'otherFruits', label: 'Other Fruits', name: 'Other Fruits', target: 3, unit: 'servings', color: 'bg-pink-500', text: 'text-pink-700', bg: 'bg-pink-50/75', description: 'Apples, bananas, citrus fruits, grapes, pears, mangoes.', pantryItems: ['Apples', 'Bananas', 'Oranges'] },
@@ -91,7 +91,8 @@ export const dailyDozenCategories = [
   { id: 'exercise', key: 'exercise', label: 'Exercise', name: 'Exercise', target: 1, unit: 'session', color: 'bg-indigo-500', text: 'text-indigo-700', bg: 'bg-indigo-50/75', description: '40 mins of vigorous or 90 mins of moderate physical activity.', pantryItems: ['Moderate Exercise', 'Vigorous Activity'] }
 ];
 
-export const DAILY_DOZEN_CATEGORIES = dailyDozenCategories;
+// Fallback to preserve case tolerance inside legacy imports
+export const dailyDozenCategories = DAILY_DOZEN_CATEGORIES;
 
 export const foodDB = [
   { id: 'f1', name: 'Power Oats w/ Flax & Berries', cals: 320, servings: { wholeGrains: 2, berries: 1, flaxseeds: 1 }, tags: ['breakfast', 'morningSnack'] },
@@ -108,12 +109,7 @@ export const foodDB = [
   { id: 'f12', name: 'Apple slices with Almond Butter', cals: 220, servings: { otherFruits: 1, nutsSeeds: 1 }, tags: ['morningSnack', 'afternoonSnack'] },
   { id: 'f13', name: 'Tall Glass of Pure Water', cals: 0, servings: { beverages: 1 }, tags: ['breakfast', 'morningSnack', 'afternoonSnack', 'lunch', 'dinner'] },
   { id: 'f14', name: 'Three-Bean Chili with Brown Rice', cals: 480, servings: { beans: 2.5, wholeGrains: 1.5, otherVeggies: 1.5, herbsSpices: 0.5 }, tags: ['lunch', 'dinner'] },
-  { id: 'f15', name: 'Mashed Avocado on Whole Wheat Toast', cals: 260, servings: { wholeGrains: 1, nutsSeeds: 0.5, otherVeggies: 0.5 }, tags: ['breakfast', 'morningSnack', 'afternoonSnack'] },
-  { id: 'f16', name: 'Steamed Brussels Sprouts with Turmeric', cals: 90, servings: { cruciferous: 1.5, herbsSpices: 0.5 }, tags: ['lunch', 'dinner', 'afternoonSnack'] },
-  { id: 'f17', name: 'Chia Seed Pudding with Strawberries', cals: 180, servings: { nutsSeeds: 1, berries: 1, beverages: 0.5 }, tags: ['breakfast', 'morningSnack', 'afternoonSnack'] },
-  { id: 'f18', name: 'Mixed Roasted Seeds Mix', cals: 140, servings: { nutsSeeds: 1 }, tags: ['morningSnack', 'afternoonSnack'] },
-  { id: 'f19', name: 'Ground Flaxseed Spoonful', cals: 40, servings: { flaxseeds: 1 }, tags: ['breakfast', 'morningSnack', 'afternoonSnack', 'lunch', 'dinner'] },
-  { id: 'f20', name: 'Steamed Asparagus & Garlic', cals: 60, servings: { otherVeggies: 1.5 }, tags: ['lunch', 'dinner'] }
+  { id: 'f15', name: 'Mashed Avocado on Whole Wheat Toast', cals: 260, servings: { wholeGrains: 1, nutsSeeds: 0.5, otherVeggies: 0.5 }, tags: ['breakfast', 'morningSnack', 'afternoonSnack'] }
 ];
 
 export const healthyRecipesDB = [
@@ -126,76 +122,37 @@ export const healthyRecipesDB = [
     cals: 380,
     dozenServings: { beans: 2, cruciferous: 0.5, greens: 1, otherVeggies: 1, herbsSpices: 1 },
     ingredients: [
-      { name: "Brown Lentils", amount: "1 cup", category: "beans" },
+      { name: "Lentils", amount: "1 cup", category: "beans" },
       { name: "Spinach", amount: "2 cups", category: "greens" },
-      { name: "Broccoli Florets", amount: "1/2 cup", category: "cruciferous" },
+      { name: "Broccoli", amount: "1/2 cup", category: "cruciferous" },
       { name: "Carrots", amount: "1 medium", category: "otherVeggies" },
-      { name: "Ground Turmeric", amount: "1/4 tsp", category: "herbsSpices" }
+      { name: "Turmeric", amount: "1/4 tsp", category: "herbsSpices" }
     ],
     steps: [
       "In a medium pot, boil the brown lentils in 3 cups of water for 20 minutes until tender.",
-      "Steam the broccoli florets and sliced carrots for the last 5 minutes over the boiling lentils using a steam basket.",
-      "Drain lentils, then toss together in a large bowl with the fresh spinach leaves (they will wilt naturally from the warmth).",
-      "Dust with the ground turmeric and a pinch of black pepper (to activate the curcumin) before serving."
+      "Steam the broccoli florets and sliced carrots for the last 5 minutes.",
+      "Drain lentils, then toss together in a large bowl with the fresh spinach leaves.",
+      "Dust with the ground turmeric and a pinch of black pepper before serving."
     ]
   },
   {
     id: 'rec2',
     name: "Gut-Biome Booster Berry Oatmeal",
-    tagline: "Rich in beta-glucans and prebiotics to maximize digestion health and natural energy levels.",
+    tagline: "Rich in beta-glucans and prebiotics to maximize digestion health.",
     prepTime: "5 mins",
     cookTime: "8 mins",
     cals: 340,
     dozenServings: { wholeGrains: 2, berries: 1, flaxseeds: 1, nutsSeeds: 0.5 },
     ingredients: [
-      { name: "Rolled Oats", amount: "1/2 cup", category: "wholeGrains" },
+      { name: "Oatmeal", amount: "1/2 cup", category: "wholeGrains" },
       { name: "Blueberries", amount: "1/2 cup", category: "berries" },
       { name: "Ground Flaxseeds", amount: "1 tbsp", category: "flaxseeds" },
       { name: "Walnuts", amount: "2 tbsp", category: "nutsSeeds" }
     ],
     steps: [
-      "Combine rolled oats with 1 cup of water or unsweetened soy milk in a saucepan. Bring to a boil, then simmer for 5 minutes.",
+      "Combine rolled oats with 1 cup of water or unsweetened soy milk in a saucepan. Simmer for 5 minutes.",
       "Remove from heat and stir in the fresh or frozen blueberries.",
-      "Top with ground flaxseeds and crushed walnuts to provide a dense fiber matrix for gut microbes."
-    ]
-  },
-  {
-    id: 'rec3',
-    name: "Antioxidant Rich Cruciferous Power Salad",
-    tagline: "A crunchy, satisfying raw salad optimized for sulforaphane intake and cellular defense.",
-    prepTime: "15 mins",
-    cookTime: "0 mins",
-    cals: 290,
-    dozenServings: { cruciferous: 1, greens: 1, otherFruits: 1, nutsSeeds: 1 },
-    ingredients: [
-      { name: "Chopped Kale", amount: "2 cups", category: "greens" },
-      { name: "Shredded Brussels Sprouts", amount: "1/2 cup", category: "cruciferous" },
-      { name: "Apple", amount: "1 medium, chopped", category: "otherFruits" },
-      { name: "Pumpkin Seeds", amount: "2 tbsp", category: "nutsSeeds" }
-    ],
-    steps: [
-      "Wash and finely chop kale leaves, then massage them with a squeeze of fresh lemon juice for 2 minutes to soften.",
-      "Add the shredded Brussels sprouts and chopped apple slices.",
-      "Toss with pumpkin seeds and a touch of balsamic vinegar. Serve cold."
-    ]
-  },
-  {
-    id: 'rec4',
-    name: "Heart-Protective Spiced Chia Drink",
-    tagline: "Rich in omega-3 fatty acids and heart-protective polyphenols.",
-    prepTime: "5 mins",
-    cookTime: "5 mins (steeping)",
-    cals: 160,
-    dozenServings: { nutsSeeds: 1, beverages: 1, herbsSpices: 0.5 },
-    ingredients: [
-      { name: "Chia Seeds", amount: "2 tbsp", category: "nutsSeeds" },
-      { name: "Hibiscus Tea Bag", amount: "1 bag", category: "beverages" },
-      { name: "Ginger Root", amount: "1/2 inch slice", category: "herbsSpices" }
-    ],
-    steps: [
-      "Steep the Hibiscus tea bag and ginger slice in 12 oz of boiling water for 5 minutes.",
-      "Let cool, remove tea bag/ginger, then whisk in the chia seeds vigorously.",
-      "Allow to sit for 10 minutes until a gel forms. Serve chilled or room temperature."
+      "Top with ground flaxseeds and crushed walnuts."
     ]
   }
 ];
@@ -203,8 +160,7 @@ export const healthyRecipesDB = [
 export const goalPresets = {
   'Standard Daily Dozen': { beans: 3, berries: 1, otherFruits: 3, cruciferous: 1, greens: 2, otherVeggies: 2, flaxseeds: 1, nutsSeeds: 1, herbsSpices: 1, wholeGrains: 3, beverages: 5, exercise: 1, label: "Dr. Greger's Standard recommendations for optimal life expectancy." },
   'Athletic Fuel': { beans: 4, berries: 1.5, otherFruits: 4, cruciferous: 1, greens: 2.5, otherVeggies: 2.5, flaxseeds: 1.5, nutsSeeds: 1.5, herbsSpices: 1, wholeGrains: 5, beverages: 7, exercise: 1.5, label: "Slightly boosted macros, extra hydration, and grain servings for energy." },
-  'Gut Microbiome Booster': { beans: 4, berries: 2, otherFruits: 3, cruciferous: 2, greens: 3, otherVeggies: 3, flaxseeds: 1, nutsSeeds: 1, herbsSpices: 1.5, wholeGrains: 3, beverages: 5, exercise: 1, label: "Increased diversity, higher fiber counts, and cruciferous leafy greens." },
-  'Heart Protective / Low Carb': { beans: 2.5, berries: 1.5, otherFruits: 2, cruciferous: 2, greens: 3, otherVeggies: 3, flaxseeds: 1.5, nutsSeeds: 1.5, herbsSpices: 1.5, wholeGrains: 1.5, beverages: 6, exercise: 1, label: "Focused heavily on healthy fats, antioxidants, and dark leafy greens." }
+  'Gut Microbiome Booster': { beans: 4, berries: 2, otherFruits: 3, cruciferous: 2, greens: 3, otherVeggies: 3, flaxseeds: 1, nutsSeeds: 1, herbsSpices: 1.5, wholeGrains: 3, beverages: 5, exercise: 1, label: "Increased diversity, higher fiber counts, and cruciferous leafy greens." }
 };
 
 export const mealSlots = [
