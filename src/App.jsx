@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  Activity, Target, ShoppingBag, ChefHat, ChevronDown, CheckCircle2, AlertTriangle 
+  Activity, Target, ShoppingBag, ChefHat, ChevronDown, CheckCircle2, AlertTriangle, Sparkles 
 } from 'lucide-react';
 
 import { DAILY_DOZEN_CATEGORIES, goalPresets, mealSlots, healthyRecipesDB } from './data/constants';
@@ -8,12 +8,13 @@ import Dashboard from './components/Dashboard';
 import PantryGroceryHub from './components/PantryGroceryHub';
 import RecipesHub from './components/RecipesHub';
 import MealLoggerModal from './components/MealLoggerModal';
+import SugarPAI from './components/SugarPAI';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState(() => {
     // Initial router check based on current hash
     const hash = window.location.hash.replace('#/', '');
-    return ['dashboard', 'pantry', 'recipes'].includes(hash) ? hash : 'dashboard';
+    return ['sugar-pai', 'dashboard', 'pantry', 'recipes'].includes(hash) ? hash : 'dashboard';
   });
   
   const [selectedPreset, setSelectedPreset] = useState('Standard Daily Dozen');
@@ -53,7 +54,7 @@ export default function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#/', '');
-      if (['dashboard', 'pantry', 'recipes'].includes(hash)) {
+      if (['sugar-pai', 'dashboard', 'pantry', 'recipes'].includes(hash)) {
         setActiveTab(hash);
       } else {
         setActiveTab('dashboard');
@@ -72,7 +73,31 @@ export default function App() {
 
   const handleTabChange = (tabName) => {
     window.location.hash = `#/${tabName}`;
+    setActiveTab(tabName);
   };
+
+  // State-driven Camera Monitor: Automatically turn off camera whenever not on 'sugar-pai' tab
+  useEffect(() => {
+    if (activeTab !== 'sugar-pai') {
+      if (typeof window !== 'undefined' && window.sugarPaiStopCamera) {
+        try {
+          window.sugarPaiStopCamera();
+        } catch (e) {}
+      }
+      try {
+        const allVideos = document.querySelectorAll('video');
+        allVideos.forEach(v => {
+          if (v.srcObject && v.srcObject.getTracks) {
+            v.srcObject.getTracks().forEach(t => {
+              t.stop();
+              t.enabled = false;
+            });
+            v.srcObject = null;
+          }
+        });
+      } catch (e) {}
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     localStorage.setItem('daily_dozen_recipes', JSON.stringify(recipes));
@@ -209,6 +234,19 @@ export default function App() {
 
         <nav className="flex items-center gap-1 bg-gray-100/65 p-1 rounded-2xl">
           <a 
+            href="#/sugar-pai"
+            onClick={(e) => {
+              e.preventDefault();
+              handleTabChange('sugar-pai');
+            }}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'sugar-pai' ? 'bg-white text-emerald-600 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            <Sparkles size={14} className="text-amber-500" />
+            <span>sugar pai</span>
+          </a>
+          <a 
             href="#/dashboard"
             onClick={(e) => {
               e.preventDefault();
@@ -297,6 +335,28 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 mt-8">
+        <div className={activeTab === 'sugar-pai' ? 'block' : 'hidden'}>
+          <SugarPAI 
+            activeTab={activeTab}
+            triggerToast={triggerToast}
+            onLogMeal={(analyzedItem) => {
+              const newMealItem = {
+                id: `pai_${Date.now()}`,
+                name: analyzedItem.name,
+                cals: analyzedItem.totalCals,
+                servings: { wholeGrains: 1 },
+                servingsMultiplier: 1.0,
+                tags: ['snack']
+              };
+              setIntake(prev => ({
+                ...prev,
+                afternoonSnack: [...prev.afternoonSnack, newMealItem]
+              }));
+              triggerToast(`Logged "${analyzedItem.name}" (${analyzedItem.totalSugars}g sugar) to Afternoon Snack!`, 'success');
+            }}
+          />
+        </div>
+
         {activeTab === 'dashboard' && (
           <Dashboard 
             intake={intake}
