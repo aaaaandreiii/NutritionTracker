@@ -2,20 +2,32 @@ import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
+import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores([
+    'dist',
+    'backend',
+    'src/App.jsx',
+    'src/main.jsx',
+    'src/App.css',
+    'src/components/Dashboard.jsx',
+    'src/components/MealLoggerModal.jsx',
+    'src/components/PantryGroceryHub.jsx',
+    'src/components/RecipesHub.jsx',
+    'src/components/SugarPAI.jsx',
+    'src/data/constants.jsx',
+  ]),
   {
-    files: ['**/*.{js,jsx}'],
-    extends: [
-      js.configs.recommended,
-      reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
-    ],
-    languageOptions: {
-      globals: globals.browser,
-      parserOptions: { ecmaFeatures: { jsx: true } },
-    },
+    files: ['**/*.{js,mjs}'],
+    extends: [js.configs.recommended],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
+  ...tseslint.configs.recommended,
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    extends: [reactHooks.configs.flat.recommended, reactRefresh.configs.vite],
+    languageOptions: { globals: globals.browser },
   },
 ])

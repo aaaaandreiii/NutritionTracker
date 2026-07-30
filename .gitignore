@@ -24,3 +24,9 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Python research service
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/

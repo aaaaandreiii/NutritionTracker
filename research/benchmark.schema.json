@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sugar-pai.local/schemas/benchmark-v1.json",
+  "title": "Sugar pAI benchmark product",
+  "type": "object",
+  "required": ["productId", "market", "category", "split", "images", "gold"],
+  "properties": {
+    "productId": { "type": "string", "minLength": 1 },
+    "market": { "enum": ["PH", "US"] },
+    "category": {
+      "enum": ["beverage", "cereal", "dairy", "snack", "sauce", "baked", "sugar-free-polyol", "imported"]
+    },
+    "split": { "enum": ["development", "locked-evaluation"] },
+    "labelFormat": { "enum": ["per-serving", "per-100g", "dual-column", "other"] },
+    "images": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["id", "panel", "path", "qualityCondition"],
+        "properties": {
+          "id": { "type": "string" },
+          "panel": { "enum": ["nutrition", "ingredients", "front"] },
+          "path": { "type": "string" },
+          "qualityCondition": {
+            "enum": ["clean", "glare", "curved", "rotated", "small-text", "cropped", "low-contrast"]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "gold": {
+      "type": "object",
+      "required": ["servingSize", "totalCarbohydrate", "fiber", "totalSugars", "addedSugars", "sugarSpans"],
+      "properties": {
+        "servingSize": { "$ref": "#/$defs/nullableNumber" },
+        "totalCarbohydrate": { "$ref": "#/$defs/nullableNumber" },
+        "fiber": { "$ref": "#/$defs/nullableNumber" },
+        "totalSugars": { "$ref": "#/$defs/nullableNumber" },
+        "addedSugars": { "$ref": "#/$defs/nullableNumber" },
+        "sugarSpans": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["rawSpan", "canonicalName", "ingredientRank"],
+            "properties": {
+              "rawSpan": { "type": "string" },
+              "canonicalName": { "type": "string" },
+              "ingredientRank": { "type": "integer", "minimum": 1 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "nullableNumber": { "type": ["number", "null"], "minimum": 0 }
+  },
+  "additionalProperties": false
+}

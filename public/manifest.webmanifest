@@ -1,0 +1,17 @@
+{
+  "name": "Sugar pAI Research",
+  "short_name": "Sugar pAI",
+  "description": "Evidence-grounded packaged-food label research MVP",
+  "start_url": "/#/scan",
+  "display": "standalone",
+  "background_color": "#f7f3eb",
+  "theme_color": "#0c6f4f",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
