@@ -94,12 +94,13 @@ class Citation(ApiModel):
 
 
 class GlycemicEvidence(ApiModel):
-    status: Literal["sourced", "unavailable"]
+    status: Literal["sourced", "heuristic_demo", "unavailable"]
     tested_food_match_description: str | None = None
-    match_level: Literal["exact_product", "same_food_form"] | None = None
+    match_level: Literal["exact_product", "same_food_form", "alias_heuristic"] | None = None
     gi: float | None = Field(default=None, ge=0)
     available_carbohydrate_grams: float | None = Field(default=None, ge=0)
     gl: float | None = Field(default=None, ge=0)
+    gl_band: Literal["green", "yellow", "red"] | None = None
     citation: Citation | None = None
     licensing: str | None = None
     reason: str

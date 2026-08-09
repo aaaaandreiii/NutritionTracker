@@ -61,6 +61,7 @@ export function unavailableGlycemic(reason: string): GlycemicEvidence {
     gi: null,
     availableCarbohydrateGrams: null,
     gl: null,
+    glBand: null,
     citation: null,
     licensing: null,
     reason,

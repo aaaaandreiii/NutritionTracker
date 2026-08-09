@@ -16,7 +16,7 @@ export default function AboutPage() {
       <section className="principles-grid">
         <article className="principle-card"><ShieldCheck /><span>01</span><h2>Evidence before confidence</h2><p>Every accepted number must point to the photographed label, an identified database record, or a user confirmation. Model self-confidence is never enough.</p></article>
         <article className="principle-card"><Database /><span>02</span><h2>Unknown stays unknown</h2><p>A missing added-sugar declaration is not zero. Database disagreements remain visible and never silently replace the current label.</p></article>
-        <article className="principle-card"><FlaskConical /><span>03</span><h2>GI is sourced, not guessed</h2><p>Numeric GI appears only after a defensible match to tested evidence. Ingredient GI values are not treated as the product’s GI.</p></article>
+        <article className="principle-card"><FlaskConical /><span>03</span><h2>GI labels stay explicit</h2><p>Sourced GI is separate from the alias-based demo GL. Ingredient aliases are not treated as tested product evidence.</p></article>
         <article className="principle-card"><LockKeyhole /><span>04</span><h2>Local by default</h2><p>No accounts, cloud history, analytics, or advertising. Confirmed records use IndexedDB on this device; source images are retained only by explicit opt-in.</p></article>
       </section>
 
@@ -26,13 +26,13 @@ export default function AboutPage() {
           <ol className="processing-list">
             <li><strong>This device</strong><p>Image previews, basic quality checks, and UPC/EAN barcode decoding.</p></li>
             <li><strong>Temporary Sugar pAI service</strong><p>MIME/dimension validation, EXIF stripping, orchestration, validation, and short-lived job state. Temporary files expire after 15 minutes.</p></li>
-            <li><strong>Configured external processors</strong><p>Google Enterprise Document OCR for label text; a pinned, benchmark-selected VLM for constrained extraction; and Open Food Facts for barcode lookup. The result’s provenance lists processors actually used. Do not upload if you do not consent.</p></li>
+            <li><strong>Configured external processors</strong><p>Tesseract OCR by default or optional PaddleOCR for label text; DeepSeek through an Ollama-compatible API for constrained JSON extraction; and Open Food Facts for barcode lookup when enabled. The result’s provenance lists processors actually used. Do not upload if you do not consent.</p></li>
           </ol>
-          <div className="notice neutral">Provider integrations are optional in development. When none is configured, extraction remains unavailable and the app asks for manual confirmation—it does not manufacture a result.</div>
+          <div className="notice neutral">Provider integrations are optional in development. When extraction fails, the app asks for manual confirmation and does not substitute sample nutrition values.</div>
         </section>
         <section className="card about-section">
           <span className="section-kicker">Scientific boundary</span><h2>What the tool can and cannot say</h2>
-          <div className="boundary-list"><div><strong>Can support</strong><p>Transcription of printed nutrient values, product database cross-checks, and detection of named sugar-related ingredients under measured image conditions.</p></div><div><strong>Cannot infer</strong><p>Grams of each named sweetener, a true GI from the label, individual glucose response, medication or insulin decisions, or whether a food is “safe.”</p></div></div>
+          <div className="boundary-list"><div><strong>Can support</strong><p>Transcription of printed nutrient values, product database cross-checks, detection of named sugar-related ingredients, and a clearly labeled heuristic GL demo when required fields are present.</p></div><div><strong>Cannot infer</strong><p>Grams of each named sweetener, a true sourced GI from the label, individual glucose response, medication or insulin decisions, or whether a food is “safe.”</p></div></div>
         </section>
       </div>
 

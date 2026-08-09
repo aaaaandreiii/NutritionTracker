@@ -9,14 +9,24 @@ Sugar pAI is a mobile-first packaged-food label research tool. It distinguishes 
 - Short-lived FastAPI job state and real server-sent pipeline events
 - Optional Open Food Facts barcode lookup, kept visibly separate from current-label evidence
 - Manual review of serving size and carbohydrate-first nutrient fields
-- Deterministic arithmetic checks and English/Filipino sugar-ingredient taxonomy
-- GI/GL suppression unless eligible sourced evidence exists (none is bundled)
+- Optional live OCR -> DeepSeek extraction through an Ollama-compatible API, with strict JSON validation and manual fallback
+- Deterministic arithmetic checks and English/Filipino sugar-ingredient taxonomy with heuristic demo GI aliases
+- Sourced GI remains unavailable unless licensed evidence is provided; GL can appear only as a clearly labeled heuristic demo
 - IndexedDB Today/History records, known-versus-missing totals, CSV/JSON export, per-record deletion, and delete-all
 - PWA manifest and offline shell; original images are stored locally only after explicit opt-in
 
-No OCR or VLM provider is enabled by default. In this state, the service returns an honest partial result and requires manual confirmation. This is intentional until a provider passes the locked benchmark.
+Tesseract OCR is the default provider in Docker. DeepSeek extraction uses `LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL`, and `SUGAR_PAI_EXTRACTION_MODEL=deepseek-v4-flash:cloud`. When OCR, DeepSeek, JSON validation, or nutrient arithmetic fails, the service returns an honest partial result and requires manual confirmation. No sample nutrition values are substituted.
 
-## Run locally
+## Run locally with Docker
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Open `http://localhost:5173`. The backend runs at `http://localhost:8000`. For Ollama on the host, keep `OLLAMA_BASE_URL=http://host.docker.internal:11434`.
+
+## Run locally without Docker
 
 The frontend uses Node; the API commands below use the existing `personal_projects` Conda environment.
 
@@ -57,6 +67,14 @@ conda activate personal_projects
 PYTHONPATH=backend pytest -q backend/tests
 ```
 
+Synthetic benchmark smoke test:
+
+```bash
+PYTHONPATH=backend python -m app.benchmark \
+  --annotations research/fixtures/synthetic_benchmark.json \
+  --predictions research/fixtures/synthetic_predictions.json
+```
+
 ## API contract
 
 - `POST /api/v1/analyses` — multipart `nutrition_image`, optional `ingredient_image` / `front_image` / `barcode`, and `market=PH|US`; returns `202`
@@ -71,7 +89,7 @@ The OpenAPI explorer is at `http://localhost:8000/docs`.
 - `src/domain/` — TypeScript evidence, nutrition, glycemic, and log types
 - `src/components/mvp/` — active four-route product UI
 - `src/lib/` — API, local barcode, image quality, and IndexedDB adapters
-- `backend/app/` — schemas, state machine, validation, and taxonomy
+- `backend/app/` — schemas, state machine, OCR/extraction, validation, glycemic demo logic, telemetry, and taxonomy
 - `backend/tests/` — API lifecycle and safety-focused unit tests
 - `research/` — benchmark protocol and machine-readable annotation schema
 
@@ -79,4 +97,4 @@ The earlier Daily Dozen, pantry, grocery, and recipe components remain in `src/c
 
 ## Safety boundary
 
-This is an internal, noncommercial research prototype for adults with type 2 diabetes or prediabetes. It is not for diagnosis, treatment, insulin or medication decisions, meal timing, or individual glucose prediction. External testing requires benchmark gates, GI-data permission, privacy review, and registered-dietitian review.
+This is an internal, noncommercial research prototype for adults with type 2 diabetes or prediabetes. It is not for diagnosis, treatment, insulin or medication decisions, meal timing, individual glucose prediction, or "safe for diabetes" claims. External testing requires benchmark gates, GI-data permission, privacy review, and registered-dietitian review.

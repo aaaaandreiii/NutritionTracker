@@ -1,0 +1,72 @@
+[
+  {
+    "productId": "synthetic-cereal-001",
+    "market": "PH",
+    "category": "cereal",
+    "split": "development",
+    "labelFormat": "per-serving",
+    "images": [
+      {
+        "id": "nutrition",
+        "panel": "nutrition",
+        "path": "private/synthetic-cereal-001-nutrition.jpg",
+        "qualityCondition": "clean"
+      },
+      {
+        "id": "ingredients",
+        "panel": "ingredients",
+        "path": "private/synthetic-cereal-001-ingredients.jpg",
+        "qualityCondition": "clean"
+      }
+    ],
+    "gold": {
+      "servingSize": 30,
+      "totalCarbohydrate": 22,
+      "fiber": 3,
+      "totalSugars": 7,
+      "addedSugars": null,
+      "sugarSpans": [
+        {
+          "rawSpan": "asukal",
+          "canonicalName": "Sucrose",
+          "ingredientRank": 2
+        }
+      ]
+    }
+  },
+  {
+    "productId": "synthetic-polyol-002",
+    "market": "US",
+    "category": "sugar-free-polyol",
+    "split": "development",
+    "labelFormat": "per-serving",
+    "images": [
+      {
+        "id": "nutrition",
+        "panel": "nutrition",
+        "path": "private/synthetic-polyol-002-nutrition.jpg",
+        "qualityCondition": "small-text"
+      },
+      {
+        "id": "ingredients",
+        "panel": "ingredients",
+        "path": "private/synthetic-polyol-002-ingredients.jpg",
+        "qualityCondition": "clean"
+      }
+    ],
+    "gold": {
+      "servingSize": 40,
+      "totalCarbohydrate": 18,
+      "fiber": 6,
+      "totalSugars": 1,
+      "addedSugars": 0,
+      "sugarSpans": [
+        {
+          "rawSpan": "maltitol",
+          "canonicalName": "Maltitol",
+          "ingredientRank": 3
+        }
+      ]
+    }
+  }
+]

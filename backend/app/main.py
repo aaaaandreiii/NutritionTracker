@@ -14,6 +14,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile, st
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+from .glycemic import build_glycemic_evidence
 from .pipeline import (
     JOB_TTL_SECONDS,
     MAX_UPLOAD_BYTES,
@@ -205,6 +206,17 @@ async def finalize_analysis(analysis_id: str, request: FinalizeRequest) -> Analy
 
     previous = clone_result(job.result)
     values = request.nutrients
+    confirmed_nutrients = NutrientFields(
+        total_carbohydrate=user_value(values.total_carbohydrate, unit="g"),
+        fiber=user_value(values.fiber, unit="g"),
+        total_sugars=user_value(values.total_sugars, unit="g"),
+        added_sugars=user_value(values.added_sugars, unit="g"),
+        sugar_alcohols=user_value(values.sugar_alcohols, unit="g"),
+        protein=user_value(values.protein, unit="g"),
+        fat=user_value(values.fat, unit="g"),
+    )
+    sugar_variants = classify_ingredients(request.raw_ingredients)
+    glycemic, glycemic_limitations = build_glycemic_evidence(confirmed_nutrients, sugar_variants)
     confirmed = AnalysisResult(
         analysis_id=analysis_id,
         status="confirmed",
@@ -220,24 +232,18 @@ async def finalize_analysis(analysis_id: str, request: FinalizeRequest) -> Analy
             household_measure=previous.serving.household_measure,
             servings_per_container=previous.serving.servings_per_container,
         ),
-        nutrients=NutrientFields(
-            total_carbohydrate=user_value(values.total_carbohydrate, unit="g"),
-            fiber=user_value(values.fiber, unit="g"),
-            total_sugars=user_value(values.total_sugars, unit="g"),
-            added_sugars=user_value(values.added_sugars, unit="g"),
-            sugar_alcohols=user_value(values.sugar_alcohols, unit="g"),
-            protein=user_value(values.protein, unit="g"),
-            fat=user_value(values.fat, unit="g"),
-        ),
+        nutrients=confirmed_nutrients,
         raw_ingredients=user_value(request.raw_ingredients, basis=None, image_kind="ingredients"),
-        sugar_variants=classify_ingredients(request.raw_ingredients),
-        glycemic=previous.glycemic,
+        sugar_variants=sugar_variants,
+        glycemic=glycemic,
         quality_checks=previous.quality_checks,
         validation_checks=validation_checks,
         limitations=[
-            *previous.limitations,
             f"Ingredient matches use taxonomy {SUGAR_TAXONOMY_VERSION}; they do not estimate ingredient amounts.",
             "Consumed servings are used only for the local log; they do not change the per-serving label snapshot.",
+            "No licensed FNRI, Trinidad, or tested-product GI table is bundled.",
+            "This tool does not provide medical advice, diabetes safety claims, medication guidance, or glucose predictions.",
+            *glycemic_limitations,
         ],
         provenance=Provenance(
             pipeline_version=previous.provenance.pipeline_version,

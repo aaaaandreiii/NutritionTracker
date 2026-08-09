@@ -16,7 +16,8 @@ def readable_test_image() -> bytes:
     return buffer.getvalue()
 
 
-def test_analysis_events_finalize_and_delete_round_trip():
+def test_analysis_events_finalize_and_delete_round_trip(monkeypatch):
+    monkeypatch.setenv("SUGAR_PAI_OCR_PROVIDER", "invalid")
     with TestClient(app) as client:
         created = client.post(
             "/api/v1/analyses",
@@ -29,7 +30,7 @@ def test_analysis_events_finalize_and_delete_round_trip():
         events = client.get(f"/api/v1/analyses/{analysis_id}/events")
         assert events.status_code == 200
         assert '"type":"result"' in events.text
-        assert "No benchmark-approved OCR/VLM provider configured" in events.text
+        assert "Live extraction unavailable" in events.text
 
         finalized = client.post(
             f"/api/v1/analyses/{analysis_id}/finalize",
@@ -55,7 +56,9 @@ def test_analysis_events_finalize_and_delete_round_trip():
         assert result["status"] == "confirmed"
         assert result["nutrients"]["addedSugars"]["value"] is None
         assert result["nutrients"]["addedSugars"]["status"] == "Unavailable"
-        assert result["glycemic"]["status"] == "unavailable"
+        assert result["glycemic"]["status"] == "heuristic_demo"
+        assert result["glycemic"]["gl"] == 12.4
+        assert result["glycemic"]["glBand"] == "yellow"
         assert result["sugarVariants"][0]["canonicalName"] == "Sucrose"
 
         deleted = client.delete(f"/api/v1/analyses/{analysis_id}")

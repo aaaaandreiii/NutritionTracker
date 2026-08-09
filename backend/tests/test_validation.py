@@ -19,4 +19,5 @@ def test_rejects_impossible_added_sugar_arithmetic():
 
 def test_prohibited_claims_are_detected():
     assert contains_prohibited_claim("This is DIABETES SAFE")
+    assert contains_prohibited_claim("This is safe for diabetes")
     assert not contains_prohibited_claim("GI is unavailable from this label")

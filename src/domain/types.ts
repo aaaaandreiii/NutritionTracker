@@ -61,12 +61,13 @@ export interface SugarVariant {
 }
 
 export interface GlycemicEvidence {
-  status: 'sourced' | 'unavailable'
+  status: 'sourced' | 'heuristic_demo' | 'unavailable'
   testedFoodMatchDescription: string | null
-  matchLevel: 'exact_product' | 'same_food_form' | null
+  matchLevel: 'exact_product' | 'same_food_form' | 'alias_heuristic' | null
   gi: number | null
   availableCarbohydrateGrams: number | null
   gl: number | null
+  glBand: 'green' | 'yellow' | 'red' | null
   citation: { title: string; url: string } | null
   licensing: string | null
   reason: string

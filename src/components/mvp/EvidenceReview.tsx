@@ -40,6 +40,13 @@ function StatusPill({ status }: { status: string }) {
   return <span className={`status-pill status-${slug}`}>{status}</span>
 }
 
+function glBandLabel(band: AnalysisResult['glycemic']['glBand']): string {
+  if (band === 'green') return 'Green demo band'
+  if (band === 'yellow') return 'Yellow demo band'
+  if (band === 'red') return 'Red demo band'
+  return 'GL unavailable'
+}
+
 export default function EvidenceReview({ result, images, onBack, onLogged }: Props) {
   const [corrections, setCorrections] = useState<FinalizeCorrections>(() => correctionsFromResult(result))
   const [edited, setEdited] = useState<Set<string>>(new Set())
@@ -233,12 +240,20 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
                 {current.glycemic.gl != null && <p><strong>GL {current.glycemic.gl}</strong> for the validated consumed portion.</p>}
                 {current.glycemic.citation && <a href={current.glycemic.citation.url} target="_blank" rel="noreferrer">{current.glycemic.citation.title}<ExternalLink size={13} /></a>}
               </>
+            ) : current.glycemic.status === 'heuristic_demo' ? (
+              <div className={`heuristic-block band-${current.glycemic.glBand ?? 'unknown'}`}>
+                <div className="demo-gl-value"><strong>{current.glycemic.gl ?? '—'}</strong><span>Demo GL</span></div>
+                <div className="band-pill">{glBandLabel(current.glycemic.glBand)}</div>
+                <p>{current.glycemic.reason}</p>
+                {current.glycemic.gi != null && <small>Alias demo GI input: {current.glycemic.gi}. Net carbohydrate: {current.glycemic.availableCarbohydrateGrams ?? 'unavailable'} g.</small>}
+                {current.glycemic.licensing && <small>{current.glycemic.licensing}</small>}
+              </div>
             ) : (
               <div className="unavailable-block">
                 <AlertCircle size={22} />
                 <strong>GI unavailable</strong>
                 <p>{current.glycemic.reason}</p>
-                <small>GI cannot be calculated from sugar grams or ingredient order. GL is also unavailable without eligible GI evidence and validated available carbohydrate.</small>
+                <small>Sourced GI cannot be calculated from sugar grams or ingredient order. Demo GL also requires confirmed carbohydrate, fiber, and sugar-alias evidence.</small>
               </div>
             )}
           </section>

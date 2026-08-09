@@ -16,3 +16,17 @@ Run the same images and schema through pinned candidates. A provider is eligible
 Among eligible models, select the lowest median-cost candidate and pin its exact model ID. If none qualifies, keep the current OCR/manual-correction mode and report that automated extraction did not pass.
 
 Store benchmark rows using `benchmark.schema.json`. Never commit patient data, credentials, copyrighted GI tables, or production package images without explicit reuse permission.
+
+## Development runner
+
+Use the synthetic fixtures only to smoke-test metrics wiring:
+
+```bash
+PYTHONPATH=backend python -m app.benchmark \
+  --annotations research/fixtures/synthetic_benchmark.json \
+  --predictions research/fixtures/synthetic_predictions.json
+```
+
+For the 20-30 item development run, keep real product images private and store predictions in the same shape as `research/fixtures/synthetic_predictions.json`. Required reported metrics are total sugar MAE, exact match for serving/carbohydrate/fiber/sugars, sugar-alias precision/recall, schema-valid-after-retry rate, p95 latency, API error count, and fallback counts.
+
+No FNRI, Trinidad, or other licensed GI source data is bundled in this repository. Until licensed records are provided and matched, the application must keep `sourced` GI unavailable and may show only the explicitly labeled `heuristic_demo` GL output.

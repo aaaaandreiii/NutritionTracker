@@ -12,11 +12,15 @@ from typing import Any, Literal
 import httpx
 from PIL import Image, ImageFilter, ImageOps, ImageStat, UnidentifiedImageError
 
+from .extraction import ExtractedLabel, ExtractionResult, LabelExtractionError, extract_label_fields
+from .glycemic import build_glycemic_evidence
+from .ocr import OcrProviderError, OcrResult, extract_text_from_images
 from .schemas import (
     AnalysisResult,
     EvidenceReference,
     EvidenceValue,
     GlycemicEvidence,
+    NutrientCorrections,
     NutrientFields,
     ProductIdentity,
     Provenance,
@@ -24,9 +28,12 @@ from .schemas import (
     ServingInformation,
     ValidationCheck,
 )
+from .taxonomy import SUGAR_TAXONOMY_VERSION, classify_ingredients
+from .telemetry import emit_telemetry
+from .validation import validate_nutrients
 
 
-PIPELINE_VERSION = "research-mvp-0.1.0"
+PIPELINE_VERSION = "research-mvp-0.2.0"
 JOB_TTL_SECONDS = 15 * 60
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 MAX_IMAGE_PIXELS = 36_000_000
@@ -87,6 +94,32 @@ def database_value(
             note="Community-contributed record; confirm against the photographed current label.",
         ),
         confidence=0.55,
+        conflict=False,
+        confirmed=False,
+    )
+
+
+def label_value(
+    value: Any,
+    *,
+    unit: str | None = None,
+    basis: str | None = "per labeled serving",
+    image_kind: str = "nutrition",
+    confidence: float | None = None,
+) -> EvidenceValue[Any]:
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return unavailable(unit, basis)
+    return EvidenceValue(
+        value=value.strip() if isinstance(value, str) else value,
+        unit=unit,
+        serving_basis=basis,
+        source_kind="label",
+        status="Read from label",
+        evidence=EvidenceReference(
+            image_kind=image_kind,  # type: ignore[arg-type]
+            note="OCR plus DeepSeek extraction from the photographed label; user confirmation required.",
+        ),
+        confidence=confidence,
         conflict=False,
         confirmed=False,
     )
@@ -248,18 +281,22 @@ def result_from_database(job: AnalysisJob, product: dict[str, Any] | None, sourc
         sugar_variants=[],
         glycemic=GlycemicEvidence(
             status="unavailable",
-            reason="No eligible tested-product GI evidence was matched. GI cannot be calculated from a package label.",
+            reason=(
+                "No eligible tested-product GI evidence was matched. Sourced GI is not bundled, and demo GL "
+                "requires confirmed label carbohydrate, fiber, and sugar-alias evidence."
+            ),
         ),
         quality_checks=job.quality_checks,
         validation_checks=[ValidationCheck(
             code="manual_review_required",
             status="review",
-            message="No configured OCR/VLM provider produced label evidence. Confirm values manually from the current package.",
+            message="No OCR/LLM provider produced accepted label evidence. Confirm values manually from the current package.",
         )],
         limitations=[
-            "Automated label extraction is unavailable in this environment; database values, if present, are unconfirmed.",
+            "Live label extraction did not produce accepted evidence; database values, if present, are unconfirmed.",
             "Ingredient order cannot establish grams of an individual sweetener.",
-            "GI and individual glucose response cannot be calculated from this label.",
+            "No licensed FNRI, Trinidad, or tested-product GI table is bundled.",
+            "This tool does not provide medical advice, diabetes safety claims, medication guidance, or glucose predictions.",
         ],
         provenance=Provenance(
             pipeline_version=PIPELINE_VERSION,
@@ -268,6 +305,168 @@ def result_from_database(job: AnalysisJob, product: dict[str, Any] | None, sourc
         ),
     )
     return result
+
+
+def _extracted_corrections(label: ExtractedLabel) -> NutrientCorrections:
+    return NutrientCorrections(
+        total_carbohydrate=label.total_carbohydrate,
+        fiber=label.fiber,
+        total_sugars=label.total_sugars,
+        added_sugars=label.added_sugars,
+        sugar_alcohols=label.sugar_alcohols,
+        protein=label.protein,
+        fat=label.fat,
+    )
+
+
+def _with_label_fallback(
+    extracted: Any,
+    fallback: EvidenceValue[Any],
+    *,
+    unit: str | None = None,
+    basis: str | None = "per labeled serving",
+    image_kind: str = "nutrition",
+    confidence: float | None = None,
+) -> EvidenceValue[Any]:
+    if extracted is None or (isinstance(extracted, str) and not extracted.strip()):
+        return fallback
+    return label_value(
+        extracted,
+        unit=unit,
+        basis=basis,
+        image_kind=image_kind,
+        confidence=confidence,
+    )
+
+
+def result_from_extraction(
+    job: AnalysisJob,
+    extraction: ExtractionResult,
+    product: dict[str, Any] | None,
+    source_url: str | None,
+    processors: list[str],
+) -> AnalysisResult:
+    label = extraction.label
+    validation_checks = validate_nutrients(_extracted_corrections(label))
+    failed = next((check for check in validation_checks if check.status == "fail"), None)
+    if failed:
+        raise ValueError(f"Extracted label arithmetic failed validation: {failed.message}")
+
+    base = result_from_database(job, product, source_url, processors)
+    confidence = label.confidence
+    ingredients_kind = "ingredients" if "ingredients" in job.image_paths else "nutrition"
+    raw_ingredients = _with_label_fallback(
+        label.raw_ingredients,
+        base.raw_ingredients,
+        basis=None,
+        image_kind=ingredients_kind,
+        confidence=confidence,
+    )
+    sugar_variants = classify_ingredients(raw_ingredients.value or "")
+
+    nutrients = NutrientFields(
+        total_carbohydrate=_with_label_fallback(
+            label.total_carbohydrate,
+            base.nutrients.total_carbohydrate,
+            unit="g",
+            confidence=confidence,
+        ),
+        fiber=_with_label_fallback(label.fiber, base.nutrients.fiber, unit="g", confidence=confidence),
+        total_sugars=_with_label_fallback(
+            label.total_sugars,
+            base.nutrients.total_sugars,
+            unit="g",
+            confidence=confidence,
+        ),
+        added_sugars=_with_label_fallback(
+            label.added_sugars,
+            base.nutrients.added_sugars,
+            unit="g",
+            confidence=confidence,
+        ),
+        sugar_alcohols=_with_label_fallback(
+            label.sugar_alcohols,
+            base.nutrients.sugar_alcohols,
+            unit="g",
+            confidence=confidence,
+        ),
+        protein=_with_label_fallback(label.protein, base.nutrients.protein, unit="g", confidence=confidence),
+        fat=_with_label_fallback(label.fat, base.nutrients.fat, unit="g", confidence=confidence),
+    )
+    glycemic, glycemic_limitations = build_glycemic_evidence(nutrients, sugar_variants)
+
+    product_name = _with_label_fallback(
+        label.product_name,
+        base.product.name,
+        basis=None,
+        image_kind="front" if "front" in job.image_paths else "nutrition",
+        confidence=confidence,
+    )
+    brand = _with_label_fallback(
+        label.brand,
+        base.product.brand,
+        basis=None,
+        image_kind="front" if "front" in job.image_paths else "nutrition",
+        confidence=confidence,
+    )
+    serving_size = _with_label_fallback(
+        label.serving_size,
+        base.serving.size,
+        unit=label.serving_unit or base.serving.unit,
+        basis="per labeled serving",
+        confidence=confidence,
+    )
+
+    limitations = [
+        "Automated readings are unconfirmed OCR and DeepSeek outputs; manual review is required before logging.",
+        f"Ingredient matches use taxonomy {SUGAR_TAXONOMY_VERSION}; they do not estimate ingredient amounts.",
+        "Ingredient order cannot establish grams of an individual sweetener.",
+        "This tool does not provide medical advice, diabetes safety claims, medication guidance, or glucose predictions.",
+        *glycemic_limitations,
+    ]
+    if product:
+        limitations.append("Open Food Facts values, if present, are community data and do not replace the current photographed label.")
+
+    return AnalysisResult(
+        analysis_id=job.analysis_id,
+        status="ready",
+        market=job.market,
+        product=ProductIdentity(
+            name=product_name,
+            brand=brand,
+            barcode=base.product.barcode,
+        ),
+        serving=ServingInformation(
+            size=serving_size,
+            unit=label.serving_unit or base.serving.unit,
+            household_measure=label.household_measure or base.serving.household_measure,
+            servings_per_container=_with_label_fallback(
+                label.servings_per_container,
+                base.serving.servings_per_container,
+                basis="container",
+                confidence=confidence,
+            ),
+        ),
+        nutrients=nutrients,
+        raw_ingredients=raw_ingredients,
+        sugar_variants=sugar_variants,
+        glycemic=glycemic,
+        quality_checks=job.quality_checks,
+        validation_checks=[
+            *validation_checks,
+            ValidationCheck(
+                code="manual_review_required",
+                status="review",
+                message="Review every OCR/LLM value against the photo before saving.",
+            ),
+        ],
+        limitations=list(dict.fromkeys(limitations)),
+        provenance=Provenance(
+            pipeline_version=PIPELINE_VERSION,
+            completed_at=datetime.now(timezone.utc),
+            external_processors=processors,
+        ),
+    )
 
 
 async def run_pipeline(job: AnalysisJob) -> None:
@@ -295,24 +494,153 @@ async def run_pipeline(job: AnalysisJob) -> None:
         else:
             await job.publish({"type": "stage", "stage": "barcode_lookup", "status": "skipped", "label": "No barcode supplied"})
 
-        await job.publish({"type": "stage", "stage": "label_extraction", "status": "running", "label": "Checking extraction providers"})
-        await asyncio.sleep(0.05)
-        await job.publish({"type": "stage", "stage": "label_extraction", "status": "skipped", "label": "No benchmark-approved OCR/VLM provider configured"})
+        extraction: ExtractionResult | None = None
+        ocr_result: OcrResult | None = None
+        fallback_reason: str | None = None
+        await job.publish({"type": "stage", "stage": "label_extraction", "status": "running", "label": "Running OCR and DeepSeek extraction"})
+        try:
+            ocr_result = await extract_text_from_images(job.image_paths)
+            processors.append("Tesseract OCR" if ocr_result.provider == "tesseract" else "PaddleOCR")
+            emit_telemetry(
+                "ocr_complete",
+                analysis_id=job.analysis_id,
+                provider=ocr_result.provider,
+                latency_ms=ocr_result.latency_ms,
+                panel_count=len(ocr_result.text_by_panel),
+                readable_characters=len(ocr_result.combined_text),
+            )
+            extraction = await extract_label_fields(ocr_result)
+            processors.append(f"Ollama {extraction.model}")
+            emit_telemetry(
+                "label_extraction_complete",
+                analysis_id=job.analysis_id,
+                model=extraction.model,
+                attempts=extraction.attempts,
+                latency_ms=extraction.latency_ms,
+                prompt_eval_count=extraction.token_counts.get("prompt_eval_count"),
+                eval_count=extraction.token_counts.get("eval_count"),
+                json_validation_failures=len(extraction.validation_failures),
+            )
+            retry_note = " after one validation retry" if extraction.attempts > 1 else ""
+            await job.publish({
+                "type": "stage",
+                "stage": "label_extraction",
+                "status": "complete",
+                "label": f"DeepSeek returned schema-valid label fields{retry_note}",
+            })
+        except (OcrProviderError, LabelExtractionError) as exc:
+            fallback_reason = str(exc)
+            emit_telemetry(
+                "label_extraction_fallback",
+                analysis_id=job.analysis_id,
+                ocr_provider=os.getenv("SUGAR_PAI_OCR_PROVIDER", "tesseract"),
+                model=os.getenv("SUGAR_PAI_EXTRACTION_MODEL", "deepseek-v4-flash:cloud"),
+                fallback_reason=fallback_reason[:250],
+            )
+            await job.publish({
+                "type": "stage",
+                "stage": "label_extraction",
+                "status": "skipped",
+                "label": f"Live extraction unavailable: {fallback_reason[:96]}",
+            })
 
         ingredient_status = "running" if "ingredients" in job.image_paths else "skipped"
-        await job.publish({"type": "stage", "stage": "ingredient_classification", "status": ingredient_status, "label": "Checking ingredient evidence" if ingredient_status == "running" else "No ingredients panel supplied"})
+        await job.publish({
+            "type": "stage",
+            "stage": "ingredient_classification",
+            "status": ingredient_status,
+            "label": "Checking ingredient evidence" if ingredient_status == "running" else "No ingredients panel supplied",
+        })
         await asyncio.sleep(0.04)
         if ingredient_status == "running":
-            await job.publish({"type": "stage", "stage": "ingredient_classification", "status": "skipped", "label": "Readable text unavailable; user transcription required"})
+            if extraction and extraction.label.raw_ingredients:
+                variant_count = len(classify_ingredients(extraction.label.raw_ingredients))
+                await job.publish({
+                    "type": "stage",
+                    "stage": "ingredient_classification",
+                    "status": "complete",
+                    "label": f"Matched {variant_count} sugar-related ingredient aliases",
+                })
+            else:
+                await job.publish({
+                    "type": "stage",
+                    "stage": "ingredient_classification",
+                    "status": "skipped",
+                    "label": "Readable ingredient text unavailable; user transcription required",
+                })
 
         await job.publish({"type": "stage", "stage": "evidence_comparison", "status": "running", "label": "Applying source precedence"})
-        result = result_from_database(job, product, source_url, processors)
-        await job.publish({"type": "stage", "stage": "evidence_comparison", "status": "complete", "label": "Unconfirmed database data kept separate from current-label evidence"})
+        if extraction:
+            try:
+                result = result_from_extraction(job, extraction, product, source_url, processors)
+                await job.publish({
+                    "type": "stage",
+                    "stage": "evidence_comparison",
+                    "status": "complete",
+                    "label": "Current-label readings prefilled for manual review",
+                })
+            except ValueError as exc:
+                fallback_reason = str(exc)
+                emit_telemetry(
+                    "label_extraction_rejected",
+                    analysis_id=job.analysis_id,
+                    fallback_reason=fallback_reason[:250],
+                )
+                result = result_from_database(job, product, source_url, processors)
+                result.validation_checks = [
+                    *result.validation_checks,
+                    ValidationCheck(
+                        code="label_extraction_rejected",
+                        status="review",
+                        message="OCR/LLM nutrition values were rejected by deterministic arithmetic checks; confirm manually.",
+                    ),
+                ]
+                result.limitations = [
+                    *result.limitations,
+                    "OCR/LLM values were not used because deterministic nutrition validation failed.",
+                ]
+                await job.publish({
+                    "type": "stage",
+                    "stage": "evidence_comparison",
+                    "status": "complete",
+                    "label": "Extracted values rejected; manual review required",
+                })
+        else:
+            result = result_from_database(job, product, source_url, processors)
+            if fallback_reason:
+                result.validation_checks = [
+                    *result.validation_checks,
+                    ValidationCheck(
+                        code="label_extraction_fallback",
+                        status="review",
+                        message=fallback_reason,
+                    ),
+                ]
+                result.limitations = [
+                    *result.limitations,
+                    "Live OCR/LLM extraction did not produce accepted label evidence.",
+                ]
+            await job.publish({
+                "type": "stage",
+                "stage": "evidence_comparison",
+                "status": "complete",
+                "label": "Unconfirmed database data kept separate from current-label evidence",
+            })
 
         await job.publish({"type": "stage", "stage": "safety_validation", "status": "running", "label": "Checking units, evidence, and prohibited claims"})
         await asyncio.sleep(0.04)
         job.result = result
-        await job.publish({"type": "stage", "stage": "safety_validation", "status": "complete", "label": "Unsupported GI and health claims suppressed"})
+        emit_telemetry(
+            "analysis_complete",
+            analysis_id=job.analysis_id,
+            status=result.status,
+            ocr_provider=ocr_result.provider if ocr_result else os.getenv("SUGAR_PAI_OCR_PROVIDER", "tesseract"),
+            model=extraction.model if extraction else os.getenv("SUGAR_PAI_EXTRACTION_MODEL", "deepseek-v4-flash:cloud"),
+            fallback_reason=fallback_reason[:250] if fallback_reason else None,
+            glycemic_status=result.glycemic.status,
+            gl=result.glycemic.gl,
+        )
+        await job.publish({"type": "stage", "stage": "safety_validation", "status": "complete", "label": "Deterministic copy only; unsupported health claims suppressed"})
         await job.publish({"type": "result", "result": result.model_dump(mode="json", by_alias=True)})
     except Exception as exc:
         await job.publish({"type": "error", "message": str(exc)})

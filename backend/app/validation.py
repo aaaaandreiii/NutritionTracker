@@ -5,6 +5,7 @@ from .schemas import NutrientCorrections, ValidationCheck
 
 PROHIBITED_PHRASES = (
     "diabetes safe",
+    "safe for diabetes",
     "spike hazard",
     "diabetes sugar cap",
     "avoid for type",

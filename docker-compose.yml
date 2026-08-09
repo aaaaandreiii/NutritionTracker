@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      SUGAR_PAI_EXTRACTION_MODEL: ${SUGAR_PAI_EXTRACTION_MODEL:-deepseek-v4-flash:cloud}
+      SUGAR_PAI_LLM_TIMEOUT_SECONDS: ${SUGAR_PAI_LLM_TIMEOUT_SECONDS:-12}
+      SUGAR_PAI_OCR_PROVIDER: ${SUGAR_PAI_OCR_PROVIDER:-tesseract}
+      SUGAR_PAI_ENABLE_OFF_LOOKUP: ${SUGAR_PAI_ENABLE_OFF_LOOKUP:-false}
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-}
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend

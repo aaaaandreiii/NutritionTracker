@@ -1,0 +1,16 @@
+[
+  {
+    "food_name": "synthetic sucrose demo",
+    "gi": 65,
+    "source_title": "Synthetic fixture for loader tests only",
+    "source_url": null,
+    "license_status": "synthetic"
+  },
+  {
+    "food_name": "synthetic maltodextrin demo",
+    "gi": 95,
+    "source_title": "Synthetic fixture for loader tests only",
+    "source_url": null,
+    "license_status": "synthetic"
+  }
+]
