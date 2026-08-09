@@ -21,7 +21,7 @@ Tesseract OCR is the default provider in Docker. DeepSeek extraction uses `LLM_P
 
 ```bash
 cp .env.example .env
-docker compose up --build
+docker-compose up --build
 ```
 
 Open `http://localhost:5173`. The backend runs at `http://localhost:8000`. For Ollama on the host, keep `OLLAMA_BASE_URL=http://host.docker.internal:11434`.
