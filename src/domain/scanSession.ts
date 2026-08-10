@@ -1,0 +1,53 @@
+import type { AnalysisImages } from '../lib/api'
+import { API_BASE } from '../lib/api'
+import type { AnalysisResult, AnalysisStageEvent, ExtractionMode, ImageQualityReport, Market } from './types'
+
+export type PanelKind = 'nutrition' | 'ingredients' | 'front'
+
+export interface ScanServiceStatus {
+  state: 'unknown' | 'checking' | 'online' | 'offline'
+  message: string
+  checkedAt: string | null
+}
+
+export interface ScanSessionState {
+  images: Partial<AnalysisImages>
+  reports: Partial<Record<PanelKind, ImageQualityReport>>
+  checking: PanelKind | null
+  cameraPanel: PanelKind | null
+  market: Market
+  extractionMode: ExtractionMode
+  barcode: string
+  barcodeReading: boolean
+  consented: boolean
+  analysisId: string | null
+  result: AnalysisResult | null
+  stages: Record<string, AnalysisStageEvent>
+  analyzing: boolean
+  error: string | null
+  serviceStatus: ScanServiceStatus
+}
+
+export function createInitialScanSession(): ScanSessionState {
+  return {
+    images: {},
+    reports: {},
+    checking: null,
+    cameraPanel: null,
+    market: 'PH',
+    extractionMode: 'both',
+    barcode: '',
+    barcodeReading: false,
+    consented: false,
+    analysisId: null,
+    result: null,
+    stages: {},
+    analyzing: false,
+    error: null,
+    serviceStatus: {
+      state: 'unknown',
+      message: `Backend not checked yet at ${API_BASE}.`,
+      checkedAt: null,
+    },
+  }
+}

@@ -32,7 +32,7 @@ def test_white_label_with_strong_text_is_not_rejected_as_glare(tmp_path):
     assert check_status(checks, "_glare") == "warn"
 
 
-def test_clipped_detail_less_image_still_fails(tmp_path):
+def test_clipped_detail_less_image_warns_without_blocking_extraction(tmp_path):
     image = Image.new("RGB", (1000, 1400), "white")
     checks = inspect_and_sanitize_image(
         jpeg_bytes(image),
@@ -41,5 +41,5 @@ def test_clipped_detail_less_image_still_fails(tmp_path):
         "nutrition",
     )
 
-    assert check_status(checks, "_focus") == "fail"
-    assert check_status(checks, "_glare") == "fail"
+    assert check_status(checks, "_focus") == "warn"
+    assert check_status(checks, "_glare") == "warn"

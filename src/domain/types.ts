@@ -1,4 +1,7 @@
 export type Market = 'PH' | 'US'
+export type ExtractionMode = 'both' | 'ocr_llm' | 'vlm'
+export type ExtractionSource = 'ocr_llm' | 'vlm'
+export type AgreementStatus = 'agree' | 'conflict' | 'ocr_only' | 'vlm_only' | 'unavailable'
 
 export type SourceKind =
   | 'label'
@@ -86,10 +89,64 @@ export interface ValidationCheck {
   message: string
 }
 
+export interface PanelDiagnostic {
+  status: 'complete' | 'skipped' | 'failed'
+  readableCharacters: number
+  warnings: string[]
+  snippet: string | null
+}
+
+export interface AnalysisDiagnostics {
+  ocrProvider: 'tesseract' | 'paddle' | null
+  ocrStatus: 'complete' | 'skipped' | 'failed'
+  llmModel: string | null
+  extractionStatus: 'complete' | 'partial' | 'skipped' | 'failed'
+  fallbackReason: string | null
+  panels: {
+    nutrition?: PanelDiagnostic | null
+    ingredients?: PanelDiagnostic | null
+    front?: PanelDiagnostic | null
+  }
+  ocrLlm?: MethodDiagnostic | null
+  vlm?: MethodDiagnostic | null
+}
+
+export interface MethodDiagnostic {
+  status: 'complete' | 'partial' | 'skipped' | 'failed'
+  model: string | null
+  latencyMs: number | null
+  failureReason: string | null
+  attempts: number
+  tokenCounts: Record<string, number>
+  validationFailures: string[]
+  imagePanels: string[]
+}
+
+export interface ExtractionCandidate {
+  field: string
+  source: ExtractionSource
+  value: string | number | null
+  unit: string | null
+  confidence: number | null
+  snippet: string | null
+  warningReason: string | null
+  validationPassed: boolean
+}
+
+export interface FieldComparison {
+  field: string
+  agreementStatus: AgreementStatus
+  ocrCandidate: ExtractionCandidate | null
+  vlmCandidate: ExtractionCandidate | null
+  prefilled: boolean
+  warningReason: string | null
+}
+
 export interface AnalysisResult {
   analysisId: string
   status: 'partial' | 'ready' | 'confirmed'
   market: Market
+  extractionMode: ExtractionMode
   product: {
     name: EvidenceValue<string>
     brand: EvidenceValue<string>
@@ -108,6 +165,11 @@ export interface AnalysisResult {
   qualityChecks: QualityCheck[]
   validationChecks: ValidationCheck[]
   limitations: string[]
+  diagnostics?: AnalysisDiagnostics | null
+  extractionCandidates: Record<string, ExtractionCandidate[]>
+  fieldComparisons: Record<string, FieldComparison>
+  retakeRecommended: boolean
+  retakeReasons: string[]
   provenance: {
     pipelineVersion: string
     completedAt: string

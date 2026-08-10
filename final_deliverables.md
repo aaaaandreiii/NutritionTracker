@@ -17,7 +17,7 @@ Currently, your benchmark pipeline uses synthetic fixtures (`synthetic_benchmark
 
 
 * **Annotate Ground Truth:** Fill out your `research/` annotation schema for these images (recording exact ground-truth values for `total_sugars_g`, `net_carbs_g`, listed sugar aliases, and ground-truth GI).
-* **Run Benchmark:** Execute the benchmark suite against `deepseek-v4-flash:cloud` via Ollama:
+* **Run Benchmark:** Execute the benchmark suite against the hosted OCR+LLM and VLM extraction paths via Ollama:
 ```bash
 PYTHONPATH=backend python -m app.benchmark \
   --annotations research/fixtures/ph_real_benchmark.json \
@@ -29,7 +29,7 @@ PYTHONPATH=backend python -m app.benchmark \
 * **Record Key Metrics:** Extract the final output numbers for your capstone paper:
 * **Sugar Extraction MAE** (Mean Absolute Error in grams).
 * **Sugar Alias Precision & Recall** (Percentage of hidden sugar variants correctly flagged).
-* **Schema Pass Rate** (How often DeepSeek returned valid JSON on the first try vs. after 1 retry).
+* **Schema Pass Rate** (How often each extraction method returned valid JSON on the first try vs. after 1 retry).
 * **p95 Latency & Fallback Count**.
 
 
@@ -63,7 +63,9 @@ Before presenting or demonstrating the app, verify that your Docker containerize
 ```env
 LLM_PROVIDER=ollama
 OLLAMA_BASE_URL=http://host.docker.internal:11434
-SUGAR_PAI_EXTRACTION_MODEL=deepseek-v4-flash:cloud
+SUGAR_PAI_EXTRACTION_MODEL=qwen2.5:latest
+SUGAR_PAI_VISION_MODEL=gemma4:12b
+SUGAR_PAI_DEFAULT_EXTRACTION_MODE=both
 
 ```
 
@@ -77,7 +79,7 @@ docker compose up --build
 
 * **Smoke Test Scenarios:** Run 3 live physical scans on desktop and mobile viewports:
 1. **Ideal Scan:** Standard packaged snack with clear label $\rightarrow$ Full extraction success.
-2. **Messy Scan:** Blurred or crumpled *kakanin* wrapper $\rightarrow$ Graceful DeepSeek correction / fallback to manual review UI.
+2. **Messy Scan:** Blurred or crumpled *kakanin* wrapper $\rightarrow$ OCR+LLM/VLM disagreement or fallback stays visible in manual review UI.
 3. **Barcode Scan:** Item with barcode $\rightarrow$ Open Food Facts cross-reference (`SUGAR_PAI_ENABLE_OFF_LOOKUP=true`).
 
 
@@ -105,7 +107,7 @@ With the code fully operational, package your research findings into your final 
 | Pillar | Status | Remaining Task |
 | --- | --- | --- |
 | **System Architecture & UI** | ✅ Complete | None (Production ready) |
-| **OCR + DeepSeek Extraction** | ✅ Complete | None (Pipeline built) |
+| **OCR+LLM + VLM Extraction** | ✅ Complete | None (Pipeline built) |
 | **Taxonomy & Heuristic GL** | ✅ Complete | None (60+ terms mapped) |
 | **Real-World Benchmark Set** | 🚧 Pending | Annotate 20-30 real PH label images |
 | **FNRI / Trinidad Data Ingestion** | 🚧 Pending | Replace synthetic fixtures with real GI data |

@@ -5,17 +5,18 @@ Sugar pAI is a mobile-first packaged-food label research tool. It distinguishes 
 ## What works
 
 - Guided Nutrition Facts, ingredients, and front/barcode capture with client and server image checks
+- Clickable image previews with a modal viewer during Scan and Review
 - Local UPC/EAN decoding with ZXing
 - Short-lived FastAPI job state and real server-sent pipeline events
 - Optional Open Food Facts barcode lookup, kept visibly separate from current-label evidence
 - Manual review of serving size and carbohydrate-first nutrient fields
-- Optional live OCR -> DeepSeek extraction through an Ollama-compatible API, with strict JSON validation and manual fallback
+- Optional live OCR+LLM and VLM extraction through an Ollama-compatible API, with strict JSON validation, side-by-side evidence, and manual fallback
 - Deterministic arithmetic checks and English/Filipino sugar-ingredient taxonomy with heuristic demo GI aliases
 - Sourced GI remains unavailable unless licensed evidence is provided; GL can appear only as a clearly labeled heuristic demo
 - IndexedDB Today/History records, known-versus-missing totals, CSV/JSON export, per-record deletion, and delete-all
 - PWA manifest and offline shell; original images are stored locally only after explicit opt-in
 
-Tesseract OCR is the default provider in Docker. DeepSeek extraction uses `LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL`, and `SUGAR_PAI_EXTRACTION_MODEL=deepseek-v4-flash:cloud`. When OCR, DeepSeek, JSON validation, or nutrient arithmetic fails, the service returns an honest partial result and requires manual confirmation. No sample nutrition values are substituted.
+Tesseract OCR is the default provider in Docker. OCR+LLM extraction uses `LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL`, and `SUGAR_PAI_EXTRACTION_MODEL=qwen2.5:latest`; VLM extraction uses `SUGAR_PAI_VISION_MODEL=gemma4:12b` against the same Ollama base URL. The scan sidebar can run `both`, `ocr_llm`, or `vlm`; `SUGAR_PAI_DEFAULT_EXTRACTION_MODE=both` is the backend default. When both methods agree and deterministic validation passes, values are prefilled for review. Conflicts and single-method candidates stay blank until the user chooses a candidate or types the value. No sample nutrition values are substituted.
 
 ## Run locally with Docker
 
@@ -77,7 +78,7 @@ PYTHONPATH=backend python -m app.benchmark \
 
 ## API contract
 
-- `POST /api/v1/analyses` — multipart `nutrition_image`, optional `ingredient_image` / `front_image` / `barcode`, and `market=PH|US`; returns `202`
+- `POST /api/v1/analyses` — multipart `nutrition_image`, optional `ingredient_image` / `front_image` / `barcode`, `market=PH|US`, and optional `extractionMode=both|ocr_llm|vlm`; returns `202`
 - `GET /api/v1/analyses/{id}/events` — server-sent stage and result events
 - `POST /api/v1/analyses/{id}/finalize` — applies user corrections and reruns deterministic validation
 - `DELETE /api/v1/analyses/{id}` — deletes temporary job state and images

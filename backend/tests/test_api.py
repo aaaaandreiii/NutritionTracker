@@ -21,7 +21,7 @@ def test_analysis_events_finalize_and_delete_round_trip(monkeypatch):
     with TestClient(app) as client:
         created = client.post(
             "/api/v1/analyses",
-            data={"market": "PH"},
+            data={"market": "PH", "extractionMode": "ocr_llm"},
             files={"nutrition_image": ("nutrition.jpg", readable_test_image(), "image/jpeg")},
         )
         assert created.status_code == 202, created.text
@@ -30,7 +30,10 @@ def test_analysis_events_finalize_and_delete_round_trip(monkeypatch):
         events = client.get(f"/api/v1/analyses/{analysis_id}/events")
         assert events.status_code == 200
         assert '"type":"result"' in events.text
-        assert "Live extraction unavailable" in events.text
+        assert "No extraction method produced accepted label evidence" in events.text
+        assert '"diagnostics"' in events.text
+        assert '"ocrStatus":"failed"' in events.text
+        assert '"extractionStatus":"failed"' in events.text
 
         finalized = client.post(
             f"/api/v1/analyses/{analysis_id}/finalize",
@@ -54,6 +57,9 @@ def test_analysis_events_finalize_and_delete_round_trip(monkeypatch):
         assert finalized.status_code == 200, finalized.text
         result = finalized.json()
         assert result["status"] == "confirmed"
+        assert result["extractionMode"] == "ocr_llm"
+        assert result["diagnostics"]["ocrStatus"] == "failed"
+        assert result["diagnostics"]["ocrLlm"]["status"] == "failed"
         assert result["nutrients"]["addedSugars"]["value"] is None
         assert result["nutrients"]["addedSugars"]["status"] == "Unavailable"
         assert result["glycemic"]["status"] == "heuristic_demo"

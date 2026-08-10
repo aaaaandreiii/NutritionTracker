@@ -26,7 +26,7 @@ export default function AboutPage() {
           <ol className="processing-list">
             <li><strong>This device</strong><p>Image previews, basic quality checks, and UPC/EAN barcode decoding.</p></li>
             <li><strong>Temporary Sugar pAI service</strong><p>MIME/dimension validation, EXIF stripping, orchestration, validation, and short-lived job state. Temporary files expire after 15 minutes.</p></li>
-            <li><strong>Configured external processors</strong><p>Tesseract OCR by default or optional PaddleOCR for label text; DeepSeek through an Ollama-compatible API for constrained JSON extraction; and Open Food Facts for barcode lookup when enabled. The result’s provenance lists processors actually used. Do not upload if you do not consent.</p></li>
+            <li><strong>Configured external processors</strong><p>Tesseract OCR by default or optional PaddleOCR for label text; hosted Ollama OCR+LLM and VLM models for constrained JSON extraction; and Open Food Facts for barcode lookup when enabled. The result’s provenance lists processors actually used. Do not upload if you do not consent.</p></li>
           </ol>
           <div className="notice neutral">Provider integrations are optional in development. When extraction fails, the app asks for manual confirmation and does not substitute sample nutrition values.</div>
         </section>

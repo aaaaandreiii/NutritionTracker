@@ -1,6 +1,7 @@
-import { Camera, Check, FileImage, RotateCcw, Upload, X } from 'lucide-react'
-import { useEffect, useMemo, useRef } from 'react'
+import { Camera, Check, RotateCcw, Upload, X } from 'lucide-react'
+import { useRef } from 'react'
 import type { ImageQualityReport } from '../../domain/types'
+import ImagePreviewButton from './ImagePreviewButton'
 
 interface Props {
   number: number
@@ -18,13 +19,6 @@ interface Props {
 
 export default function ImagePanelCard(props: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const preview = useMemo(() => props.file ? URL.createObjectURL(props.file) : null, [props.file])
-
-  useEffect(() => {
-    return () => {
-      if (preview) URL.revokeObjectURL(preview)
-    }
-  }, [preview])
 
   return (
     <section className={`panel-card ${props.file ? 'has-image' : ''}`}>
@@ -55,7 +49,7 @@ export default function ImagePanelCard(props: Props) {
           </div>
         ) : (
           <div className="image-review">
-            {preview ? <img src={preview} alt={`${props.title} preview`} /> : <FileImage size={26} />}
+            <ImagePreviewButton file={props.file} label={props.title} />
             <div className="quality-list">
               <strong>{props.file.name}</strong>
               {props.checking && <small>Checking image…</small>}

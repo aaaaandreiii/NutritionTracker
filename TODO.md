@@ -7,15 +7,18 @@
 - [x] Ignore local `.env` files and provide `.env.example`.
 - [ ] Run `docker compose up --build` on the demo machine and confirm host Ollama access through `host.docker.internal`.
 
-## Live OCR and DeepSeek extraction
+## Live OCR+LLM and VLM extraction
 
 - [x] Add selectable OCR provider: `SUGAR_PAI_OCR_PROVIDER=tesseract|paddle`.
 - [x] Use Tesseract as the default provider.
 - [x] Return a clear configuration error when PaddleOCR is selected but not installed.
-- [x] Add Ollama-compatible DeepSeek extraction with `deepseek-v4-flash:cloud`.
+- [x] Add Ollama-compatible OCR+LLM extraction with `qwen2.5:latest`.
+- [x] Add Ollama-compatible VLM extraction with `gemma4:12b` image payloads.
+- [x] Add scan modes for `both`, `ocr_llm`, and `vlm`.
 - [x] Enforce strict JSON, one validation retry, timeouts, and manual fallback.
 - [x] Reject extracted values that fail deterministic nutrient arithmetic.
-- [ ] Benchmark DeepSeek against the private 20-30 image development set before treating OCR values as more than review prefill.
+- [x] Keep conflicts blank until the user selects a candidate or types the verified label value.
+- [ ] Benchmark OCR+LLM and VLM against the private 20-30 image development set before treating automated values as more than review prefill.
 
 ## Sugar taxonomy and heuristic GL demo
 
@@ -44,7 +47,9 @@
 
 ## Review UI integration
 
-- [x] Prefill `EvidenceReview` with unconfirmed `Read from label` values from OCR/DeepSeek.
+- [x] Prefill `EvidenceReview` only with unconfirmed `Read from label` values where OCR+LLM and VLM agree.
+- [x] Show OCR+LLM and VLM candidates side by side with use-candidate actions for conflicts and single-method outputs.
+- [x] Add clickable image previews and a modal viewer for Scan and Review panels.
 - [x] Recompute taxonomy matches and heuristic GL after user corrections.
 - [x] Keep manual review mandatory before local logging.
 - [ ] Run final mobile and desktop UX smoke tests with real photos.

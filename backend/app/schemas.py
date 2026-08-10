@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Generic, Literal, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,6 +21,9 @@ class ApiModel(BaseModel):
 
 T = TypeVar("T")
 SourceKind = Literal["label", "database", "user", "calculated", "unavailable"]
+ExtractionMode = Literal["both", "ocr_llm", "vlm"]
+ExtractionSource = Literal["ocr_llm", "vlm"]
+AgreementStatus = Literal["agree", "conflict", "ocr_only", "vlm_only", "unavailable"]
 FieldStatus = Literal[
     "Read from label",
     "Database match",
@@ -119,6 +122,61 @@ class ValidationCheck(ApiModel):
     message: str
 
 
+class PanelDiagnostic(ApiModel):
+    status: Literal["complete", "skipped", "failed"]
+    readable_characters: int = Field(default=0, ge=0)
+    warnings: list[str] = Field(default_factory=list)
+    snippet: str | None = None
+
+
+class PanelDiagnostics(ApiModel):
+    nutrition: PanelDiagnostic | None = None
+    ingredients: PanelDiagnostic | None = None
+    front: PanelDiagnostic | None = None
+
+
+class MethodDiagnostic(ApiModel):
+    status: Literal["complete", "partial", "skipped", "failed"]
+    model: str | None = None
+    latency_ms: int | None = Field(default=None, ge=0)
+    failure_reason: str | None = None
+    attempts: int = Field(default=0, ge=0)
+    token_counts: dict[str, int] = Field(default_factory=dict)
+    validation_failures: list[str] = Field(default_factory=list)
+    image_panels: list[str] = Field(default_factory=list)
+
+
+class AnalysisDiagnostics(ApiModel):
+    ocr_provider: Literal["tesseract", "paddle"] | None = None
+    ocr_status: Literal["complete", "skipped", "failed"]
+    llm_model: str | None = None
+    extraction_status: Literal["complete", "partial", "skipped", "failed"]
+    fallback_reason: str | None = None
+    panels: PanelDiagnostics = Field(default_factory=PanelDiagnostics)
+    ocr_llm: MethodDiagnostic | None = None
+    vlm: MethodDiagnostic | None = None
+
+
+class ExtractionCandidate(ApiModel):
+    field: str
+    source: ExtractionSource
+    value: Any | None = None
+    unit: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    snippet: str | None = None
+    warning_reason: str | None = None
+    validation_passed: bool = True
+
+
+class FieldComparison(ApiModel):
+    field: str
+    agreement_status: AgreementStatus
+    ocr_candidate: ExtractionCandidate | None = None
+    vlm_candidate: ExtractionCandidate | None = None
+    prefilled: bool = False
+    warning_reason: str | None = None
+
+
 class Provenance(ApiModel):
     pipeline_version: str
     completed_at: datetime
@@ -129,6 +187,7 @@ class AnalysisResult(ApiModel):
     analysis_id: str
     status: Literal["partial", "ready", "confirmed"]
     market: Literal["PH", "US"]
+    extraction_mode: ExtractionMode = "both"
     product: ProductIdentity
     serving: ServingInformation
     nutrients: NutrientFields
@@ -138,6 +197,11 @@ class AnalysisResult(ApiModel):
     quality_checks: list[QualityCheck]
     validation_checks: list[ValidationCheck]
     limitations: list[str]
+    diagnostics: AnalysisDiagnostics | None = None
+    extraction_candidates: dict[str, list[ExtractionCandidate]] = Field(default_factory=dict)
+    field_comparisons: dict[str, FieldComparison] = Field(default_factory=dict)
+    retake_recommended: bool = False
+    retake_reasons: list[str] = Field(default_factory=list)
     provenance: Provenance
 
 

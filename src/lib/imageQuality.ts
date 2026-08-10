@@ -78,6 +78,9 @@ export async function inspectImage(file: File): Promise<ImageQualityReport> {
   const glareRatio = brightPixels / samples
   const edgeScore = edgeEnergy / samples
   const glareStatus = classifyGlare(glareRatio, contrast, edgeScore)
+  const displayGlareStatus: QualityCheck['status'] = glareStatus === 'fail' ? 'warn' : glareStatus
+  const focusNeedsRetake = contrast < 25 || edgeScore < 12
+  const focusWarn = focusNeedsRetake || contrast < 38 || edgeScore < 20
   const checks: QualityCheck[] = []
 
   checks.push({
@@ -92,10 +95,10 @@ export async function inspectImage(file: File): Promise<ImageQualityReport> {
   checks.push({
     code: 'glare',
     label: 'Glare',
-    status: glareStatus,
+    status: displayGlareStatus,
     detail:
       glareStatus === 'fail'
-        ? 'Large clipped areas and low image detail may hide printed values; retake at a different light angle.'
+        ? 'Large bright areas may hide printed values. Retake at a different light angle, then retry analysis.'
         : glareStatus === 'warn'
           ? 'Bright areas were detected, but text detail remains usable. Confirm that no printed values are hidden.'
           : 'No significant clipped areas detected.',
@@ -103,8 +106,12 @@ export async function inspectImage(file: File): Promise<ImageQualityReport> {
   checks.push({
     code: 'focus',
     label: 'Focus & text contrast',
-    status: contrast < 25 || edgeScore < 12 ? 'fail' : contrast < 38 || edgeScore < 20 ? 'warn' : 'pass',
-    detail: contrast < 38 || edgeScore < 20 ? 'Text may be soft or low contrast; hold steady and fill the frame.' : 'Contrast and edge detail look usable.',
+    status: focusWarn ? 'warn' : 'pass',
+    detail: focusNeedsRetake
+      ? 'Text looks soft or low contrast. Retake closer, hold steady, and tap to focus before analysis.'
+      : focusWarn
+        ? 'Text detail is marginal. Fill more of the frame and confirm the values carefully during review.'
+        : 'Contrast and edge detail look usable.',
   })
   checks.push({
     code: 'orientation',
@@ -116,14 +123,15 @@ export async function inspectImage(file: File): Promise<ImageQualityReport> {
     code: 'crop',
     label: 'Crop',
     status: 'warn',
-    detail: 'Confirm the serving line and every nutrient row are fully inside the photo.',
+    detail: 'Make the panel fill most of the frame, with the serving line and every nutrient row fully inside the photo.',
   })
 
+  const hardBlockingCodes = new Set(['mime', 'size', 'resolution'])
   return {
     width: Math.round(width / scale),
     height: Math.round(height / scale),
     checks,
-    canSubmit: !checks.some((check) => check.status === 'fail'),
+    canSubmit: !checks.some((check) => hardBlockingCodes.has(check.code) && check.status === 'fail'),
   }
 }
 

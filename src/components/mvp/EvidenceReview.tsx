@@ -14,19 +14,24 @@ import { useMemo, useState } from 'react'
 import { NUTRIENT_KEYS, NUTRIENT_META, correctionsFromResult, makeLogTotals } from '../../domain/nutrition'
 import type {
   AnalysisResult,
+  ExtractionCandidate,
   FinalizeCorrections,
   LogEntry,
   MealSlot,
+  MethodDiagnostic,
+  NutrientKey,
+  PanelDiagnostic,
 } from '../../domain/types'
 import { finalizeAnalysis } from '../../lib/api'
 import { saveLog } from '../../lib/db'
 import type { AnalysisImages } from '../../lib/api'
+import ImagePreviewButton from './ImagePreviewButton'
 
 interface Props {
   result: AnalysisResult
   images: AnalysisImages
   onBack: () => void
-  onLogged: () => void
+  onLogged: () => void | Promise<void>
 }
 
 function numberFromInput(value: string): number | null {
@@ -47,6 +52,76 @@ function glBandLabel(band: AnalysisResult['glycemic']['glBand']): string {
   return 'GL unavailable'
 }
 
+function statusLabel(status: string | undefined): string {
+  if (!status) return 'Not reported'
+  return status[0].toUpperCase() + status.slice(1)
+}
+
+function panelSummary(panel: PanelDiagnostic | null | undefined): string {
+  if (!panel) return 'Not supplied'
+  if (panel.status === 'skipped') return 'Not supplied'
+  if (panel.status === 'failed') return panel.readableCharacters > 0 ? `${panel.readableCharacters} readable chars; not accepted` : 'No readable OCR text'
+  return `${panel.readableCharacters} readable chars`
+}
+
+const REVIEW_FIELD_ORDER = [
+  'productName',
+  'brand',
+  'servingSize',
+  'servingUnit',
+  'servingsPerContainer',
+  ...NUTRIENT_KEYS,
+  'rawIngredients',
+] as const
+
+const FIELD_LABELS: Record<string, string> = {
+  productName: 'Product name',
+  brand: 'Brand',
+  servingSize: 'Serving size',
+  servingUnit: 'Serving unit',
+  servingsPerContainer: 'Servings per container',
+  rawIngredients: 'Ingredients',
+  totalCarbohydrate: NUTRIENT_META.totalCarbohydrate.label,
+  fiber: NUTRIENT_META.fiber.label,
+  totalSugars: NUTRIENT_META.totalSugars.label,
+  addedSugars: NUTRIENT_META.addedSugars.label,
+  sugarAlcohols: NUTRIENT_META.sugarAlcohols.label,
+  protein: NUTRIENT_META.protein.label,
+  fat: NUTRIENT_META.fat.label,
+}
+
+const EDITABLE_FIELDS = new Set<string>([
+  'productName',
+  'servingSize',
+  'servingUnit',
+  'rawIngredients',
+  ...NUTRIENT_KEYS,
+])
+
+function isNutrientKey(value: string): value is NutrientKey {
+  return NUTRIENT_KEYS.includes(value as NutrientKey)
+}
+
+function candidateDisplay(candidate: ExtractionCandidate | null): string {
+  if (!candidate || candidate.value == null || candidate.value === '') return 'No candidate'
+  const value = typeof candidate.value === 'number' ? `${candidate.value}` : candidate.value
+  return candidate.unit ? `${value} ${candidate.unit}` : value
+}
+
+function candidateNumber(candidate: ExtractionCandidate): number | null {
+  if (typeof candidate.value === 'number') return candidate.value
+  if (typeof candidate.value === 'string') return numberFromInput(candidate.value)
+  return null
+}
+
+function methodStatus(method: MethodDiagnostic | null | undefined): string {
+  if (!method) return 'Not reported'
+  const bits = [statusLabel(method.status)]
+  if (method.model) bits.push(method.model)
+  if (method.latencyMs != null) bits.push(`${method.latencyMs} ms`)
+  return bits.join(' · ')
+}
+
 export default function EvidenceReview({ result, images, onBack, onLogged }: Props) {
   const [corrections, setCorrections] = useState<FinalizeCorrections>(() => correctionsFromResult(result))
   const [edited, setEdited] = useState<Set<string>>(new Set())
@@ -63,8 +138,55 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
     setConfirmed(null)
     setEdited((previous) => new Set(previous).add(key))
   }
+  const applyCandidate = (field: string, candidate: ExtractionCandidate) => {
+    changed(field === 'rawIngredients' ? 'ingredients' : field)
+    if (field === 'productName') {
+      setCorrections((value) => ({ ...value, productName: String(candidate.value ?? '') }))
+      return
+    }
+    if (field === 'servingSize') {
+      setCorrections((value) => ({ ...value, servingSize: candidateNumber(candidate) }))
+      return
+    }
+    if (field === 'servingUnit') {
+      setCorrections((value) => ({ ...value, servingUnit: String(candidate.value ?? '') }))
+      return
+    }
+    if (field === 'rawIngredients') {
+      setCorrections((value) => ({ ...value, rawIngredients: String(candidate.value ?? '') }))
+      return
+    }
+    if (isNutrientKey(field)) {
+      setCorrections((previous) => ({
+        ...previous,
+        nutrients: { ...previous.nutrients, [field]: candidateNumber(candidate) },
+      }))
+    }
+  }
 
   const limitations = useMemo(() => Array.from(new Set(current.limitations)), [current.limitations])
+  const diagnostics = current.diagnostics
+  const fallbackReason = diagnostics?.fallbackReason
+  const ingredientFieldHasText = Boolean(current.rawIngredients.value?.trim())
+  const ingredientTextAccepted = current.rawIngredients.sourceKind === 'label' && ingredientFieldHasText
+  const comparisonRows = useMemo(
+    () => {
+      const fieldComparisons = current.fieldComparisons ?? {}
+      return REVIEW_FIELD_ORDER
+        .map((field) => fieldComparisons[field])
+        .filter((comparison) => comparison && (
+          comparison.ocrCandidate ||
+          comparison.vlmCandidate ||
+          comparison.agreementStatus !== 'unavailable'
+        ))
+    },
+    [current.fieldComparisons],
+  )
+  const capturedImages = [
+    { label: 'Nutrition', file: images.nutrition },
+    { label: 'Ingredients', file: images.ingredients },
+    { label: 'Front', file: images.front },
+  ].filter((item): item is { label: string; file: File } => Boolean(item.file))
 
   const validate = async () => {
     setSaving(true)
@@ -100,7 +222,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
           : undefined,
       }
       await saveLog(entry)
-      onLogged()
+      await onLogged()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not save locally.')
     } finally {
@@ -121,6 +243,58 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
       </div>
 
       <div className="notice neutral"><Info size={18} /><span>This tool explains package labels for adult research use. It does not predict glucose or provide medical advice.</span></div>
+      {current.retakeRecommended && current.retakeReasons.length > 0 && (
+        <div className="notice warning retake-notice">
+          <AlertCircle size={18} />
+          <span>{current.retakeReasons.join(' ')}</span>
+        </div>
+      )}
+
+      {comparisonRows.length > 0 && (
+        <section className="card comparison-card">
+          <div className="section-heading">
+            <div><span className="section-kicker">Extraction comparison</span><h2>OCR+LLM vs VLM</h2></div>
+            <StatusPill status={current.extractionMode === 'both' ? 'Read from label' : 'Unavailable'} />
+          </div>
+          <div className="comparison-grid">
+            <div className="comparison-header comparison-field-head">Field</div>
+            <div className="comparison-header">OCR+LLM</div>
+            <div className="comparison-header">VLM</div>
+            {comparisonRows.map((comparison) => (
+              <div className={`comparison-row comparison-${comparison.agreementStatus}`} key={comparison.field}>
+                <div className="comparison-field">
+                  <strong>{FIELD_LABELS[comparison.field] ?? comparison.field}</strong>
+                  <span>{comparison.agreementStatus.replace('_', ' ')}</span>
+                  {comparison.warningReason && <small>{comparison.warningReason}</small>}
+                </div>
+                {(['ocrCandidate', 'vlmCandidate'] as const).map((candidateKey) => {
+                  const candidate = comparison[candidateKey]
+                  const sourceLabel = candidateKey === 'ocrCandidate' ? 'OCR' : 'VLM'
+                  const canApply = Boolean(candidate?.validationPassed && EDITABLE_FIELDS.has(comparison.field))
+                  return (
+                    <div className={`candidate-cell ${candidate ? '' : 'candidate-empty'}`} key={candidateKey}>
+                      <strong>{candidateDisplay(candidate)}</strong>
+                      {candidate?.confidence != null && <span>{Math.round(candidate.confidence * 100)}% confidence</span>}
+                      {candidate?.snippet && <small>{candidate.snippet}</small>}
+                      {candidate?.warningReason && <small className="candidate-warning">{candidate.warningReason}</small>}
+                      {candidate && EDITABLE_FIELDS.has(comparison.field) && (
+                        <button
+                          type="button"
+                          className="candidate-button"
+                          disabled={!canApply}
+                          onClick={() => applyCandidate(comparison.field, candidate)}
+                        >
+                          Use {sourceLabel}
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="review-layout">
         <div className="review-main">
@@ -208,7 +382,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
               <textarea
                 rows={5}
                 value={corrections.rawIngredients}
-                placeholder="Leave blank if no readable ingredients panel was supplied."
+                placeholder={fallbackReason ? `No ingredient text accepted: ${fallbackReason}` : 'No ingredient text accepted'}
                 onChange={(event) => {
                   changed('ingredients')
                   setCorrections((value) => ({ ...value, rawIngredients: event.target.value }))
@@ -216,6 +390,9 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
               />
               <StatusPill status={edited.has('ingredients') ? 'User confirmed' : current.rawIngredients.status} />
             </label>
+            {!ingredientFieldHasText && !corrections.rawIngredients.trim() && (
+              <p className="empty-inline">No ingredient text accepted{fallbackReason ? `: ${fallbackReason}` : '. Confirm by typing it from the panel if readable.'}</p>
+            )}
             {current.sugarVariants.length > 0 ? (
               <div className="variant-list">
                 {current.sugarVariants.map((variant) => (
@@ -231,6 +408,69 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
         </div>
 
         <aside className="review-aside">
+          <section className="card captured-images-card">
+            <span className="section-kicker">Captured panels</span>
+            <div className="captured-image-list">
+              {capturedImages.map((image) => (
+                <div className="captured-image-row" key={image.label}>
+                  <ImagePreviewButton file={image.file} label={`${image.label} panel`} className="captured-image-button" />
+                  <div><strong>{image.label}</strong><span>{image.file.name}</span></div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="card extraction-card">
+            <span className="section-kicker">Extraction details</span>
+            <div className="diagnostic-row">
+              <strong>Barcode</strong>
+              <span>{current.product.barcode.value ? `${current.product.barcode.status}: ${current.product.barcode.value}` : 'No barcode accepted'}</span>
+            </div>
+            <div className="diagnostic-row">
+              <strong>Nutrition extraction</strong>
+              <span>{statusLabel(diagnostics?.extractionStatus)}</span>
+            </div>
+            <div className="diagnostic-row">
+              <strong>Mode</strong>
+              <span>{current.extractionMode === 'ocr_llm' ? 'OCR+LLM only' : current.extractionMode === 'vlm' ? 'VLM only' : 'Both'}</span>
+            </div>
+            <div className="diagnostic-row">
+              <strong>Ingredient read</strong>
+              <span>{ingredientTextAccepted ? `Accepted as ${current.rawIngredients.status}` : current.rawIngredients.sourceKind === 'user' ? 'User confirmed manually' : 'No ingredient text accepted'}</span>
+            </div>
+            <div className="diagnostic-row">
+              <strong>OCR / model</strong>
+              <span>{diagnostics?.ocrProvider ?? 'OCR unavailable'} / {diagnostics?.llmModel ?? 'LLM unavailable'}</span>
+            </div>
+            <div className="method-diagnostics">
+              {[
+                ['OCR+LLM', diagnostics?.ocrLlm] as const,
+                ['VLM', diagnostics?.vlm] as const,
+              ].map(([label, method]) => (
+                <div key={label} className={`method-diagnostic method-${method?.status ?? 'skipped'}`}>
+                  <div><strong>{label}</strong><span>{methodStatus(method)}</span></div>
+                  {method?.imagePanels.length ? <small>Panels: {method.imagePanels.join(', ')}</small> : null}
+                  {method?.failureReason && <small className="candidate-warning">{method.failureReason}</small>}
+                  {method?.validationFailures.map((failure) => <small className="candidate-warning" key={failure}>{failure}</small>)}
+                </div>
+              ))}
+            </div>
+            {fallbackReason && <div className="diagnostic-fallback"><AlertCircle size={16} /><span>{fallbackReason}</span></div>}
+            <div className="panel-diagnostic-list">
+              {[
+                ['Nutrition', diagnostics?.panels.nutrition] as const,
+                ['Ingredients', diagnostics?.panels.ingredients] as const,
+                ['Front', diagnostics?.panels.front] as const,
+              ].map(([label, panel]) => (
+                <div key={label} className={`panel-diagnostic panel-diagnostic-${panel?.status ?? 'skipped'}`}>
+                  <div><strong>{label}</strong><span>{panelSummary(panel)}</span></div>
+                  {panel?.warnings.map((warning) => <small key={warning}>{warning}</small>)}
+                  {panel?.snippet && <small className="ocr-snippet">{panel.snippet}</small>}
+                </div>
+              ))}
+            </div>
+          </section>
+
           <section className="card glycemic-card">
             <span className="section-kicker">Glycemic evidence</span>
             {current.glycemic.status === 'sourced' ? (

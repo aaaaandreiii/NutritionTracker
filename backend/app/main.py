@@ -20,6 +20,7 @@ from .pipeline import (
     MAX_UPLOAD_BYTES,
     AnalysisJob,
     clone_result,
+    configured_default_extraction_mode,
     inspect_and_sanitize_image,
     run_pipeline,
     user_value,
@@ -27,6 +28,7 @@ from .pipeline import (
 from .schemas import (
     AnalysisResult,
     CreateAnalysisResponse,
+    ExtractionMode,
     FinalizeRequest,
     NutrientFields,
     ProductIdentity,
@@ -119,6 +121,7 @@ async def create_analysis(
     ingredient_image: Annotated[UploadFile | None, File()] = None,
     front_image: Annotated[UploadFile | None, File()] = None,
     barcode: Annotated[str | None, Form(max_length=32, pattern=r"^[0-9]*$")] = None,
+    extraction_mode: Annotated[ExtractionMode | None, Form(alias="extractionMode")] = None,
 ) -> CreateAnalysisResponse:
     analysis_id = str(uuid.uuid4())
     temp_dir = Path(tempfile.mkdtemp(prefix=f"sugar-pai-{analysis_id[:8]}-"))
@@ -144,6 +147,7 @@ async def create_analysis(
         image_paths=paths,
         quality_checks=checks,
         barcode=barcode or None,
+        extraction_mode=extraction_mode or configured_default_extraction_mode(),
     )
     JOBS[analysis_id] = job
     asyncio.create_task(run_pipeline(job))
@@ -221,6 +225,7 @@ async def finalize_analysis(analysis_id: str, request: FinalizeRequest) -> Analy
         analysis_id=analysis_id,
         status="confirmed",
         market=job.market,
+        extraction_mode=previous.extraction_mode,
         product=ProductIdentity(
             name=user_value(request.product_name, basis=None),
             brand=previous.product.brand,
@@ -245,6 +250,11 @@ async def finalize_analysis(analysis_id: str, request: FinalizeRequest) -> Analy
             "This tool does not provide medical advice, diabetes safety claims, medication guidance, or glucose predictions.",
             *glycemic_limitations,
         ],
+        diagnostics=previous.diagnostics,
+        extraction_candidates=previous.extraction_candidates,
+        field_comparisons=previous.field_comparisons,
+        retake_recommended=previous.retake_recommended,
+        retake_reasons=previous.retake_reasons,
         provenance=Provenance(
             pipeline_version=previous.provenance.pipeline_version,
             completed_at=datetime.now(timezone.utc),
