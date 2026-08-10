@@ -8,13 +8,27 @@ import Dashboard from './components/Dashboard';
 import PantryGroceryHub from './components/PantryGroceryHub';
 import RecipesHub from './components/RecipesHub';
 import MealLoggerModal from './components/MealLoggerModal';
-import SugarPAI from './components/SugarPAI';
+import SugarPAI from './components/SugarPAIApp';
+
+const APP_TABS = ['sugar-pai', 'dashboard', 'pantry', 'recipes'];
+
+function tabFromHash() {
+  const hash = window.location.hash.replace(/^#\/?/, '');
+  if (hash === 'sugar-pai' || hash.startsWith('sugar-pai/')) return 'sugar-pai';
+  return APP_TABS.includes(hash) ? hash : 'dashboard';
+}
+
+const sugarPaiMealSlotMap = {
+  Breakfast: 'breakfast',
+  Lunch: 'lunch',
+  Dinner: 'dinner',
+  Snack: 'afternoonSnack',
+  Other: 'afternoonSnack'
+};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState(() => {
-    // Initial router check based on current hash
-    const hash = window.location.hash.replace('#/', '');
-    return ['sugar-pai', 'dashboard', 'pantry', 'recipes'].includes(hash) ? hash : 'dashboard';
+    return tabFromHash();
   });
   
   const [selectedPreset, setSelectedPreset] = useState('Standard Daily Dozen');
@@ -53,12 +67,7 @@ export default function App() {
   // Listen to browser URL hash changes for deep-linked tabs and navigation support
   useEffect(() => {
     const handleHashChange = () => {
-      const hash = window.location.hash.replace('#/', '');
-      if (['sugar-pai', 'dashboard', 'pantry', 'recipes'].includes(hash)) {
-        setActiveTab(hash);
-      } else {
-        setActiveTab('dashboard');
-      }
+      setActiveTab(tabFromHash());
     };
 
     window.addEventListener('hashchange', handleHashChange);
@@ -72,7 +81,7 @@ export default function App() {
   }, []);
 
   const handleTabChange = (tabName) => {
-    window.location.hash = `#/${tabName}`;
+    window.location.hash = tabName === 'sugar-pai' ? '#/sugar-pai/scan' : `#/${tabName}`;
     setActiveTab(tabName);
   };
 
@@ -234,7 +243,7 @@ export default function App() {
 
         <nav className="flex items-center gap-1 bg-gray-100/65 p-1 rounded-2xl">
           <a 
-            href="#/sugar-pai"
+            href="#/sugar-pai/scan"
             onClick={(e) => {
               e.preventDefault();
               handleTabChange('sugar-pai');
@@ -337,22 +346,30 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-6 mt-8">
         <div className={activeTab === 'sugar-pai' ? 'block' : 'hidden'}>
           <SugarPAI 
-            activeTab={activeTab}
             triggerToast={triggerToast}
-            onLogMeal={(analyzedItem) => {
+            onLogMeal={(entry) => {
+              const slot = sugarPaiMealSlotMap[entry.meal] || 'afternoonSnack';
               const newMealItem = {
-                id: `pai_${Date.now()}`,
-                name: analyzedItem.name,
-                cals: analyzedItem.totalCals,
-                servings: { wholeGrains: 1 },
+                id: `pai_${entry.id}`,
+                name: entry.productName,
+                cals: 0,
+                servings: {},
                 servingsMultiplier: 1.0,
-                tags: ['snack']
+                tags: ['sugar-pai', entry.meal.toLowerCase()],
+                sugarPai: {
+                  logId: entry.id,
+                  analysisId: entry.analysisId,
+                  meal: entry.meal,
+                  consumedServings: entry.consumedServings,
+                  loggedAt: entry.loggedAt,
+                  totals: entry.totals
+                }
               };
               setIntake(prev => ({
                 ...prev,
-                afternoonSnack: [...prev.afternoonSnack, newMealItem]
+                [slot]: [...prev[slot], newMealItem]
               }));
-              triggerToast(`Logged "${analyzedItem.name}" (${analyzedItem.totalSugars}g sugar) to Afternoon Snack!`, 'success');
+              triggerToast(`Added "${entry.productName}" Sugar pAI snapshot to ${mealSlots.find(m => m.id === slot)?.label}.`, 'success');
             }}
           />
         </div>

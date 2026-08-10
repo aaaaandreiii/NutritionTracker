@@ -1,0 +1,44 @@
+[
+  {
+    "productId": "synthetic-cereal-001",
+    "schemaValidAfterRetry": true,
+    "latencyMs": 4200,
+    "apiError": false,
+    "fallbackReason": null,
+    "extracted": {
+      "servingSize": 30,
+      "totalCarbohydrate": 22,
+      "fiber": 3,
+      "totalSugars": 7,
+      "addedSugars": null,
+      "sugarSpans": [
+        {
+          "rawSpan": "asukal",
+          "canonicalName": "Sucrose",
+          "ingredientRank": 2
+        }
+      ]
+    }
+  },
+  {
+    "productId": "synthetic-polyol-002",
+    "schemaValidAfterRetry": true,
+    "latencyMs": 5100,
+    "apiError": false,
+    "fallbackReason": null,
+    "extracted": {
+      "servingSize": 40,
+      "totalCarbohydrate": 18,
+      "fiber": 6,
+      "totalSugars": 1,
+      "addedSugars": 0,
+      "sugarSpans": [
+        {
+          "rawSpan": "maltitol",
+          "canonicalName": "Maltitol",
+          "ingredientRank": 3
+        }
+      ]
+    }
+  }
+]

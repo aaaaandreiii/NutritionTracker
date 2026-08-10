@@ -6,6 +6,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+.env
+.env.*
+!.env.example
 
 node_modules
 dist
@@ -24,3 +27,9 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Python research service
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/

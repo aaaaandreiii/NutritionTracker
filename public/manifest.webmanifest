@@ -1,0 +1,17 @@
+{
+  "name": "NutritionTracker",
+  "short_name": "NutritionTracker",
+  "description": "Daily Dozen tracker with Sugar pAI packaged-food label research",
+  "start_url": "/#/dashboard",
+  "display": "standalone",
+  "background_color": "#f7f3eb",
+  "theme_color": "#0c6f4f",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
