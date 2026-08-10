@@ -50,6 +50,12 @@ function glBandLabel(band: AnalysisResult['glycemic']['glBand']): string {
   return 'GL unavailable'
 }
 
+function heuristicGiLabel(matchLevel: AnalysisResult['glycemic']['matchLevel']): string {
+  if (matchLevel === 'same_food_form') return 'Food-form demo GI input'
+  if (matchLevel === 'alias_heuristic') return 'Alias demo GI input'
+  return 'Demo GI input'
+}
+
 function statusLabel(status: string | undefined): string {
   if (!status) return 'Not reported'
   return status[0].toUpperCase() + status.slice(1)
@@ -343,7 +349,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
                 <div className="demo-gl-value"><strong>{current.glycemic.gl ?? '—'}</strong><span>Demo GL</span></div>
                 <div className="band-pill">{glBandLabel(current.glycemic.glBand)}</div>
                 <p>{current.glycemic.reason}</p>
-                {current.glycemic.gi != null && <small>Alias demo GI input: {current.glycemic.gi}. Net carbohydrate: {current.glycemic.availableCarbohydrateGrams ?? 'unavailable'} g.</small>}
+                {current.glycemic.gi != null && <small>{heuristicGiLabel(current.glycemic.matchLevel)}: {current.glycemic.gi}. Net carbohydrate: {current.glycemic.availableCarbohydrateGrams ?? 'unavailable'} g.</small>}
                 {current.glycemic.licensing && <small>{current.glycemic.licensing}</small>}
               </div>
             ) : (

@@ -54,6 +54,7 @@ export function exportLogsCsv(logs: LogEntry[]) {
   const rows = [
     [
       'logged_at',
+      'updated_at',
       'meal',
       'product',
       'consumed_servings',
@@ -64,6 +65,7 @@ export function exportLogsCsv(logs: LogEntry[]) {
     ],
     ...logs.map((entry) => [
       entry.loggedAt,
+      entry.updatedAt,
       entry.meal,
       entry.productName,
       entry.consumedServings,

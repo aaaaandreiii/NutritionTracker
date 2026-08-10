@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 
 from .schemas import GlycemicEvidence, NutrientFields, SugarVariant
@@ -11,6 +13,24 @@ GL_RED_MIN = 20
 HEURISTIC_LICENSING = (
     "No licensed FNRI, Trinidad, or tested-product GI source is bundled. "
     "Values marked heuristic_demo are local demo placeholders, not clinical evidence."
+)
+
+
+@dataclass(frozen=True)
+class FoodFormHeuristic:
+    canonical_name: str
+    demo_gi: int
+    aliases: tuple[str, ...]
+
+
+# Local demo placeholders for common unsweetened food forms that can be identified
+# from the product or ingredient text. These are not sourced tested-product GI data.
+FOOD_FORM_HEURISTICS = (
+    FoodFormHeuristic(
+        canonical_name="Rolled oats",
+        demo_gi=55,
+        aliases=("rolled oats", "rolled oatmeal", "whole grain oats", "oatmeal", "oats"),
+    ),
 )
 
 
@@ -82,14 +102,54 @@ def _heuristic_candidates(variants: list[SugarVariant]) -> list[tuple[SugarVaria
     return candidates
 
 
-def build_glycemic_evidence(nutrients: NutrientFields, variants: list[SugarVariant]) -> tuple[GlycemicEvidence, list[str]]:
+def _food_form_candidate(product_name: str = "", raw_ingredients: str = "") -> FoodFormHeuristic | None:
+    text = f"{product_name} {raw_ingredients}".casefold()
+    normalized = re.sub(r"[^a-z0-9\s-]", " ", text)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    for heuristic in FOOD_FORM_HEURISTICS:
+        if any(re.search(rf"\b{re.escape(alias)}\b", normalized) for alias in heuristic.aliases):
+            return heuristic
+    return None
+
+
+def build_glycemic_evidence(
+    nutrients: NutrientFields,
+    variants: list[SugarVariant],
+    *,
+    product_name: str = "",
+    raw_ingredients: str = "",
+) -> tuple[GlycemicEvidence, list[str]]:
     candidates = _heuristic_candidates(variants)
+    food_form = _food_form_candidate(product_name, raw_ingredients)
     if not candidates:
+        if food_form:
+            net_carbs, limitations = demo_net_carbs(nutrients)
+            gl = calculate_gl(food_form.demo_gi, net_carbs) if net_carbs is not None else None
+            band = gl_band(gl) if gl is not None else None
+            reason = (
+                f"Heuristic demo only: food-form text matched {food_form.canonical_name}. "
+                "This is not sourced tested-product GI and does not predict individual glucose response."
+            )
+            return (
+                GlycemicEvidence(
+                    status="heuristic_demo",
+                    tested_food_match_description=f"Demo food-form input uses {food_form.canonical_name} from product or ingredient text.",
+                    match_level="same_food_form",
+                    gi=float(food_form.demo_gi),
+                    available_carbohydrate_grams=net_carbs,
+                    gl=gl,
+                    gl_band=band,
+                    citation=None,
+                    licensing=HEURISTIC_LICENSING,
+                    reason=reason,
+                ),
+                [HEURISTIC_LICENSING, *limitations],
+            )
         return (
             GlycemicEvidence(
                 status="unavailable",
                 reason=(
-                    "No sourced tested-product GI evidence is bundled, and no sugar-related alias was matched for the "
+                    "No sourced tested-product GI evidence is bundled, and no sugar-related or food-form alias was matched for the "
                     "clearly labeled heuristic demo."
                 ),
             ),

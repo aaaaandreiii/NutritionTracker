@@ -70,7 +70,24 @@ def test_heuristic_demo_glycemic_evidence_is_labeled_and_banded():
 def test_glycemic_unavailable_without_alias():
     glycemic, _limitations = build_glycemic_evidence(
         nutrients(22, 3, sugars=7),
-        classify_ingredients("Oats, salt"),
+        classify_ingredients("Wheat bran, salt"),
     )
     assert glycemic.status == "unavailable"
     assert glycemic.gl is None
+
+
+def test_food_form_demo_glycemic_evidence_for_rolled_oats_without_sugar_alias():
+    glycemic, limitations = build_glycemic_evidence(
+        nutrients(4, 2.3, sugars=0.4),
+        classify_ingredients("Whole Grain Oats"),
+        product_name="Quaker Rolled Oatmeal",
+        raw_ingredients="Whole Grain Oats",
+    )
+    assert glycemic.status == "heuristic_demo"
+    assert glycemic.match_level == "same_food_form"
+    assert glycemic.gi == 55
+    assert glycemic.available_carbohydrate_grams == 1.7
+    assert glycemic.gl == 0.9
+    assert glycemic.gl_band == "green"
+    assert "food-form text matched Rolled oats" in glycemic.reason
+    assert any("No licensed" in item for item in limitations)

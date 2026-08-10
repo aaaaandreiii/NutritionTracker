@@ -1,4 +1,10 @@
-import type { AnalysisResult, AnalysisStageEvent, FinalizeCorrections, Market } from '../domain/types'
+import type {
+  AnalysisResult,
+  AnalysisStageEvent,
+  FinalizeCorrections,
+  LabelRecordValidation,
+  Market,
+} from '../domain/types'
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -70,6 +76,18 @@ export async function finalizeAnalysis(
   })
   if (!response.ok) throw new Error(await responseMessage(response, 'Could not confirm this result.'))
   return response.json() as Promise<AnalysisResult>
+}
+
+export async function validateLabelRecord(
+  corrections: FinalizeCorrections,
+): Promise<LabelRecordValidation> {
+  const response = await fetchApi(`${API_BASE}/api/v1/label-records/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corrections),
+  })
+  if (!response.ok) throw new Error(await responseMessage(response, 'Could not validate this record.'))
+  return response.json() as Promise<LabelRecordValidation>
 }
 
 export async function deleteAnalysis(analysisId: string): Promise<void> {

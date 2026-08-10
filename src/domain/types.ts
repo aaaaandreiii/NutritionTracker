@@ -164,12 +164,27 @@ export interface FinalizeCorrections {
   consumedServings: number
 }
 
+export interface LabelRecordValidation {
+  status: 'confirmed'
+  productName: EvidenceValue<string>
+  servingSize: EvidenceValue<number>
+  servingUnit: string | null
+  nutrients: NutrientFields
+  rawIngredients: EvidenceValue<string>
+  sugarVariants: SugarVariant[]
+  glycemic: GlycemicEvidence
+  validationChecks: ValidationCheck[]
+  limitations: string[]
+  provenance: AnalysisResult['provenance']
+}
+
 export type MealSlot = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack' | 'Other'
 
 export interface LogEntry {
   id: string
   analysisId: string
   loggedAt: string
+  updatedAt?: string
   meal: MealSlot
   consumedServings: number
   productName: string

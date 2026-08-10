@@ -533,7 +533,12 @@ def result_from_extraction(
         protein=_with_label_fallback(label.protein, base.nutrients.protein, unit="g", confidence=confidence),
         fat=_with_label_fallback(label.fat, base.nutrients.fat, unit="g", confidence=confidence),
     )
-    glycemic, glycemic_limitations = build_glycemic_evidence(nutrients, sugar_variants)
+    glycemic, glycemic_limitations = build_glycemic_evidence(
+        nutrients,
+        sugar_variants,
+        product_name=str(label.product_name or base.product.name.value or ""),
+        raw_ingredients=raw_ingredients.value or "",
+    )
 
     product_name = _with_label_fallback(
         label.product_name,

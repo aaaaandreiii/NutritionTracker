@@ -3,14 +3,15 @@ import { useEffect, useState } from 'react'
 import ImageViewerModal from './ImageViewerModal'
 
 interface Props {
-  file?: File
+  file?: Blob
+  fileName?: string
   label: string
   className?: string
 }
 
-export default function ImagePreviewButton({ file, label, className = 'image-preview-button' }: Props) {
+export default function ImagePreviewButton({ file, fileName, label, className = 'image-preview-button' }: Props) {
   const [open, setOpen] = useState(false)
-  const [dataUrl, setDataUrl] = useState<{ file: File; src: string } | null>(null)
+  const [dataUrl, setDataUrl] = useState<{ file: Blob; src: string } | null>(null)
   const src = dataUrl && dataUrl.file === file ? dataUrl.src : null
 
   useEffect(() => {
@@ -34,7 +35,7 @@ export default function ImagePreviewButton({ file, label, className = 'image-pre
 
   if (!file || !src) return <FileImage size={26} />
 
-  const title = `${label}: ${file.name}`
+  const title = `${label}: ${fileName ?? (file instanceof File ? file.name : 'retained image')}`
 
   return (
     <>

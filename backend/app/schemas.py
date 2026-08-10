@@ -193,6 +193,20 @@ class FinalizeRequest(ApiModel):
     consumed_servings: float = Field(gt=0, le=100)
 
 
+class LabelRecordValidationResponse(ApiModel):
+    status: Literal["confirmed"] = "confirmed"
+    product_name: EvidenceValue[str]
+    serving_size: EvidenceValue[float]
+    serving_unit: str | None = None
+    nutrients: NutrientFields
+    raw_ingredients: EvidenceValue[str]
+    sugar_variants: list[SugarVariant]
+    glycemic: GlycemicEvidence
+    validation_checks: list[ValidationCheck]
+    limitations: list[str]
+    provenance: Provenance
+
+
 class CreateAnalysisResponse(ApiModel):
     analysis_id: str
     expires_in_seconds: int = 900

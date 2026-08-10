@@ -18,7 +18,6 @@ export interface ScanSessionState {
   market: Market
   barcode: string
   barcodeReading: boolean
-  consented: boolean
   analysisId: string | null
   result: AnalysisResult | null
   stages: Record<string, AnalysisStageEvent>
@@ -36,7 +35,6 @@ export function createInitialScanSession(): ScanSessionState {
     market: 'PH',
     barcode: '',
     barcodeReading: false,
-    consented: false,
     analysisId: null,
     result: null,
     stages: {},

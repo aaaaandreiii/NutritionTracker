@@ -26,7 +26,7 @@ export default function AboutPage() {
           <ol className="processing-list">
             <li><strong>This device</strong><p>Image previews, basic quality checks, and UPC/EAN barcode decoding.</p></li>
             <li><strong>Temporary Sugar pAI service</strong><p>MIME/dimension validation, EXIF stripping, orchestration, validation, and short-lived job state. Temporary files expire after 15 minutes.</p></li>
-            <li><strong>Configured external processors</strong><p>A hosted Ollama VLM is used for constrained JSON label extraction. Open Food Facts is contacted for barcode lookup only when enabled. The result’s provenance lists processors actually used. Do not upload if you do not consent.</p></li>
+            <li><strong>Configured external processors</strong><p>A hosted Ollama VLM is used for constrained JSON label extraction. Open Food Facts is contacted for barcode lookup only when enabled. The result’s provenance lists processors actually used.</p></li>
           </ol>
           <div className="notice neutral">Provider integrations are optional in development. When extraction fails, the app asks for manual confirmation and does not substitute sample nutrition values.</div>
         </section>

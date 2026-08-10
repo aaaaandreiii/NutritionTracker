@@ -91,3 +91,91 @@ def test_analysis_events_finalize_and_delete_round_trip(monkeypatch):
         deleted = client.delete(f"/api/v1/analyses/{analysis_id}")
         assert deleted.status_code == 204
         assert client.get(f"/api/v1/analyses/{analysis_id}/events").status_code == 404
+
+
+def test_label_record_validation_does_not_require_live_analysis_job():
+    payload = {
+        "productName": "Edited cereal",
+        "servingSize": 30,
+        "servingUnit": "g",
+        "nutrients": {
+            "totalCarbohydrate": 22,
+            "fiber": 3,
+            "totalSugars": 7,
+            "addedSugars": None,
+            "sugarAlcohols": None,
+            "protein": 4,
+            "fat": 2,
+        },
+        "rawIngredients": "Oats, asukal, salt",
+        "consumedServings": 2,
+    }
+
+    with TestClient(app) as client:
+        response = client.post("/api/v1/label-records/validate", json=payload)
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["status"] == "confirmed"
+        assert result["productName"]["value"] == "Edited cereal"
+        assert result["nutrients"]["totalCarbohydrate"]["status"] == "User confirmed"
+        assert result["sugarVariants"][0]["canonicalName"] == "Sucrose"
+        assert result["glycemic"]["status"] == "heuristic_demo"
+        assert result["glycemic"]["gl"] == 12.4
+        assert result["validationChecks"][0]["status"] == "pass"
+
+
+def test_label_record_validation_computes_demo_gl_for_whole_oats_without_sugar_alias():
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/label-records/validate",
+            json={
+                "productName": "Quaker Rolled Oatmeal",
+                "servingSize": 20,
+                "servingUnit": "g",
+                "nutrients": {
+                    "totalCarbohydrate": 4,
+                    "fiber": 2.3,
+                    "totalSugars": 0.4,
+                    "addedSugars": None,
+                    "sugarAlcohols": None,
+                    "protein": 4.9,
+                    "fat": None,
+                },
+                "rawIngredients": "Whole Grain Oats",
+                "consumedServings": 1,
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["sugarVariants"] == []
+    assert result["glycemic"]["status"] == "heuristic_demo"
+    assert result["glycemic"]["matchLevel"] == "same_food_form"
+    assert result["glycemic"]["gl"] == 0.9
+    assert result["glycemic"]["glBand"] == "green"
+
+
+def test_label_record_validation_rejects_impossible_nutrition_math():
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/label-records/validate",
+            json={
+                "productName": "Impossible bar",
+                "servingSize": 40,
+                "servingUnit": "g",
+                "nutrients": {
+                    "totalCarbohydrate": 10,
+                    "fiber": 2,
+                    "totalSugars": 6,
+                    "addedSugars": 9,
+                    "sugarAlcohols": None,
+                    "protein": 4,
+                    "fat": 3,
+                },
+                "rawIngredients": "Oats, sugar",
+                "consumedServings": 1,
+            },
+        )
+
+    assert response.status_code == 422
+    assert "Added sugars cannot exceed total sugars" in response.json()["detail"]

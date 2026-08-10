@@ -34,7 +34,6 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
     market,
     barcode,
     barcodeReading,
-    consented,
     analysisId,
     result,
     stages,
@@ -62,7 +61,7 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
   }, [serviceStatus.state, setSession])
 
   const canAnalyze = Boolean(
-    images.nutrition && reports.nutrition?.canSubmit && consented && !checking && !analyzing,
+    images.nutrition && reports.nutrition?.canSubmit && !checking && !analyzing,
   )
 
   const qualitySummary = useMemo(() => {
@@ -259,10 +258,6 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
               </button>
             </div>
             {!images.ingredients && <div className="notice warning"><AlertCircle size={17} /><span>No ingredients image: sugar-variant analysis will be unavailable unless you transcribe it during review.</span></div>}
-            <label className="checkbox-row consent-row">
-              <input type="checkbox" checked={consented} onChange={(event) => setSession((previous) => ({ ...previous, consented: event.target.checked }))} />
-              <span><strong>I consent to research processing</strong><small>Images go to the temporary analysis service and any configured processors disclosed in About. Server copies expire after 15 minutes.</small></span>
-            </label>
             {error && <div className="notice error"><AlertCircle size={17} /><span>{error}</span></div>}
             <button className="primary-button wide" disabled={!canAnalyze} onClick={() => void analyze()}>
               {analyzing ? <LoaderCircle className="spin" size={18} /> : <ScanLine size={18} />}

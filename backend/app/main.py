@@ -28,6 +28,7 @@ from .schemas import (
     AnalysisResult,
     CreateAnalysisResponse,
     FinalizeRequest,
+    LabelRecordValidationResponse,
     NutrientFields,
     ProductIdentity,
     Provenance,
@@ -157,6 +158,53 @@ def require_job(analysis_id: str) -> AnalysisJob:
     return job
 
 
+def validate_label_record(request: FinalizeRequest) -> LabelRecordValidationResponse:
+    validation_checks = validate_nutrients(request.nutrients)
+    failed = next((check for check in validation_checks if check.status == "fail"), None)
+    if failed:
+        raise HTTPException(status_code=422, detail=failed.message)
+
+    values = request.nutrients
+    confirmed_nutrients = NutrientFields(
+        total_carbohydrate=user_value(values.total_carbohydrate, unit="g"),
+        fiber=user_value(values.fiber, unit="g"),
+        total_sugars=user_value(values.total_sugars, unit="g"),
+        added_sugars=user_value(values.added_sugars, unit="g"),
+        sugar_alcohols=user_value(values.sugar_alcohols, unit="g"),
+        protein=user_value(values.protein, unit="g"),
+        fat=user_value(values.fat, unit="g"),
+    )
+    sugar_variants = classify_ingredients(request.raw_ingredients)
+    glycemic, glycemic_limitations = build_glycemic_evidence(
+        confirmed_nutrients,
+        sugar_variants,
+        product_name=request.product_name,
+        raw_ingredients=request.raw_ingredients,
+    )
+    return LabelRecordValidationResponse(
+        product_name=user_value(request.product_name, basis=None),
+        serving_size=user_value(request.serving_size, unit=request.serving_unit, basis="per labeled serving"),
+        serving_unit=request.serving_unit or None,
+        nutrients=confirmed_nutrients,
+        raw_ingredients=user_value(request.raw_ingredients, basis=None, image_kind="ingredients"),
+        sugar_variants=sugar_variants,
+        glycemic=glycemic,
+        validation_checks=validation_checks,
+        limitations=[
+            f"Ingredient matches use taxonomy {SUGAR_TAXONOMY_VERSION}; they do not estimate ingredient amounts.",
+            "Consumed servings are used only for the local log; they do not change the per-serving label snapshot.",
+            "No licensed FNRI, Trinidad, or tested-product GI table is bundled.",
+            "This tool does not provide medical advice, diabetes safety claims, medication guidance, or glucose predictions.",
+            *glycemic_limitations,
+        ],
+        provenance=Provenance(
+            pipeline_version="manual-label-record-validation-v1",
+            completed_at=datetime.now(timezone.utc),
+            external_processors=[],
+        ),
+    )
+
+
 async def event_stream(job: AnalysisJob) -> AsyncIterator[str]:
     index = 0
     while True:
@@ -199,52 +247,30 @@ async def finalize_analysis(analysis_id: str, request: FinalizeRequest) -> Analy
     if not job.done or not job.result:
         raise HTTPException(status_code=409, detail="Analysis is still processing.")
 
-    validation_checks = validate_nutrients(request.nutrients)
-    failed = next((check for check in validation_checks if check.status == "fail"), None)
-    if failed:
-        raise HTTPException(status_code=422, detail=failed.message)
-
     previous = clone_result(job.result)
-    values = request.nutrients
-    confirmed_nutrients = NutrientFields(
-        total_carbohydrate=user_value(values.total_carbohydrate, unit="g"),
-        fiber=user_value(values.fiber, unit="g"),
-        total_sugars=user_value(values.total_sugars, unit="g"),
-        added_sugars=user_value(values.added_sugars, unit="g"),
-        sugar_alcohols=user_value(values.sugar_alcohols, unit="g"),
-        protein=user_value(values.protein, unit="g"),
-        fat=user_value(values.fat, unit="g"),
-    )
-    sugar_variants = classify_ingredients(request.raw_ingredients)
-    glycemic, glycemic_limitations = build_glycemic_evidence(confirmed_nutrients, sugar_variants)
+    validated = validate_label_record(request)
     confirmed = AnalysisResult(
         analysis_id=analysis_id,
         status="confirmed",
         market=job.market,
         product=ProductIdentity(
-            name=user_value(request.product_name, basis=None),
+            name=validated.product_name,
             brand=previous.product.brand,
             barcode=previous.product.barcode,
         ),
         serving=ServingInformation(
-            size=user_value(request.serving_size, unit=request.serving_unit, basis="per labeled serving"),
-            unit=request.serving_unit or None,
+            size=validated.serving_size,
+            unit=validated.serving_unit,
             household_measure=previous.serving.household_measure,
             servings_per_container=previous.serving.servings_per_container,
         ),
-        nutrients=confirmed_nutrients,
-        raw_ingredients=user_value(request.raw_ingredients, basis=None, image_kind="ingredients"),
-        sugar_variants=sugar_variants,
-        glycemic=glycemic,
+        nutrients=validated.nutrients,
+        raw_ingredients=validated.raw_ingredients,
+        sugar_variants=validated.sugar_variants,
+        glycemic=validated.glycemic,
         quality_checks=previous.quality_checks,
-        validation_checks=validation_checks,
-        limitations=[
-            f"Ingredient matches use taxonomy {SUGAR_TAXONOMY_VERSION}; they do not estimate ingredient amounts.",
-            "Consumed servings are used only for the local log; they do not change the per-serving label snapshot.",
-            "No licensed FNRI, Trinidad, or tested-product GI table is bundled.",
-            "This tool does not provide medical advice, diabetes safety claims, medication guidance, or glucose predictions.",
-            *glycemic_limitations,
-        ],
+        validation_checks=validated.validation_checks,
+        limitations=validated.limitations,
         diagnostics=previous.diagnostics,
         retake_recommended=previous.retake_recommended,
         retake_reasons=previous.retake_reasons,
@@ -256,6 +282,15 @@ async def finalize_analysis(analysis_id: str, request: FinalizeRequest) -> Analy
     )
     job.result = confirmed
     return confirmed
+
+
+@app.post(
+    "/api/v1/label-records/validate",
+    response_model=LabelRecordValidationResponse,
+    response_model_by_alias=True,
+)
+async def validate_label_record_endpoint(request: FinalizeRequest) -> LabelRecordValidationResponse:
+    return validate_label_record(request)
 
 
 @app.delete("/api/v1/analyses/{analysis_id}", status_code=status.HTTP_204_NO_CONTENT)
