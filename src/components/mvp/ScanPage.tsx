@@ -1,7 +1,7 @@
 import { AlertCircle, ArrowRight, Barcode, Check, LoaderCircle, LockKeyhole, RefreshCw, ScanLine, Server } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { type PanelKind, type ScanServiceStatus, type ScanSessionState } from '../../domain/scanSession'
+import { type AnalysisPanelKind, type PanelKind, type ScanServiceStatus, type ScanSessionState } from '../../domain/scanSession'
 import type { LogEntry, Market } from '../../domain/types'
 import { API_BASE, checkBackendHealth, createAnalysis, deleteAnalysis, streamAnalysis, type AnalysisImages, type BackendHealth } from '../../lib/api'
 import { decodeBarcode } from '../../lib/barcode'
@@ -28,12 +28,14 @@ interface Props {
 export default function ScanPage({ session, setSession, onLogged }: Props) {
   const {
     images,
+    barcodeImage,
     reports,
     checking,
     cameraPanel,
     market,
     barcode,
     barcodeReading,
+    barcodeMessage,
     analysisId,
     result,
     stages,
@@ -65,14 +67,14 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
   )
 
   const qualitySummary = useMemo(() => {
-    const allChecks = Object.values(reports).flatMap((report) => report?.checks ?? [])
+    const allChecks = [reports.nutrition, reports.ingredients, reports.front].flatMap((report) => report?.checks ?? [])
     return {
       fails: allChecks.filter((check) => check.status === 'fail').length,
       warnings: allChecks.filter((check) => check.status === 'warn').length,
     }
   }, [reports])
 
-  const chooseImage = async (kind: PanelKind, file: File) => {
+  const chooseImage = async (kind: AnalysisPanelKind, file: File) => {
     setSession((previous) => ({
       ...previous,
       error: null,
@@ -86,12 +88,6 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
         ...previous,
         reports: { ...previous.reports, [kind]: report },
       }))
-      if (kind === 'front' || (!images.front && kind === 'nutrition')) {
-        setSession((previous) => ({ ...previous, barcodeReading: true }))
-        const decoded = await decodeBarcode(file)
-        if (decoded) setSession((previous) => ({ ...previous, barcode: decoded }))
-        setSession((previous) => ({ ...previous, barcodeReading: false }))
-      }
     } catch {
       setSession((previous) => ({
         ...previous,
@@ -103,12 +99,63 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
     }
   }
 
-  const removeImage = (kind: PanelKind) => {
+  const chooseBarcodeImage = async (file: File) => {
+    setSession((previous) => ({
+      ...previous,
+      barcodeImage: file,
+      barcodeReading: true,
+      barcodeMessage: null,
+      checking: 'barcode',
+      error: null,
+      reports: { ...previous.reports, barcode: undefined },
+    }))
+    try {
+      const report = await inspectImage(file)
+      const decoded = await decodeBarcode(file)
+      setSession((previous) => ({
+        ...previous,
+        barcode: decoded ?? previous.barcode,
+        barcodeMessage: decoded
+          ? `Barcode detected: ${decoded}.`
+          : 'No UPC or EAN barcode was detected. Retake the close-up or type the digits manually.',
+        error: null,
+        reports: { ...previous.reports, barcode: report },
+      }))
+    } catch {
+      setSession((previous) => ({
+        ...previous,
+        barcodeImage: null,
+        error: 'This barcode image could not be read. Choose a JPEG, PNG, or WebP photo.',
+      }))
+    } finally {
+      setSession((previous) => ({ ...previous, checking: null, barcodeReading: false }))
+    }
+  }
+
+  const chooseCaptureImage = (kind: PanelKind, file: File) => {
+    if (kind === 'barcode') {
+      void chooseBarcodeImage(file)
+      return
+    }
+    void chooseImage(kind, file)
+  }
+
+  const removeImage = (kind: AnalysisPanelKind) => {
     setSession((previous) => ({
       ...previous,
       images: { ...previous.images, [kind]: undefined },
       reports: { ...previous.reports, [kind]: undefined },
-      barcode: kind === 'front' ? '' : previous.barcode,
+    }))
+  }
+
+  const removeBarcodeImage = () => {
+    setSession((previous) => ({
+      ...previous,
+      barcode: '',
+      barcodeImage: null,
+      barcodeMessage: null,
+      reports: { ...previous.reports, barcode: undefined },
+      error: null,
     }))
   }
 
@@ -226,8 +273,8 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
           />
           <ImagePanelCard
             number={3}
-            title="Front label or barcode"
-            description="Improves product identification. UPC and EAN barcodes are decoded on this device first."
+            title="Front label"
+            description="Improves product identification and gives the review page a clearer package identity."
             recommended
             file={images.front}
             report={reports.front}
@@ -236,13 +283,26 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
             onCamera={() => setSession((previous) => ({ ...previous, cameraPanel: 'front' }))}
             onRemove={() => removeImage('front')}
           />
+          <ImagePanelCard
+            number={4}
+            title="Barcode scanner"
+            description="Capture a close-up UPC or EAN barcode. It is decoded on this device into the barcode field."
+            recommended
+            file={barcodeImage ?? undefined}
+            report={reports.barcode}
+            checking={checking === 'barcode' || barcodeReading}
+            onChoose={(file) => void chooseBarcodeImage(file)}
+            onCamera={() => setSession((previous) => ({ ...previous, cameraPanel: 'barcode' }))}
+            onRemove={removeBarcodeImage}
+          />
         </div>
 
         <aside className="scan-sidebar">
           <section className="card analysis-card">
             <div className="section-heading"><div><span className="section-kicker">Analysis setup</span><h2>Before upload</h2></div><LockKeyhole size={19} /></div>
             <label className="select-field"><span>Label market</span><select value={market} onChange={(event) => setSession((previous) => ({ ...previous, market: event.target.value as Market }))}><option value="PH">Philippines</option><option value="US">United States</option></select></label>
-            <label className="select-field"><span><Barcode size={15} /> Barcode {barcodeReading && '(reading…)'} </span><input value={barcode} inputMode="numeric" placeholder="Optional UPC / EAN" onChange={(event) => setSession((previous) => ({ ...previous, barcode: event.target.value.replace(/[^0-9]/g, '') }))} /></label>
+            <label className="select-field"><span><Barcode size={15} /> Barcode {barcodeReading && '(reading…)'} </span><input value={barcode} inputMode="numeric" placeholder="Optional UPC / EAN" onChange={(event) => setSession((previous) => ({ ...previous, barcode: event.target.value.replace(/[^0-9]/g, ''), barcodeMessage: null }))} /></label>
+            {barcodeMessage && <div className={`notice ${barcodeMessage.startsWith('No ') ? 'warning' : 'neutral'}`}><Barcode size={17} /><span>{barcodeMessage}</span></div>}
             <div className="quality-summary">
               <div><strong>{qualitySummary.fails}</strong><span>blocking issues</span></div>
               <div><strong>{qualitySummary.warnings}</strong><span>review notes</span></div>
@@ -287,7 +347,7 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
       {cameraPanel && (
         <CameraCapture
           label={`${cameraPanel[0].toUpperCase()}${cameraPanel.slice(1)} panel`}
-          onCapture={(file) => void chooseImage(cameraPanel, file)}
+          onCapture={(file) => chooseCaptureImage(cameraPanel, file)}
           onClose={() => setSession((previous) => ({ ...previous, cameraPanel: null }))}
         />
       )}
