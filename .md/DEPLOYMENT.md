@@ -1,33 +1,55 @@
-# Deployment Guide
+# Deployment & Configuration Guide
+
+This document details how to deploy the NutritionTracker application, including infrastructure configuration and environment variables.
 
 ## Infrastructure Details
-* **Frontend:** Built with Vite and React. Can be deployed on Vercel utilizing the included `vercel.json` for SPA route rewrites (`/index.html` fallback)
-* **Backend:** FastAPI application running on Python
-* **Model Inference:** Requires an accessible Ollama host running `gemma4:12b`
+NutritionTracker is orchestrated via Docker Compose.
+- **Frontend Container (`frontend`):** A Node environment that builds and serves the Vite React application.
+- **Backend Container (`backend`):** A Python environment running Uvicorn and FastAPI.
 
-## Environment Variables (`.env`)
-Create a `.env` file based on `.env.example`:
-```env
-VITE_API_BASE_URL=http://localhost:8000
+## Environment Variables
+The application relies on environment variables defined in a `.env` file at the repository root.
+
+### Example `.env.example`
+```ini
+# Backend VLM Configuration
 LLM_PROVIDER=ollama
-OLLAMA_BASE_URL=[http://host.docker.internal:11434](http://host.docker.internal:11434)
+OLLAMA_BASE_URL=http://host.docker.internal:11434
 SUGAR_PAI_VISION_MODEL=gemma4:12b
 SUGAR_PAI_VISION_TIMEOUT_SECONDS=120
+
+# Backend Feature Flags
 SUGAR_PAI_ENABLE_OFF_LOOKUP=false
+MLFLOW_TRACKING_URI=
+
+# Frontend Configuration
+VITE_API_BASE_URL=http://localhost:8000
 ```
 
-## Docker Compose
+*Note: When running Ollama locally on the host machine while the backend is in a Docker container, `host.docker.internal` is crucial for the container to access the host's Ollama API port.*
 
-The project includes a ready-to-use Docker configuration:
-1. Ensure .env is configured.
-2. Run docker-compose up --
-3. The frontend is accessible at http://localhost:5173 and the API at http://localhost:8000
+## Deployment Steps
 
+### Local Deployment (Docker Compose)
+The primary deployment strategy for self-hosted instances.
+1. Copy `.env.example` to `.env` and adjust variables.
+2. Build and launch the containers:
+   ```bash
+   docker-compose up --build -d
+   ```
+3. The frontend is accessible at port `5173`, and the backend at `8000`.
 
-## CI/CD Pipeline Steps
+### Vercel Deployment (Frontend Only)
+If you wish to deploy the frontend to the cloud (Vercel) while keeping the backend local or on a separate VPS:
+1. Connect your repository to Vercel.
+2. Set the `Build Command` to `npm run build` and `Output Directory` to `dist`.
+3. Set the Environment Variable `VITE_API_BASE_URL` to point to your public-facing FastAPI backend URL.
+4. The repository includes a `vercel.json` file which automatically handles client-side routing rewrites for the SPA.
 
-1. Typechecking: `npm run typecheck`
-2. Linting: `npm run lint`
-3. Frontend Tests: `npm run test`
-4. Backend Tests: `PYTHONPATH=backend pytest -q backend/tests`
-5. Build: `npm run`
+### CI/CD Pipeline Steps
+While not strictly implemented via GitHub Actions in this repository yet, a standard CI/CD pipeline should include:
+1. **Linting & Typechecking:** Run `npm run lint` and `npm run typecheck`.
+2. **Frontend Tests:** Run `npm run test` (Vitest).
+3. **Backend Tests:** Run `PYTHONPATH=backend pytest backend/tests`.
+4. **Build Verification:** Run `npm run build` to ensure the Vite bundler completes without errors.
+5. **Docker Build:** Test the Dockerfile builds for both frontend and backend.

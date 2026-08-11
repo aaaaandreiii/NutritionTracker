@@ -1,62 +1,51 @@
-# NutritionTracker
+# NutritionTracker (Daily Dozen + Sugar pAI)
 
-NutritionTracker is now the merged Daily Dozen tracker plus the Sugar pAI packaged-food label research MVP.
+NutritionTracker is a comprehensive, privacy-first web application designed to help individuals track their whole food plant-based diet (inspired by the Daily Dozen) while simultaneously offering advanced, AI-driven nutritional label analysis to uncover hidden sugars and calculate glycemic impacts.
 
-The existing Daily Dozen workflows remain at `#/dashboard`, `#/pantry`, and `#/recipes`. Sugar pAI runs inside the same app shell at `#/sugar-pai/scan`, `#/sugar-pai/today`, `#/sugar-pai/history`, and `#/sugar-pai/about`.
+## Overview
+Tracking nutrition shouldn't compromise your privacy or require manual data entry for every complex nutritional label. NutritionTracker solves this by combining an intuitive Daily Dozen checklist with a cutting-edge Vision-Language Model (VLM) backend. Users can log their daily whole food intake locally, scan food labels using their device camera, and have an AI instantly extract and validate the nutritional facts—all without cloud accounts or mandatory data sharing.
 
-## Sugar pAI
+## Hero Features
+- **Daily Dozen Tracking Engine:** Seamlessly track servings, calories, and nutritional deficits across custom goals and meal slots, entirely within your browser.
+- **Sugar pAI Vision Extraction:** Snap a photo of a nutrition label and ingredient list; our local VLM (powered by Ollama and Gemma4:12b) automatically extracts macros, identifies hidden sugar aliases, and estimates glycemic impact.
+- **Privacy-First Local Storage:** No cloud accounts required. Daily tracking state is kept in memory and `localStorage`, while AI-scanned labels are securely persisted in your browser's `IndexedDB`.
+- **Deterministic Validation:** The backend AI extraction is paired with strict, deterministic Python validation to catch arithmetic errors and ensure nutritional accuracy before you save a log.
 
-Sugar pAI is a VLM-only label analysis flow backed by FastAPI. It accepts Nutrition Facts, ingredients, and front/barcode images, runs image quality checks, optionally decodes/looks up a barcode, sends sanitized panels to `SUGAR_PAI_VISION_MODEL` through an Ollama-compatible API, and requires manual review before saving.
+## Setup Steps
 
-Confirmed Sugar pAI records are stored in IndexedDB for Today/History. After a confirmed save, the app also adds a lightweight Daily Dozen meal snapshot to the mapped meal slot with `servings: {}` and `cals: 0`; packaged foods do not affect Daily Dozen category progress.
+### Prerequisites
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- [Node.js](https://nodejs.org/) (v18+ recommended)
+- [Ollama](https://ollama.ai/) installed locally (if running the VLM pipeline on your own hardware)
 
-## Run Locally
+### Local Environment Setup
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd NutritionTracker
+   ```
+2. **Configure Environment Variables:**
+   ```bash
+   cp .env.example .env
+   # Edit .env to set your LLM_PROVIDER and OLLAMA_BASE_URL if necessary
+   ```
+3. **Pull the AI Model (Optional but recommended):**
+   ```bash
+   ollama pull gemma4:12b
+   ```
+
+## Quickstart Guide
+
+The easiest way to run the entire stack (Frontend Vite app and Backend FastAPI service) is via Docker Compose.
 
 ```bash
-npm install
-cp .env.example .env
-```
-
-Start the API:
-
-```bash
-uvicorn backend.app.main:app --reload --port 8000
-```
-
-Start the frontend:
-
-```bash
-npm run dev
-```
-
-Open `http://localhost:5173`.
-
-## Docker
-
-```bash
-cp .env.example .env
 docker-compose up --build
 ```
 
-The frontend runs on `http://localhost:5173`; the API runs on `http://localhost:8000`.
+- **Frontend:** Access the Daily Dozen and Sugar pAI UI at [http://localhost:5173](http://localhost:5173).
+- **Backend API:** The FastAPI swagger documentation is available at [http://localhost:8000/docs](http://localhost:8000/docs).
 
-## Verification
-
-```bash
-npm run typecheck
-npm run lint
-npm run test
-npm run build
-PYTHONPATH=backend pytest -q backend/tests
-```
-
-## API
-
-- `POST /api/v1/analyses` accepts multipart `nutrition_image`, optional `ingredient_image`, optional `front_image`, optional `barcode`, and `market=PH|US`.
-- `GET /api/v1/analyses/{id}/events` streams stage and result events.
-- `POST /api/v1/analyses/{id}/finalize` applies user corrections and reruns deterministic validation.
-- `DELETE /api/v1/analyses/{id}` deletes temporary job state and images.
-
-## Boundary
-
-This is a research prototype. It does not diagnose, treat, predict individual glucose response, or guide medication or insulin decisions. Unknown label values stay unknown until the user confirms them.
+### How to use
+1. **Navigate to the Dashboard (`#/dashboard`)** to set your target presets (e.g., Standard Daily Dozen) and begin logging meals.
+2. **Scan a Label (`#/sugar-pai/scan`)** using your webcam or file upload to experience the AI-powered label extraction.
+3. **Review your History (`#/sugar-pai/history`)** to see your previously saved and validated nutritional records.

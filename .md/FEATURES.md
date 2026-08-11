@@ -1,59 +1,70 @@
-# NutritionTracker Feature Inventory
+# Functional Feature Catalog
 
-This folder contains the deployment app: a React/Vite Daily Dozen tracker with the Sugar pAI FastAPI research backend merged in.
+This document provides an exhaustive, highly technical breakdown of every functional capability within NutritionTracker. It is designed for developers, technical panels, and QA engineers to understand exactly *how* features work, their inputs/outputs, edge cases, and workflow rules.
 
-## Routes
+---
 
-- `#/dashboard` - Daily Dozen progress, targets, food suggestions, and meal slots.
-- `#/pantry` - pantry inventory and grocery list management.
-- `#/recipes` - recipe catalog, recipe creation, grocery helpers, and cook/log workflow.
-- `#/sugar-pai/scan` - packaged-food label scanner.
-- `#/sugar-pai/today` - local Sugar pAI totals for today.
-- `#/sugar-pai/history` - local Sugar pAI history, export, and deletion.
-- `#/sugar-pai/about` - research boundary and processing disclosure.
+## 1. Daily Dozen Tracking Engine (Frontend)
 
-## Daily Dozen Features
+The core tracker operates entirely on the client side, utilizing React state and `localStorage` for persistence.
 
-- Tracks Daily Dozen servings, calories, deficits, presets, and custom targets.
-- Supports breakfast, morning snack, lunch, afternoon snack, and dinner meal logs.
-- Keeps the existing pantry, grocery, and recipe workflows.
-- Persists recipes in `localStorage`; most Daily Dozen state remains in memory.
+### 1.1 Dashboard & Meal Logging
+- **Capability:** Users can log food items into predefined meal slots (Breakfast, Morning Snack, Lunch, Afternoon Snack, Dinner).
+- **Inputs:** Food items (from pantry, recipes, or manual entry), serving multipliers.
+- **Outputs:** Recalculated total calories, macro/micro category progress (e.g., Beans, Berries, Greens), and real-time deficit updates.
+- **Workflow Rules:**
+  - Progress is calculated dynamically based on a custom target schema (`goalPresets`).
+  - Items can be cleared per meal slot.
+- **Edge Cases:** If an item contains zero calories or undefined serving values, the calculation engine treats them as `0` rather than throwing `NaN`.
 
-## Sugar pAI Features
+### 1.2 Target Presets & Custom Overrides
+- **Capability:** Users can select predefined dietary targets (e.g., "Standard Daily Dozen") or manually override specific category targets.
+- **Inputs:** Preset selection string or custom integer overrides for specific categories.
+- **Workflow Rules:** Switching presets overwrites custom overrides unless the user is actively in the configuration mode.
 
-- Captures Nutrition Facts, ingredients, and front/barcode panels through upload or camera.
-- Runs client and server image quality checks.
-- Decodes UPC/EAN barcodes locally and can optionally query Open Food Facts.
-- Uses a single VLM extraction path through `SUGAR_PAI_VISION_MODEL`, default `gemma4:12b`.
-- Streams backend stages for image checks, barcode lookup, VLM extraction, ingredient classification, evidence assembly, and validation.
-- Keeps blank and ambiguous values unknown instead of treating them as zero.
-- Requires manual review and deterministic validation before saving.
-- Classifies sugar-related ingredients with the versioned English/Filipino taxonomy.
-- Stores confirmed records in IndexedDB with Today/History views and CSV/JSON export.
-- Optionally stores original images locally only after explicit opt-in.
-- Adds a lightweight Daily Dozen meal snapshot after a confirmed save without changing Daily Dozen category progress.
+### 1.3 Pantry & Grocery Management
+- **Capability:** Tracks available ingredients and their quantities, and allows moving items to a grocery list.
+- **Workflow Rules:** 
+  - Cooking a recipe automatically deducts required ingredients from the Pantry (if available).
+  - Grocery items can be checked off and moved back to the Pantry.
 
-## Backend Features
+---
 
-- FastAPI service with short-lived in-memory analysis jobs and temporary image cleanup.
-- Sanitizes uploads, strips EXIF, and limits image size.
-- Runs VLM label extraction through an Ollama-compatible `/api/generate` endpoint.
-- Keeps optional Open Food Facts lookup off unless `SUGAR_PAI_ENABLE_OFF_LOOKUP=true`.
-- Preserves source/provenance distinctions between label, database, user, calculated, and unavailable values.
-- Provides deterministic nutrient arithmetic checks and prohibited-claim checks.
-- Keeps sourced GI unavailable unless licensed evidence is supplied; heuristic demo GL remains explicitly labeled.
+## 2. Sugar pAI Extraction Pipeline (Backend & Frontend)
 
-## Packaging And Tests
+The AI-driven nutritional extraction pipeline relies on a multipart file upload to a FastAPI backend, which streams events back to the client.
 
-- TypeScript support is added for the Sugar pAI modules without converting the existing JSX Daily Dozen files.
-- PWA manifest and service worker are registered for production builds.
-- Docker files and Vercel rewrite are included in the deployment folder.
-- Frontend checks: `npm run typecheck`, `npm run lint`, `npm run test`, `npm run build`.
-- Backend checks: `PYTHONPATH=backend pytest -q backend/tests`.
+### 2.1 Image Capture & Upload
+- **Capability:** Users capture images of Nutrition Facts, Ingredients, and (optionally) the Front Packaging/Barcode.
+- **Inputs:** Device Camera `MediaStream` (converted to blob) or file uploads.
+- **Outputs:** `multipart/form-data` payload containing `nutrition_image`, `ingredient_image`, `front_image`, `market`, and `barcode`.
+- **Workflow Rules:** The frontend halts camera streams immediately upon navigating away from the Sugar pAI tab to ensure privacy and conserve battery.
+- **Edge Cases:** Unsupported file formats or images > 8MB are rejected by the backend with a `413` or `422` HTTP status.
 
-## Limitations
+### 2.2 Image Sanitization & Quality Checks
+- **Capability:** The backend scrubs EXIF data and assesses image quality before processing.
+- **Inputs:** Raw binary image data.
+- **Outputs:** Sanitized temporary `.jpg` files and a list of quality check booleans (e.g., blur detection).
 
-- Daily Dozen state is still mostly local/in-memory.
-- Sugar pAI history is local to one browser/device.
-- No accounts, auth, cloud sync, or backend history storage are included.
-- The app is not a medical device and does not provide diagnosis, treatment, insulin/medication guidance, or individualized glucose prediction.
+### 2.3 VLM Extraction (Ollama)
+- **Capability:** Extracts structured nutritional data from images using a Vision-Language Model.
+- **Inputs:** Sanitized images and an internal prompt schema.
+- **Outputs:** Raw JSON representing extracted macros, serving sizes, and product names.
+- **Edge Cases:** If the VLM hallucinates or returns invalid JSON, the backend's deterministic parsing layer catches it and issues a pipeline error event, prompting the user for a manual review/retry.
+
+### 2.4 Ingredient Taxonomy Classification
+- **Capability:** Analyzes the raw ingredients list to identify hidden sugars using a versioned taxonomy (`SUGAR_TAXONOMY_VERSION`).
+- **Inputs:** Extracted raw ingredients text string.
+- **Outputs:** A categorized list of `sugar_variants` (e.g., "Maltodextrin" -> Hidden Sugar).
+
+### 2.5 Deterministic Validation & Glycemic Calculation
+- **Capability:** Enforces mathematical consistency on the extracted data (e.g., `Total Carbs >= Total Sugars`).
+- **Inputs:** Finalized extraction request payload from the user.
+- **Outputs:** `LabelRecordValidationResponse` containing validated `NutrientFields`, `glycemic` evidence, and strict validation checks (Pass/Fail).
+- **Workflow Rules:** A record *cannot* be saved to IndexedDB unless it passes all critical validation checks.
+
+### 2.6 Local Storage & Export
+- **Capability:** Saves confirmed label analyses locally to the browser.
+- **Inputs:** Confirmed `AnalysisResult` JSON.
+- **Outputs:** IndexedDB records, accessible via the History tab. Exportable as CSV or JSON.
+- **Workflow Rules:** Images are discarded by the backend after processing. Local storage of images is opt-in only.

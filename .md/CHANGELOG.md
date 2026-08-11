@@ -1,26 +1,37 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to the NutritionTracker project will be documented in this file.
 
-## [Unreleased]
+## [v1.3.0] - Integration of Sugar pAI Backend
+
 ### Added
-* IndexedDB integration for persistent storage of Today/History Sugar pAI records.
-* CSV/JSON export functionality for local scanning history.
+- **Sugar pAI Integration:** Merged the FastAPI research backend into the core repository to provide Vision-Language Model (VLM) extraction capabilities for packaged food labels.
+- **Camera Capture Workflow:** Added a unified frontend UI under `#/sugar-pai/scan` to allow users to capture Nutrition Facts and Ingredient lists using their device camera or via file upload.
+- **Local VLM Support:** Configured the backend to support Ollama (defaulting to `gemma4:12b`) for private, local LLM inference without requiring external API keys.
+- **Taxonomy Engine:** Introduced a versioned sugar taxonomy engine to classify and detect hidden sugar aliases in ingredient lists.
+- **Deterministic Validation Layer:** Implemented strict Pydantic-based arithmetic validation to cross-check VLM outputs (e.g., ensuring `Total Carbohydrates >= Total Sugars`).
+- **IndexedDB Persistence:** Added robust local browser storage for confirmed Sugar pAI records, accessible via the new `#/sugar-pai/history` route.
+- **Docker Compose:** Added comprehensive Docker orchestration (`docker-compose.yml`, `Dockerfile.frontend`, `backend/Dockerfile`) to easily spin up the combined stack.
 
 ### Changed
-* Transitioned packaged-food logging to add lightweight snapshots (0 calories, no category progress impact) to Daily Dozen meal slots.
-
-## [1.1.0] - 2026-08-11
-### Added
-* **Sugar pAI MVP:** Introduced a VLM-backed (Vision-Language Model) label analysis pipeline via FastAPI.
-* Support for local barcode decoding (UPC/EAN) and optional Open Food Facts lookups.
-* Real-time streaming of backend stages (image checks, extraction, validation).
-
-### Changed
-* Merged the legacy Daily Dozen frontend-only tracker with the new Sugar pAI backend into a unified app shell[cite: 1].
+- **Dashboard UI Update:** Revamped the top navigation to include the `Sugar pAI` tab alongside existing `Dashboard`, `Pantry`, and `Recipes` tabs.
+- **State Management:** Enhanced the React state manager to seamlessly integrate the transient Daily Dozen tracking state with the persistent Sugar pAI data models.
 
 ### Fixed
-* Resolved the calorie field mapping discrepancy where Sugar pAI payloads used `cals` but the intake pipeline expected `totalCals`[cite: 1]. 
+- **Camera Resource Leak:** Implemented a state-driven camera monitor that automatically shuts down active `MediaStream` tracks when navigating away from the Sugar pAI tab to conserve battery.
 
-### Deprecated
-* Simulated external machine learning APIs and mock timeout delays have been replaced by the actual local Ollama API implementation[cite: 1].
+## [v1.2.0] - Daily Dozen Presets and Overrides
+### Added
+- Goal preset system allowing users to select dietary protocols (e.g., "Standard Daily Dozen").
+- Custom manual overrides for specific nutritional categories.
+
+## [v1.1.0] - Recipe and Pantry Sync
+### Added
+- Pantry deducting logic: Cooking a saved recipe automatically reduces the corresponding ingredient quantities from the Pantry.
+- Grocery list generation directly from recipe missing ingredients.
+
+## [v1.0.0] - Initial Release
+### Added
+- Core Daily Dozen tracking UI.
+- Local storage persistence for custom recipes.
+- Basic meal slot categorization (Breakfast, Lunch, Dinner, Snacks).

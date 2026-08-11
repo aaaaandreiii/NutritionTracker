@@ -1,13 +1,24 @@
 # System Limitations & Technical Debt
 
-To maintain engineering transparency, the following out-of-scope conditions and limitations apply to the current iteration:
+Proactively acknowledging system limitations is a core tenet of engineering maturity. This document outlines known bottlenecks, deferred features, and out-of-scope conditions for the current iteration of NutritionTracker (v1.3.x).
 
-## Clinical & Medical Disclaimers
-* **Not a Medical Device:** NutritionTracker and the Sugar pAI module do not diagnose, treat, or guide medication/insulin decisions 
-* **No Predictive Glucose Modeling:** The Glycemic Index (GI) and Glycemic Load (GL) outputs are educational heuristics based on University of Sydney research. The application does not generate personalized postprandial glucose predictions
+## Current Bottlenecks & Weaknesses
 
-## Architectural Bottlenecks & Deferred Features
-* **In-Memory Volatility:** Active intake logs, pantry adjustments, and daily UI states exist exclusively in React state. Refreshing the browser will reset these specific elements to static defaults
-* **Lack of Multi-Day Tracking:** The system operates on a strict single-day lifecycle without historical calendar syncing or backend database persistence for the Daily Dozen module
-* **Hardcoded Routing Constraints:** Dynamically cooked recipes are hardcoded to log exclusively to the *Lunch* slot, and Sugar pAI auto-logs are mapped to the *Afternoon Snack* slot
-* **Data Ambiguity Handling:** Unknown label values from the vision model are explicitly kept as "unknown" to prevent false zeros, requiring manual user confirmation before saving
+### 1. Vision-Language Model (VLM) Reliability
+While the deterministic validation layer catches mathematically impossible outputs, the underlying VLM (e.g., `gemma4:12b`) is still prone to OCR failures on highly distorted, shiny, or partially obscured packaging. When the VLM hallucinates an entirely incorrect (but mathematically sound) value, the system relies entirely on the user's manual review to catch the error.
+
+### 2. Ephemeral Daily Dozen State
+The core Daily Dozen tracking state (calories, serving multipliers, and meal progress) is heavily reliant on transient React state and non-persistent memory, with only recipes and Sugar pAI history utilizing local storage persistence (`localStorage` and `IndexedDB`). A browser crash or accidental tab closure can lead to data loss for the current day's un-exported progress.
+
+### 3. VLM Hardware Requirements
+Running a 12-billion parameter model locally via Ollama requires significant RAM/VRAM. On lower-end machines, the analysis pipeline can exceed the `SUGAR_PAI_VISION_TIMEOUT_SECONDS`, leading to job failures and poor user experience.
+
+## Deferred Features & Technical Debt
+
+- **TypeScript Migration:** While the newer Sugar pAI frontend components were written in TypeScript, the original Daily Dozen dashboard components (e.g., `App.jsx`, `Dashboard.jsx`) remain in plain JSX. Unifying the entire frontend to strict TypeScript has been deferred.
+- **Centralized Database Integration:** The lack of a relational cloud database (like PostgreSQL via Supabase or Firebase) prevents multi-device syncing.
+
+## Out-of-Scope Conditions
+
+- **Medical Advice:** The app is explicitly NOT a medical device. It does not provide diagnosis, treatment, insulin dosing, or individualized glucose prediction.
+- **Licensed Nutritional Databases:** No licensed FNRI, Trinidad, or proprietary tested-product Glycemic Index tables are bundled within the app. All GI values calculated are heuristic estimates.
