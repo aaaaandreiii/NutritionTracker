@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { NUTRIENT_KEYS, NUTRIENT_META, correctionsFromResult, makeLogTotals } from '../../domain/nutrition'
+import { buildPairingInsights } from '../../domain/pairing'
 import type {
   AnalysisResult,
   FinalizeCorrections,
@@ -30,6 +31,7 @@ import { useLogs } from '../../hooks/useLogs'
 import { validateLabelRecord } from '../../lib/api'
 import { deleteAllLogs, deleteLog, exportLogsCsv, exportLogsJson, saveLog } from '../../lib/db'
 import ImagePreviewButton from './ImagePreviewButton'
+import PairingIdeas from './PairingIdeas'
 
 interface Props { onScan: () => void }
 
@@ -169,6 +171,15 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: LogEntry; onClose: () 
   const hasNutrition = NUTRIENT_KEYS.some((key) => normalizedDraft.nutrients[key] != null)
   const validationLabel = editing && edited.size > 0 ? 'Needs validation' : validationSummary(entry.result.validationChecks)
   const fieldStatus = (key: string, fallback: string) => editing && edited.has(key) ? 'Needs validation' : fallback
+  const pairingInsights = useMemo(
+    () => buildPairingInsights({
+      result: entry.result,
+      consumedServings: entry.consumedServings,
+      meal: entry.meal,
+      productName: entry.productName,
+    }),
+    [entry],
+  )
 
   const save = async () => {
     if (!requiredComplete || !hasNutrition) return
@@ -374,6 +385,8 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: LogEntry; onClose: () 
               </div>
             )}
           </section>
+
+          <PairingIdeas insights={pairingInsights} variant="drawer" />
 
           <section className="drawer-section">
             <div className="section-heading"><div><span className="section-kicker">Validation status</span><h3>Backend checks</h3></div></div>

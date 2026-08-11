@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { NUTRIENT_KEYS, NUTRIENT_META, correctionsFromResult, makeLogTotals } from '../../domain/nutrition'
+import { buildPairingInsights } from '../../domain/pairing'
 import type {
   AnalysisResult,
   FinalizeCorrections,
@@ -24,6 +25,7 @@ import { finalizeAnalysis } from '../../lib/api'
 import { saveLog } from '../../lib/db'
 import type { AnalysisImages } from '../../lib/api'
 import ImagePreviewButton from './ImagePreviewButton'
+import PairingIdeas from './PairingIdeas'
 
 interface Props {
   result: AnalysisResult
@@ -98,6 +100,17 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
   const fallbackReason = diagnostics?.fallbackReason
   const ingredientFieldHasText = Boolean(current.rawIngredients.value?.trim())
   const ingredientTextAccepted = current.rawIngredients.sourceKind === 'label' && ingredientFieldHasText
+  const pairingInsights = useMemo(
+    () => current.status === 'confirmed'
+      ? buildPairingInsights({
+        result: current,
+        consumedServings: corrections.consumedServings,
+        meal,
+        productName: corrections.productName,
+      })
+      : [],
+    [corrections.consumedServings, corrections.productName, current, meal],
+  )
   const capturedImages = [
     { label: 'Nutrition', file: images.nutrition },
     { label: 'Ingredients', file: images.ingredients },
@@ -361,6 +374,8 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
               </div>
             )}
           </section>
+
+          {current.status === 'confirmed' && <PairingIdeas insights={pairingInsights} />}
 
           <section className="card explainer-card">
             <span className="section-kicker">Interpretation</span>

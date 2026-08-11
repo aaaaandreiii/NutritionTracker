@@ -290,6 +290,30 @@
 .sugar-pai-embed .unavailable-block strong{ font-family: 'Fraunces', serif; font-size: 20px; }
 .sugar-pai-embed .unavailable-block p{ margin: 0; color: var(--ink); font-size: 11px; line-height: 1.5; }
 .sugar-pai-embed .unavailable-block small{ color: var(--muted); font-size: 9px; line-height: 1.5; }
+.sugar-pai-embed .card.pairing-card{ padding: 24px; }
+.sugar-pai-embed .pairing-card .section-heading{ margin-bottom: 14px; }
+.sugar-pai-embed .pairing-card .section-heading h2, .sugar-pai-embed .pairing-card .section-heading h3{ margin: 5px 0 0; font-size: 22px; }
+.sugar-pai-embed .pairing-card .section-heading > svg{ color: var(--green); }
+.sugar-pai-embed .pairing-list{ display: grid; gap: 9px; }
+.sugar-pai-embed .pairing-insight{ display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; padding: 12px; border: 1px solid var(--line); border-left: 3px solid #c8c9c2; border-radius: 10px; background: #f6f4ee; }
+.sugar-pai-embed .pairing-fiber{ border-left-color: var(--green); background: #edf7f2; }
+.sugar-pai-embed .pairing-protein_fat{ border-left-color: #7c6b48; background: #f7f2e7; }
+.sugar-pai-embed .pairing-food_order{ border-left-color: var(--orange); background: #fff1e8; }
+.sugar-pai-embed .pairing-ingredients{ border-left-color: #b77921; background: #fff7dc; }
+.sugar-pai-embed .pairing-movement{ border-left-color: #3f5181; background: #edf0fb; }
+.sugar-pai-embed .pairing-data_quality{ border-left-color: #8a8f8a; background: #f2f1ec; }
+.sugar-pai-embed .pairing-icon{ width: 26px; height: 26px; display: grid; place-items: center; color: var(--green); background: rgba(255,255,255,.72); border: 1px solid rgba(80,80,70,.1); border-radius: 8px; }
+.sugar-pai-embed .pairing-content{ min-width: 0; display: grid; gap: 7px; }
+.sugar-pai-embed .pairing-title-row{ display: flex; justify-content: space-between; align-items: start; gap: 10px; }
+.sugar-pai-embed .pairing-title-row strong{ font-size: 11px; line-height: 1.25; }
+.sugar-pai-embed .pairing-title-row span{ flex: 0 0 auto; max-width: 110px; padding: 3px 6px; border-radius: 4px; color: #5d625f; background: rgba(255,255,255,.72); font: 500 8px 'DM Mono', monospace; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sugar-pai-embed .pairing-content p{ margin: 0; color: var(--ink); font-size: 10px; line-height: 1.5; }
+.sugar-pai-embed .pairing-evidence{ display: flex; flex-wrap: wrap; gap: 5px; }
+.sugar-pai-embed .pairing-evidence span{ padding: 3px 6px; border-radius: 5px; color: #4f524e; background: rgba(255,255,255,.7); border: 1px solid rgba(80,80,70,.09); font: 500 8px 'DM Mono', monospace; }
+.sugar-pai-embed .pairing-sources{ display: grid; gap: 4px; }
+.sugar-pai-embed .pairing-sources a{ width: max-content; max-width: 100%; display: inline-flex; align-items: center; gap: 5px; color: var(--green); font-size: 9px; line-height: 1.4; text-decoration: none; }
+.sugar-pai-embed .pairing-sources a:hover{ color: var(--green-dark); text-decoration: underline; }
+.sugar-pai-embed .pairing-disclaimer{ margin: 12px 0 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
 .sugar-pai-embed .explainer-card > div{ border-top: 1px solid var(--line); padding: 12px 0; }
 .sugar-pai-embed .explainer-card strong{ font-size: 10px; }
 .sugar-pai-embed .explainer-card p{ color: var(--muted); font-size: 9px; line-height: 1.5; margin: 4px 0 0; }
