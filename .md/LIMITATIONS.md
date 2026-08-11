@@ -1,24 +1,45 @@
-# System Limitations & Technical Debt
+# System Limitations and Technical Debt
 
-Proactively acknowledging system limitations is a core tenet of engineering maturity. This document outlines known bottlenecks, deferred features, and out-of-scope conditions for the current iteration of NutritionTracker (v1.3.x).
+This document captures known V2 limits for Sugar pAI and its supporting Daily Dozen tracker.
 
-## Current Bottlenecks & Weaknesses
+## Current Limits
 
-### 1. Vision-Language Model (VLM) Reliability
-While the deterministic validation layer catches mathematically impossible outputs, the underlying VLM (e.g., `gemma4:12b`) is still prone to OCR failures on highly distorted, shiny, or partially obscured packaging. When the VLM hallucinates an entirely incorrect (but mathematically sound) value, the system relies entirely on the user's manual review to catch the error.
+### VLM Reliability
 
-### 2. Ephemeral Daily Dozen State
-The core Daily Dozen tracking state (calories, serving multipliers, and meal progress) is heavily reliant on transient React state and non-persistent memory, with only recipes and Sugar pAI history utilizing local storage persistence (`localStorage` and `IndexedDB`). A browser crash or accidental tab closure can lead to data loss for the current day's un-exported progress.
+The VLM can misread distorted, shiny, cropped, low-contrast, or multi-column labels. Deterministic validation catches impossible arithmetic and schema violations, but user review remains required for every accepted packaged-label record.
 
-### 3. VLM Hardware Requirements
-Running a 12-billion parameter model locally via Ollama requires significant RAM/VRAM. On lower-end machines, the analysis pipeline can exceed the `SUGAR_PAI_VISION_TIMEOUT_SECONDS`, leading to job failures and poor user experience.
+### No Licensed GI Dataset
 
-## Deferred Features & Technical Debt
+No licensed FNRI, Trinidad, or proprietary tested-product GI table is bundled. `sourced` GI remains unavailable until permitted data and matching rules are added. Packaged-label demo GL is explicitly `heuristic_demo`.
 
-- **TypeScript Migration:** While the newer Sugar pAI frontend components were written in TypeScript, the original Daily Dozen dashboard components (e.g., `App.jsx`, `Dashboard.jsx`) remain in plain JSX. Unifying the entire frontend to strict TypeScript has been deferred.
-- **Centralized Database Integration:** The lack of a relational cloud database (like PostgreSQL via Supabase or Firebase) prevents multi-device syncing.
+### Curated Unlabeled Demo Is Qualitative
 
-## Out-of-Scope Conditions
+The Filipino-food catalog contains allowed demo foods, aliases, portion labels, qualitative tags, and limitations only. It does not provide authoritative calories, macros, GI, GL, or FNRI-derived claims.
 
-- **Medical Advice:** The app is explicitly NOT a medical device. It does not provide diagnosis, treatment, insulin dosing, or individualized glucose prediction.
-- **Licensed Nutritional Databases:** No licensed FNRI, Trinidad, or proprietary tested-product Glycemic Index tables are bundled within the app. All GI values calculated are heuristic estimates.
+### Local-Only History
+
+Sugar pAI history is stored in browser IndexedDB. Clearing browser data removes local records. Multi-device sync is not implemented.
+
+### Daily Dozen State
+
+The original Daily Dozen components still rely partly on transient React state and localStorage. Durable IndexedDB persistence for all meal state remains deferred.
+
+### Backend Storage
+
+The backend uses in-memory analysis jobs and temporary files. It is appropriate for local/research deployments, not multi-user durable job queues.
+
+## Technical Debt
+
+- Convert legacy JSX Daily Dozen components to TypeScript.
+- Add stronger public-deployment rate limits and auth options.
+- Add end-to-end browser tests for packaged-label and curated demo flows.
+- Add catalog governance for Filipino-food aliases, portions, and limitations.
+- Improve accessibility and mobile QA for History drawers and dense Smart Context cards.
+
+## Out of Scope
+
+- Medical advice, diagnosis, treatment, medication, or insulin guidance.
+- Individual glucose prediction.
+- Suitability or permission-style food claims.
+- Numeric GI/GL for curated unlabeled demo foods.
+- Authoritative Filipino nutrition values without a permitted dataset.

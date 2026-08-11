@@ -1,37 +1,64 @@
 # Changelog
 
-All notable changes to the NutritionTracker project will be documented in this file.
+All notable changes to the project are documented here.
 
-## [v1.3.0] - Integration of Sugar pAI Backend
+## [v2.0.0] - Sugar pAI Product Consolidation
 
 ### Added
-- **Sugar pAI Integration:** Merged the FastAPI research backend into the core repository to provide Vision-Language Model (VLM) extraction capabilities for packaged food labels.
-- **Camera Capture Workflow:** Added a unified frontend UI under `#/sugar-pai/scan` to allow users to capture Nutrition Facts and Ingredient lists using their device camera or via file upload.
-- **Local VLM Support:** Configured the backend to support Ollama (defaulting to `gemma4:12b`) for private, local LLM inference without requiring external API keys.
-- **Taxonomy Engine:** Introduced a versioned sugar taxonomy engine to classify and detect hidden sugar aliases in ingredient lists.
-- **Deterministic Validation Layer:** Implemented strict Pydantic-based arithmetic validation to cross-check VLM outputs (e.g., ensuring `Total Carbohydrates >= Total Sugars`).
-- **IndexedDB Persistence:** Added robust local browser storage for confirmed Sugar pAI records, accessible via the new `#/sugar-pai/history` route.
-- **Docker Compose:** Added comprehensive Docker orchestration (`docker-compose.yml`, `Dockerfile.frontend`, `backend/Dockerfile`) to easily spin up the combined stack.
+- Sugar pAI-first default route at `#/sugar-pai/scan`.
+- Packaged label / Unlabeled demo mode switch.
+- Curated Filipino-food demo catalog for `market=PH`.
+- Backend endpoints:
+  - `GET /api/v1/unlabeled-foods/catalog?market=PH`
+  - `POST /api/v1/unlabeled-foods/identify`
+  - `POST /api/v1/unlabeled-food-records/validate`
+- Shared Smart Context input adapters for packaged-label and curated demo records.
+- Curated demo local logs with `kind: "curated_unlabeled_demo"`.
+- Backward-compatible log handling where missing `kind` is treated as packaged-label.
+- First-class ingredient context flags for sugar aliases, HFCS, maltodextrin, starches, polyols, high-intensity sweeteners, and processing markers.
+- Smart Context action chips and source-preserving insight UI.
 
 ### Changed
-- **Dashboard UI Update:** Revamped the top navigation to include the `Sugar pAI` tab alongside existing `Dashboard`, `Pantry`, and `Recipes` tabs.
-- **State Management:** Enhanced the React state manager to seamlessly integrate the transient Daily Dozen tracking state with the persistent Sugar pAI data models.
+- Repositioned Daily Dozen as supporting tracking rather than the primary product story.
+- Renamed Pairing Engine UI copy to Smart Context.
+- Made Smart Context prominent after backend validation and before local save.
+- Updated README, research docs, app title, and manifest to Sugar pAI V2 positioning.
+- Reworded claim-boundary language away from food permission claims.
+
+### Guardrails
+- Curated unlabeled demo records do not display calories, macros, GI, GL, or FNRI-derived claims.
+- Packaged-label GL remains clearly labeled as `heuristic_demo` unless future licensed GI data exists.
+- Unknown label values remain unknown.
+
+## [v1.3.0] - Sugar pAI Backend Integration
+
+### Added
+- FastAPI research backend for packaged-food VLM extraction.
+- Camera capture workflow under `#/sugar-pai/scan`.
+- Ollama VLM support.
+- Versioned sugar taxonomy engine.
+- Deterministic label validation.
+- IndexedDB storage for confirmed packaged-label records.
+- Docker Compose orchestration.
 
 ### Fixed
-- **Camera Resource Leak:** Implemented a state-driven camera monitor that automatically shuts down active `MediaStream` tracks when navigating away from the Sugar pAI tab to conserve battery.
+- Camera streams stop when navigating away from Sugar pAI.
 
 ## [v1.2.0] - Daily Dozen Presets and Overrides
+
 ### Added
-- Goal preset system allowing users to select dietary protocols (e.g., "Standard Daily Dozen").
-- Custom manual overrides for specific nutritional categories.
+- Goal preset system.
+- Custom manual target overrides.
 
 ## [v1.1.0] - Recipe and Pantry Sync
+
 ### Added
-- Pantry deducting logic: Cooking a saved recipe automatically reduces the corresponding ingredient quantities from the Pantry.
-- Grocery list generation directly from recipe missing ingredients.
+- Pantry deduction from cooked recipes.
+- Grocery list generation from missing ingredients.
 
 ## [v1.0.0] - Initial Release
+
 ### Added
 - Core Daily Dozen tracking UI.
 - Local storage persistence for custom recipes.
-- Basic meal slot categorization (Breakfast, Lunch, Dinner, Snacks).
+- Basic meal slot categorization.

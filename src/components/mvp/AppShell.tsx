@@ -24,7 +24,7 @@ export default function AppShell({ route, navigate, children }: Props) {
           <span className="brand-mark"><ScanLine size={22} /></span>
           <span>
             <strong>Sugar pAI</strong>
-            <small>Evidence-grounded label research</small>
+            <small>Label evidence and Smart Context</small>
           </span>
         </button>
         <span className="research-badge">Research MVP</span>

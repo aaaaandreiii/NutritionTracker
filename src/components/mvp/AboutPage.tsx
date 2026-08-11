@@ -11,12 +11,12 @@ const sources = [
 export default function AboutPage() {
   return (
     <div className="page about-page">
-      <header className="page-heading"><span className="eyebrow"><BookOpen size={14} /> About the research MVP</span><h1>Trust comes from showing the boundary.</h1><p>Sugar pAI is a packaged-food label interpretation study for adults with type 2 diabetes or prediabetes. It is not a diagnostic, treatment, or glucose-prediction system.</p></header>
+      <header className="page-heading"><span className="eyebrow"><BookOpen size={14} /> About Sugar pAI V2</span><h1>Trust comes from showing the boundary.</h1><p>Sugar pAI is a packaged-food decision-support and Smart Context research prototype. Daily Dozen tracking remains available as supporting local logging, but the V2 story starts with evidence validation.</p></header>
 
       <section className="principles-grid">
         <article className="principle-card"><ShieldCheck /><span>01</span><h2>Evidence before confidence</h2><p>Every accepted number must point to the photographed label, an identified database record, or a user confirmation. Model self-confidence is never enough.</p></article>
         <article className="principle-card"><Database /><span>02</span><h2>Unknown stays unknown</h2><p>A missing added-sugar declaration is not zero. Database disagreements remain visible and never silently replace the current label.</p></article>
-        <article className="principle-card"><FlaskConical /><span>03</span><h2>GI labels stay explicit</h2><p>Sourced GI is separate from the alias-based demo GL. Ingredient aliases are not treated as tested product evidence.</p></article>
+        <article className="principle-card"><FlaskConical /><span>03</span><h2>GI labels stay explicit</h2><p>Sourced GI is separate from the alias-based heuristic_demo GL. Curated unlabeled demo records do not display GI or GL.</p></article>
         <article className="principle-card"><LockKeyhole /><span>04</span><h2>Local by default</h2><p>No accounts, cloud history, analytics, or advertising. Confirmed records use IndexedDB on this device; source images are retained only by explicit opt-in.</p></article>
       </section>
 
@@ -32,7 +32,7 @@ export default function AboutPage() {
         </section>
         <section className="card about-section">
           <span className="section-kicker">Scientific boundary</span><h2>What the tool can and cannot say</h2>
-          <div className="boundary-list"><div><strong>Can support</strong><p>Transcription of printed nutrient values, product database cross-checks, detection of named sugar-related ingredients, and a clearly labeled heuristic GL demo when required fields are present.</p></div><div><strong>Cannot infer</strong><p>Grams of each named sweetener, a true sourced GI from the label, individual glucose response, medication or insulin decisions, or whether a food is “safe.”</p></div></div>
+          <div className="boundary-list"><div><strong>Can support</strong><p>Transcription of printed nutrient values, product database cross-checks, detection of named sugar-related ingredients, deterministic Smart Context, and a curated Filipino-food demo with qualitative tags.</p></div><div><strong>Cannot infer</strong><p>Grams of each named sweetener, a true sourced GI from the label, individual glucose response, medication or insulin decisions, or permission-style food claims.</p></div></div>
         </section>
       </div>
 

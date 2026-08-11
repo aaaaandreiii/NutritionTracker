@@ -452,7 +452,7 @@ def result_from_database(
             "Live label extraction did not produce accepted evidence; database values, if present, are unconfirmed.",
             "Ingredient order cannot establish grams of an individual sweetener.",
             "No licensed FNRI, Trinidad, or tested-product GI table is bundled.",
-            "This tool does not provide medical advice, diabetes safety claims, medication guidance, or glucose predictions.",
+            "This tool does not provide medical advice, diabetes suitability claims, medication guidance, or glucose predictions.",
         ],
         diagnostics=diagnostics or build_analysis_diagnostics(job),
         retake_recommended=any(check.status == "warn" for check in job.quality_checks),
@@ -566,7 +566,7 @@ def result_from_extraction(
         "Automated readings are unconfirmed vision outputs; manual review is required before logging.",
         f"Ingredient matches use taxonomy {SUGAR_TAXONOMY_VERSION}; they do not estimate ingredient amounts.",
         "Ingredient order cannot establish grams of an individual sweetener.",
-        "This tool does not provide medical advice, diabetes safety claims, medication guidance, or glucose predictions.",
+        "This tool does not provide medical advice, diabetes suitability claims, medication guidance, or glucose predictions.",
         *glycemic_limitations,
     ]
     if product:
@@ -644,11 +644,11 @@ def validate_extracted_label(label: ExtractedLabel) -> tuple[list[ValidationChec
     failures = [check.message for check in checks if check.status == "fail"]
     claim_text = json_like_text(label)
     if contains_prohibited_claim(claim_text):
-        failures.append("Extraction output contained a prohibited health or diabetes safety claim.")
+        failures.append("Extraction output contained a prohibited health or diabetes suitability claim.")
         checks.append(ValidationCheck(
             code="prohibited_claim_suppressed",
             status="fail",
-            message="Extraction output contained a prohibited health or diabetes safety claim.",
+            message="Extraction output contained a prohibited health or diabetes suitability claim.",
         ))
     return checks, failures
 

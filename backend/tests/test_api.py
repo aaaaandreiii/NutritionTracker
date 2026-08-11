@@ -179,3 +179,90 @@ def test_label_record_validation_rejects_impossible_nutrition_math():
 
     assert response.status_code == 422
     assert "Added sugars cannot exceed total sugars" in response.json()["detail"]
+
+
+def test_unlabeled_food_catalog_lists_curated_ph_demo_foods():
+    with TestClient(app) as client:
+        response = client.get("/api/v1/unlabeled-foods/catalog?market=PH")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["market"] == "PH"
+    assert any(food["foodId"] == "ph_kanin_white_rice" for food in payload["foods"])
+    assert any("qualitative demo" in item for item in payload["limitations"])
+    assert all("gi" not in food and "gl" not in food for food in payload["foods"])
+
+
+def test_unlabeled_food_identify_uses_demo_alias_hint_from_filename():
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/unlabeled-foods/identify",
+            data={"market": "PH"},
+            files={"food_image": ("kanin-photo.jpg", readable_test_image(), "image/jpeg")},
+        )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["method"] == "filename_alias_demo"
+    assert payload["candidates"][0]["foodId"] == "ph_kanin_white_rice"
+    assert payload["candidates"][0]["confidence"] is not None
+
+
+def test_unlabeled_food_identify_falls_back_to_manual_catalog_selection():
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/unlabeled-foods/identify",
+            data={"market": "PH"},
+            files={"food_image": ("unknown-food.jpg", readable_test_image(), "image/jpeg")},
+        )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["method"] == "manual_catalog_fallback"
+    assert payload["candidates"] == []
+    assert "Choose the food manually" in payload["message"]
+
+
+def test_unlabeled_food_record_validation_returns_context_only_record_without_numeric_gi_or_gl():
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/unlabeled-food-records/validate",
+            json={
+                "market": "PH",
+                "foodId": "ph_pandesal",
+                "portionLabel": "1 piece",
+                "notes": "bakery sample",
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["kind"] == "curated_unlabeled_demo"
+    assert payload["status"] == "confirmed"
+    assert payload["displayName"] == "Pandesal"
+    assert payload["selectedPortionLabel"] == "1 piece"
+    assert payload["notes"] == "bakery sample"
+    assert payload["contextFlags"]
+    assert {flag["category"] for flag in payload["contextFlags"]} == {"curated_demo"}
+    assert payload["glycemic"]["status"] == "unavailable"
+    assert payload["glycemic"]["gi"] is None
+    assert payload["glycemic"]["gl"] is None
+    assert payload["glycemic"]["glBand"] is None
+    assert any("does not provide authoritative calories, macros, GI, GL, or FNRI" in item for item in payload["limitations"])
+
+
+def test_unlabeled_food_record_validation_rejects_unknown_food_and_portion():
+    with TestClient(app) as client:
+        unknown_food = client.post(
+            "/api/v1/unlabeled-food-records/validate",
+            json={"market": "PH", "foodId": "ph_unknown", "portionLabel": "1 piece"},
+        )
+        bad_portion = client.post(
+            "/api/v1/unlabeled-food-records/validate",
+            json={"market": "PH", "foodId": "ph_pandesal", "portionLabel": "1 cup"},
+        )
+
+    assert unknown_food.status_code == 404
+    assert "not found" in unknown_food.json()["detail"]
+    assert bad_portion.status_code == 422
+    assert "Portion label" in bad_portion.json()["detail"]

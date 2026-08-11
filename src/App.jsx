@@ -15,7 +15,7 @@ const APP_TABS = ['sugar-pai', 'dashboard', 'pantry', 'recipes'];
 function tabFromHash() {
   const hash = window.location.hash.replace(/^#\/?/, '');
   if (hash === 'sugar-pai' || hash.startsWith('sugar-pai/')) return 'sugar-pai';
-  return APP_TABS.includes(hash) ? hash : 'dashboard';
+  return APP_TABS.includes(hash) ? hash : 'sugar-pai';
 }
 
 const sugarPaiMealSlotMap = {
@@ -74,7 +74,7 @@ export default function App() {
     
     // Automatically default the hash on boot if nothing is assigned
     if (!window.location.hash || window.location.hash === '#') {
-      window.location.hash = '#/dashboard';
+      window.location.hash = '#/sugar-pai/scan';
     }
 
     return () => window.removeEventListener('hashchange', handleHashChange);
@@ -235,9 +235,9 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-900 font-serif flex items-center gap-1.5">
-              Daily Dozen <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-sans font-bold">V1.3</span>
+              Sugar pAI <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-sans font-bold">V2</span>
             </h1>
-            <p className="text-[10px] text-gray-400 font-medium">Whole Food Plant-Based Nutrient Tracker</p>
+            <p className="text-[10px] text-gray-400 font-medium">Packaged-food evidence and Smart Context research</p>
           </div>
         </div>
 
@@ -253,7 +253,7 @@ export default function App() {
             }`}
           >
             <Sparkles size={14} className="text-amber-500" />
-            <span>sugar pai</span>
+            <span>Sugar pAI</span>
           </a>
           <a 
             href="#/dashboard"
@@ -369,7 +369,7 @@ export default function App() {
                 ...prev,
                 [slot]: [...prev[slot], newMealItem]
               }));
-              triggerToast(`Added "${entry.productName}" Sugar pAI snapshot to ${mealSlots.find(m => m.id === slot)?.label}.`, 'success');
+              triggerToast(`Added "${entry.productName}" Sugar pAI record to ${mealSlots.find(m => m.id === slot)?.label}.`, 'success');
             }}
           />
         </div>

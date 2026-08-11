@@ -1,65 +1,169 @@
 # API Documentation
 
-The FastAPI backend provides RESTful endpoints to manage the asynchronous Sugar pAI extraction pipeline.
+The FastAPI backend exposes short-lived packaged-label analysis jobs, stateless label validation, and curated unlabeled-food demo endpoints.
+
+## General Notes
+
+- Base URL in development: `http://localhost:8000`
+- OpenAPI docs: `/docs`
+- Response field names are camelCase.
+- Uploaded images are limited to 8 MB each.
+- Backend analysis jobs are in-memory and expire after 15 minutes.
 
 ## Endpoints
 
-### 1. Health Check
+### Health Check
+
 `GET /health`
-- **Description:** Verifies the backend is alive.
-- **Response:** `200 OK`
-  ```json
-  { "status": "ok" }
-  ```
 
-### 2. Create Analysis Job
+Returns:
+
+```json
+{ "status": "ok" }
+```
+
+### Create Packaged-Label Analysis
+
 `POST /api/v1/analyses`
-- **Description:** Initializes a new analysis job. Uploads are sanitized and saved to a temporary directory.
-- **Content-Type:** `multipart/form-data`
-- **Payload:**
-  - `nutrition_image` (File, required): Image of the Nutrition Facts panel. Max 8MB.
-  - `market` (Form, required): String, enum `["PH", "US"]`.
-  - `ingredient_image` (File, optional): Image of the ingredient list.
-  - `front_image` (File, optional): Image of the product front.
-  - `barcode` (Form, optional): String, max 32 chars, numeric only.
-- **Response:** `202 Accepted`
-  ```json
-  { "analysis_id": "uuid-string" }
-  ```
-- **Errors:**
-  - `413 Payload Too Large`: Image exceeds 8MB.
-  - `422 Unprocessable Entity`: Invalid image format or validation error.
 
-### 3. Stream Analysis Events (SSE)
+Content type: `multipart/form-data`
+
+Fields:
+- `nutrition_image` file, required
+- `market` enum, required: `PH` or `US`
+- `ingredient_image` file, optional
+- `front_image` file, optional
+- `barcode` numeric string, optional
+
+Returns `202 Accepted`:
+
+```json
+{ "analysisId": "uuid-string", "expiresInSeconds": 900 }
+```
+
+Errors:
+- `413`: image exceeds 8 MB
+- `422`: invalid image or form value
+
+### Stream Analysis Events
+
 `GET /api/v1/analyses/{analysis_id}/events`
-- **Description:** Streams Server-Sent Events (SSE) as the pipeline progresses.
-- **Headers:** `Cache-Control: no-cache`
-- **Payload Format:** JSON objects prefixed with `data: `.
-  ```json
-  data: {"type": "status", "message": "Extracting macros..."}
-  ```
-- **Errors:**
-  - `404 Not Found`: Analysis ID invalid or expired.
 
-### 4. Finalize Analysis
+Streams Server-Sent Events. Event payloads include `stage`, `result`, and `error` event types. A successful stream ends with an `AnalysisResult`.
+
+Errors:
+- `404`: analysis ID is missing or expired
+
+### Finalize Analysis
+
 `POST /api/v1/analyses/{analysis_id}/finalize`
-- **Description:** Submits the user-reviewed data for strict deterministic validation.
-- **Content-Type:** `application/json`
-- **Payload:** `FinalizeRequest` schema containing the reviewed `nutrients` (calories, carbs, sugars, etc.), `product_name`, `serving_size`, and `raw_ingredients`.
-- **Response:** `200 OK`
-  Returns the strictly validated `AnalysisResult` JSON record ready for IndexedDB storage.
-- **Errors:**
-  - `409 Conflict`: Analysis is still processing.
-  - `422 Unprocessable Entity`: Failed deterministic validation (e.g., Total Sugars > Total Carbohydrates).
 
-### 5. Validate Label Record (Stateless)
+Content type: `application/json`
+
+Payload: `FinalizeRequest`
+
+Key fields:
+- `productName`
+- `servingSize`
+- `servingUnit`
+- `nutrients.totalCarbohydrate`
+- `nutrients.fiber`
+- `nutrients.totalSugars`
+- `nutrients.addedSugars`
+- `nutrients.sugarAlcohols`
+- `nutrients.protein`
+- `nutrients.fat`
+- `rawIngredients`
+- `consumedServings`
+
+Returns confirmed `AnalysisResult`.
+
+Errors:
+- `409`: analysis is still processing
+- `422`: deterministic validation failed
+
+### Validate Label Record
+
 `POST /api/v1/label-records/validate`
-- **Description:** Stateless endpoint to run validation logic without an existing analysis job.
-- **Content-Type:** `application/json`
-- **Payload:** `FinalizeRequest` schema.
-- **Response:** `200 OK` Returns `LabelRecordValidationResponse`.
 
-### 6. Delete Analysis Job
+Runs deterministic packaged-label validation without a live analysis job.
+
+Payload: `FinalizeRequest`
+
+Returns `LabelRecordValidationResponse`.
+
+### List Curated Unlabeled Foods
+
+`GET /api/v1/unlabeled-foods/catalog?market=PH`
+
+Returns `UnlabeledFoodCatalogResponse`:
+
+```json
+{
+  "market": "PH",
+  "foods": [
+    {
+      "foodId": "ph_pandesal",
+      "displayName": "Pandesal",
+      "market": "PH",
+      "aliases": ["pandesal", "pan de sal", "bread roll", "filipino bread"],
+      "portionLabels": ["1 piece", "2 pieces", "user-described portion"],
+      "qualitativeTags": ["bread", "refined-grain context", "portion-sensitive"],
+      "limitations": [],
+      "matchReason": null,
+      "confidence": null
+    }
+  ],
+  "limitations": []
+}
+```
+
+This response intentionally excludes calories, macros, GI, and GL.
+
+### Identify Curated Unlabeled Food
+
+`POST /api/v1/unlabeled-foods/identify`
+
+Content type: `multipart/form-data`
+
+Fields:
+- `food_image` file, required
+- `market` enum, required: `PH`
+
+Returns `UnlabeledFoodIdentifyResponse` with candidate hints. If no candidate is found, `method` is `manual_catalog_fallback` and `candidates` is empty.
+
+### Validate Curated Unlabeled Record
+
+`POST /api/v1/unlabeled-food-records/validate`
+
+Payload:
+
+```json
+{
+  "market": "PH",
+  "foodId": "ph_pandesal",
+  "portionLabel": "1 piece",
+  "notes": "optional preparation note"
+}
+```
+
+Returns `CuratedFoodRecord` with:
+- `kind: "curated_unlabeled_demo"`
+- selected food and portion
+- qualitative tags
+- context flags
+- `glycemic.status: "unavailable"`
+- `glycemic.gi`, `glycemic.gl`, and `glycemic.glBand` as `null`
+- limitations and provenance
+
+Errors:
+- `404`: unknown catalog food
+- `422`: unsupported market, invalid image, or invalid portion for selected food
+
+### Delete Analysis Job
+
 `DELETE /api/v1/analyses/{analysis_id}`
-- **Description:** Prematurely cancels a job and aggressively purges its temporary directory.
-- **Response:** `204 No Content`
+
+Deletes an in-memory analysis job and temporary files.
+
+Returns `204 No Content`.

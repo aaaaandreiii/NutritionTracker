@@ -1,4 +1,5 @@
 import { ArrowRight, CalendarDays, CircleHelp, ScanLine } from 'lucide-react'
+import { isCuratedUnlabeledLog, logStatusLabel } from '../../domain/logs'
 import { sumKnown } from '../../domain/nutrition'
 import { useLogs } from '../../hooks/useLogs'
 
@@ -29,7 +30,7 @@ export default function TodayPage({ onScan }: Props) {
     <div className="page today-page">
       <header className="page-heading split-heading">
         <div><span className="eyebrow"><CalendarDays size={14} /> Today</span><h1>Known totals, without invented zeroes.</h1><p>{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date())}</p></div>
-        <button className="primary-button" onClick={onScan}><ScanLine size={18} /> Scan a label</button>
+        <button className="primary-button" onClick={onScan}><ScanLine size={18} /> Open Sugar pAI</button>
       </header>
 
       <section className="totals-grid">
@@ -41,13 +42,13 @@ export default function TodayPage({ onScan }: Props) {
       <section className="card entries-card">
         <div className="section-heading"><div><span className="section-kicker">Local log</span><h2>Today’s entries</h2></div><span className="entry-count">{today.length} {today.length === 1 ? 'entry' : 'entries'}</span></div>
         {loading ? <div className="empty-state">Loading local history…</div> : today.length === 0 ? (
-          <div className="empty-state"><ScanLine size={30} /><h3>No labels logged today</h3><p>Scan a packaged-food label, review each value, then save it here.</p><button className="text-button" onClick={onScan}>Start a scan <ArrowRight size={16} /></button></div>
+          <div className="empty-state"><ScanLine size={30} /><h3>No Sugar pAI records today</h3><p>Scan a packaged label or confirm a curated demo food, then save the record here.</p><button className="text-button" onClick={onScan}>Start Sugar pAI <ArrowRight size={16} /></button></div>
         ) : (
           <div className="entry-list">
             {today.map((entry) => (
               <article className="entry-row" key={entry.id}>
                 <div className="entry-time"><strong>{new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(entry.loggedAt))}</strong><span>{entry.meal}</span></div>
-                <div className="entry-name"><strong>{entry.productName}</strong><span>{entry.consumedServings} serving{entry.consumedServings === 1 ? '' : 's'} · {entry.result.status}</span></div>
+                <div className="entry-name"><strong>{entry.productName}</strong><span>{isCuratedUnlabeledLog(entry) ? entry.curatedRecord.selectedPortionLabel : `${entry.consumedServings} serving${entry.consumedServings === 1 ? '' : 's'}`} · {logStatusLabel(entry)}</span></div>
                 <div className="entry-macros">
                   <span><strong>{entry.totals.totalCarbohydrate ?? '—'}</strong>g carbs</span>
                   <span><strong>{entry.totals.totalSugars ?? '—'}</strong>g sugars</span>

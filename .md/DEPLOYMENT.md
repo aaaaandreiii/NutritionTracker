@@ -1,9 +1,9 @@
-# Deployment & Configuration Guide
+# Deployment and Configuration Guide
 
-This document details how to deploy the NutritionTracker application, including infrastructure configuration and environment variables.
+This document details how to deploy Sugar pAI V2 and its supporting Daily Dozen views.
 
 ## Infrastructure Details
-NutritionTracker is orchestrated via Docker Compose.
+Sugar pAI is orchestrated via Docker Compose.
 - **Frontend Container (`frontend`):** A Node environment that builds and serves the Vite React application.
 - **Backend Container (`backend`):** A Python environment running Uvicorn and FastAPI.
 
@@ -38,6 +38,7 @@ The primary deployment strategy for self-hosted instances.
    docker-compose up --build -d
    ```
 3. The frontend is accessible at port `5173`, and the backend at `8000`.
+4. The default product route is `/#/sugar-pai/scan`.
 
 ### Linux VPS / CCS Cloud Deployment (Without Docker)
 If your remote instance does not allow running Docker containers, you can use PM2 to manage the processes directly.
@@ -85,3 +86,18 @@ While not strictly implemented via GitHub Actions in this repository yet, a stan
 3. **Backend Tests:** Run `PYTHONPATH=backend pytest backend/tests`.
 4. **Build Verification:** Run `npm run build` to ensure the Vite bundler completes without errors.
 5. **Docker Build:** Test the Dockerfile builds for both frontend and backend.
+
+## Python Version Note
+
+Use Python 3.13 or earlier for the pinned backend dependency stack. Python 3.14 can fail to build `pydantic-core==2.33.2`.
+
+## V2 Endpoint Smoke Checks
+
+After deployment, verify:
+
+```bash
+curl -s http://localhost:8000/health
+curl -s 'http://localhost:8000/api/v1/unlabeled-foods/catalog?market=PH'
+```
+
+The curated catalog response must not include numeric calories, macros, GI, or GL.

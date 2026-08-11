@@ -1,36 +1,47 @@
-# Business Value & Impact
+# Business Value and Impact
 
-This document outlines the commercial viability, target audience, and business problem that NutritionTracker solves. It is tailored for stakeholders, investors, and prospective clients to understand the "why" behind the technology.
+Sugar pAI V2 is a packaged-food evidence and Smart Context research prototype. It focuses on decision support without cloud accounts, unsupported health claims, or hidden data substitution.
 
 ## Problem Statement
-In the modern food landscape, making informed, healthy choices is exceedingly difficult. 
-1. **Hidden Sugars:** Manufacturers use over 60 different aliases for sugar (e.g., maltodextrin, high-fructose corn syrup, agave nectar) to obfuscate the true sugar content of their products.
-2. **Complex Labels:** Deciphering nutrition labels and calculating glycemic impact requires specialized knowledge that the average consumer lacks.
-3. **Tracking Fatigue:** Existing calorie counting apps require tedious manual data entry and rarely incentivize whole-food, plant-based eating patterns (like the Daily Dozen).
-4. **Privacy Concerns:** Users are increasingly wary of uploading their dietary habits and health data to centralized corporate clouds that monetize their personal information.
 
-## Solution & Value Proposition
-NutritionTracker provides a seamless, privacy-first ecosystem. 
-By combining a simple, gamified whole-food tracker (Daily Dozen) with an advanced AI scanner (Sugar pAI), we reduce the friction of healthy eating to near zero. A user snaps a photo, the AI does the heavy lifting of reading the label and decoding the ingredients, and the data remains strictly local.
+1. **Packaged labels are hard to interpret:** Users must reconcile serving size, carbohydrate, sugars, fiber, protein, fat, and ingredient lists.
+2. **Ingredient naming is opaque:** Sugar-related ingredients can appear under many names, including HFCS, maltodextrin, syrups, starches, polyols, and high-intensity sweeteners.
+3. **Unlabeled foods lack reliable package evidence:** Common Filipino foods often have no nutrition panel, and recipe/portion variation makes authoritative claims risky without licensed data.
+4. **Privacy concerns are real:** Food and health-adjacent records are sensitive, and many users prefer local storage.
 
-## Core User Personas
-| Persona | Pain Point | How We Solve It |
-|---------|------------|-----------------|
-| **The Health Optimizer** | Wants to strictly follow the Daily Dozen protocol but hates manual entry. | Gamified dashboard with visual deficit tracking and one-click recipe logging. |
-| **The Diabetic/Pre-diabetic** | Needs to closely monitor hidden sugars and understand glycemic impact. | Sugar pAI instantly highlights hidden sugar aliases and provides heuristic glycemic warnings. |
-| **The Privacy Advocate** | Refuses to use commercial tracking apps due to data harvesting. | 100% local operation. State is stored in the browser; the VLM runs locally via Ollama. |
+## Value Proposition
 
-## Business Impact & ROI
-While the current version is open-source and privacy-focused, the underlying technology (specifically the deterministic validation of VLM outputs) has significant B2B and B2C commercial applications.
+Sugar pAI reduces interpretation friction while preserving evidence boundaries:
 
-### Potential Monetization Models
-1. **Freemium App Model (B2C):**
-   - **Free Tier:** Local-only tracking, manual Daily Dozen logging.
-   - **Premium Tier:** Cloud sync across devices, unlimited cloud-hosted AI label scans (for users who do not want to run local AI hardware), advanced blood glucose trend integrations.
-2. **API Licensing (B2B):**
-   - Health and wellness companies can license the `Sugar pAI` FastAPI backend. The deterministic validation layer makes it a highly reliable pipeline for extracting structured nutrition data from messy real-world images.
-3. **Data Anonymization (Opt-in):**
-   - If users opt-in, anonymized market data regarding scanned barcode popularity and regional nutritional trends can be aggregated for market research.
+- Scan a packaged label.
+- Validate what was actually read or user-confirmed.
+- Show deterministic Smart Context.
+- Log locally.
+- Use curated unlabeled demo mode only as qualitative context until permitted datasets exist.
 
-## Operational Cost Efficiency
-By designing the backend to utilize open-weight models (like Gemma4:12b via Ollama), we eliminate the dependency on costly proprietary LLM APIs (like OpenAI GPT-4o) for standard operations. This drastically lowers the variable cost per scan, making the architecture highly scalable and economically viable.
+## Core Personas
+
+| Persona | Pain point | V2 response |
+| --- | --- | --- |
+| Label reviewer | Wants help reading complex package panels. | Evidence-preserving scan, correction, validation, and local log. |
+| Ingredient-conscious shopper | Wants to notice sugar aliases and processing markers. | First-class ingredient context flags without food ratings. |
+| Filipino-food researcher | Wants a prototype flow for unlabeled foods. | Curated demo catalog with manual confirmation and qualitative tags. |
+| Privacy-focused user | Does not want cloud history. | IndexedDB local records and opt-in image retention. |
+| Whole-food tracker | Still wants Daily Dozen support. | Dashboard, pantry, groceries, and recipes remain available as secondary tooling. |
+
+## Commercial and Research Potential
+
+- **B2C local-first app:** Packaged-label evidence review and local logging.
+- **B2B extraction validation:** Deterministic validation pipeline for nutrition-label extraction workflows.
+- **Research prototype:** Evaluates whether Smart Context improves label review without unsupported claims.
+- **Future licensed-data path:** Sourced GI or Filipino nutrition values can be added only with permitted datasets and provenance.
+
+## Monetization Boundaries
+
+Potential future premium features should preserve the same evidence-boundary model:
+- Optional sync and backup.
+- More robust benchmarked extraction.
+- Licensed dataset access where legally permitted.
+- Professional export/reporting.
+
+No business model should depend on selling identifiable food/health records without explicit, separate, opt-in consent.

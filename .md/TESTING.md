@@ -1,29 +1,61 @@
 # Testing Strategy
 
-NutritionTracker employs a split testing strategy, leveraging `Vitest` for the React frontend and `pytest` for the FastAPI backend.
+Sugar pAI V2 uses Vitest for frontend domain logic and pytest for backend API, validation, extraction, taxonomy, glycemic, image-quality, and benchmark behavior.
 
-## Automated Test Breakdown
+## Frontend
 
-### Frontend (Vitest)
-The frontend utilizes `vitest` to run unit and integration tests.
-- **Unit Tests:** Verify helper functions (e.g., target calculators, Daily Dozen progress logic).
-- **Component Tests:** Verify that React components render correctly given specific state props (e.g., Dashboard renders deficits correctly).
-- **Command:** `npm run test`
+Command:
 
-### Backend (pytest)
-The backend utilizes `pytest` to strictly test the extraction and validation logic.
-- **Validation Logic:** Ensures the deterministic arithmetic checker correctly flags impossible nutrient combinations (e.g., negative calories, or sugars exceeding total carbs).
-- **Taxonomy Matching:** Verifies the `classify_ingredients` function correctly identifies aliases like "maltodextrin" using the `SUGAR_TAXONOMY_VERSION`.
-- **Command:** `PYTHONPATH=backend pytest backend/tests` (or simply `pytest` inside the `backend` directory).
+```bash
+npm run typecheck
+npm run test
+```
 
-## Static Analysis & Code Quality
-- **Frontend Typechecking:** Although the Daily Dozen is JSX, the newer Sugar pAI frontend components utilize TypeScript. `npm run typecheck` ensures type safety.
-- **Frontend Linting:** ESLint is configured to catch common React hook errors and code style issues (`npm run lint`).
+Current coverage includes:
+- Smart Context insight rules and action chips.
+- Ingredient context flag categories.
+- Curated unlabeled demo Smart Context with no numeric GI or GL.
+- Backward-compatible log handling where missing `kind` means packaged-label.
+- Unknown label values remaining unknown.
 
-## Load and Performance Testing
-Since the primary bottleneck in the application is the VLM (Ollama) inference, traditional load testing (e.g., blasting the API with 10k requests) is not highly relevant for local deployments.
-However, for the VLM specifically:
-- A benchmark script is available at `backend/app/benchmark.py`.
-- **Metrics:** It measures processing time per label, VLM hallucinations/retries, and accuracy against a golden dataset.
+## Backend
 
-For the frontend, performance is heavily dictated by image manipulation (Blob/File creation) before upload. Lighthouse metrics should target >90 for Performance and Best Practices on the Vite build.
+Command:
+
+```bash
+PYTHONPATH=backend pytest backend/tests
+```
+
+If the active `python3` is Python 3.14, use Python 3.13 or earlier for the pinned backend stack because `pydantic-core==2.33.2` may not build on 3.14.
+
+Current coverage includes:
+- Packaged-label analysis/finalize/delete round trip.
+- Stateless label-record validation.
+- Sugar taxonomy and heuristic demo GL labeling.
+- Image quality checks.
+- Extraction schema constraints and prohibited claim rejection.
+- Curated catalog listing.
+- Curated candidate identification and manual fallback.
+- Curated record validation.
+- Unknown curated food and invalid portion rejection.
+- Guarantee that curated demo records return no numeric GI or GL.
+
+## Build Verification
+
+Command:
+
+```bash
+npm run build
+```
+
+The production Vite build should complete without type or bundling errors.
+
+## Manual Regression Checklist
+
+- Default app route opens `#/sugar-pai/scan`.
+- Packaged-label mode shows Smart Context only after validation.
+- Unlabeled demo mode allows manual catalog selection when photo hints fail.
+- Curated demo logs show context-only totals in Today and History.
+- Old packaged-label logs without `kind` still open in History.
+- Exported JSON/CSV excludes retained image blobs.
+- No UI copy makes treatment, medication, insulin, suitability, or glucose-prediction claims.

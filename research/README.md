@@ -1,4 +1,8 @@
-# Benchmark protocol
+# Sugar pAI research protocol
+
+Sugar pAI V2 is evaluated as a packaged-label evidence and Smart Context prototype. Automated extraction is only one part of the research claim; the accepted record is the validated label evidence plus deterministic context shown after user confirmation.
+
+## Packaged-label benchmark
 
 The automated extraction proof point is evaluated before any VLM provider becomes a default. Build a gold set of 100 packaged products: 50 Philippine and 50 US products, balanced across beverages, cereals, dairy, snacks, sauces, baked products, sugar-free/polyol products, and imported goods.
 
@@ -29,4 +33,14 @@ PYTHONPATH=backend python -m app.benchmark \
 
 For the 20-30 item development run, keep real product images private and store predictions in the same shape as `research/fixtures/synthetic_predictions.json`. Required reported metrics are total sugar MAE, exact match for serving/carbohydrate/fiber/sugars, sugar-alias precision/recall, schema-valid-after-retry rate, p95 latency, API error count, and fallback counts.
 
-No FNRI, Trinidad, or other licensed GI source data is bundled in this repository. Until licensed records are provided and matched, the application must keep `sourced` GI unavailable and may show only the explicitly labeled `heuristic_demo` GL output.
+## Curated unlabeled demo mode
+
+The Filipino-food catalog is a qualitative demo mode for Smart Context research. It may include allowed food names, aliases, portion labels, qualitative tags, and limitations. It must not include authoritative calories, macros, GI, GL, or FNRI-derived claims unless a permitted dataset and matching protocol are added later.
+
+Image-based identification in this mode is only a candidate suggestion step. The user must confirm the catalog food and portion before Smart Context appears. If no candidate is suggested, the UI must fall back to manual catalog selection.
+
+## GI and GL policy
+
+No FNRI, Trinidad, or other licensed GI source data is bundled in this repository. Until licensed records are provided and matched, the application must keep `sourced` GI unavailable. Packaged-label records may show only the explicitly labeled `heuristic_demo` GL output; curated unlabeled demo records must not display numeric GI or GL.
+
+Smart Context copy must not make permission-style, treatment, medication, insulin, or glucose-prediction claims. Movement content remains optional education, not personal exercise advice.

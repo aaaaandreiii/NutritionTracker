@@ -1,91 +1,124 @@
 # System Architecture
 
-NutritionTracker utilizes a decoupled architecture combining a Vite/React Single Page Application (SPA) with a FastAPI backend dedicated to Vision-Language Model processing.
+Sugar pAI V2 uses a Vite/React SPA with a FastAPI backend. The product is local-first: the backend performs short-lived analysis and validation, while confirmed history is stored in browser IndexedDB.
 
 ## High-Level System Design
 
 ```mermaid
 graph TD
-    subgraph Client [Frontend - React/Vite SPA]
-        UI[User Interface - React]
-        State[React State - Transient Daily Dozen]
-        Storage[(Browser Storage: IndexedDB & localStorage)]
+    subgraph Client [React/Vite SPA]
+        Shell[Sugar pAI shell]
+        Packaged[Packaged-label scan]
+        Unlabeled[Curated unlabeled demo]
+        Smart[Smart Context UI]
+        Daily[Daily Dozen support]
+        Storage[(IndexedDB and localStorage)]
         Camera[Device Camera API]
     end
 
-    subgraph Backend [FastAPI Server]
-        API[REST API Endpoints]
-        Sanitizer[Image Sanitization & EXIF Stripper]
-        VLM_Pipeline[VLM Pipeline orchestration]
-        Validator[Deterministic Logic & Validation]
+    subgraph Backend [FastAPI]
+        API[REST and SSE endpoints]
+        Sanitizer[Image validation and EXIF stripping]
+        Pipeline[VLM label pipeline]
+        Validator[Deterministic validation]
+        Catalog[Curated Filipino-food demo catalog]
     end
 
-    subgraph External [External Services / Local AI]
-        Ollama[Ollama API: gemma4:12b]
-        OFF[Open Food Facts]
+    subgraph External [Optional integrations]
+        Ollama[Ollama VLM]
+        OFF[Open Food Facts barcode lookup]
     end
 
-    UI -->|Hash-based Routing| State
-    UI -->|Persists Data| Storage
-    Camera -->|Multipart Form Data| API
+    Shell --> Packaged
+    Shell --> Unlabeled
+    Shell --> Daily
+    Camera --> Packaged
+    Camera --> Unlabeled
+    Packaged -->|multipart package panels| API
     API --> Sanitizer
-    Sanitizer --> VLM_Pipeline
-    VLM_Pipeline -->|Optional Lookup| OFF
-    VLM_Pipeline --> Ollama
-    Ollama --> Validator
-    Validator -->|Server-Sent Events SSE| UI
+    Sanitizer --> Pipeline
+    Pipeline --> Ollama
+    Pipeline -->|optional barcode| OFF
+    Pipeline --> Validator
+    Validator -->|SSE result| Packaged
+    Unlabeled -->|catalog, identify, validate| API
+    API --> Catalog
+    Catalog --> Validator
+    Packaged --> Smart
+    Unlabeled --> Smart
+    Smart --> Storage
+    Daily --> Storage
 ```
 
-## Frontend-to-Backend Data Flow
-1. **Capture:** The React frontend captures photos (Nutrition Facts, Ingredients) via `navigator.mediaDevices.getUserMedia`.
-2. **Submission:** Images are bundled with market and barcode data into a `multipart/form-data` payload and POSTed to `/api/v1/analyses`.
-3. **Processing Job:** The FastAPI backend creates a short-lived asynchronous job (tracking state in memory) and saves sanitized images to a temporary directory.
-4. **Streaming Updates:** The frontend subscribes to Server-Sent Events (SSE) at `/api/v1/analyses/{id}/events`. As the backend orchestrates the VLM and validation logic, real-time status updates stream back to the UI.
-5. **Finalization:** Once processing is complete, the frontend POSTs a confirmation to `/api/v1/analyses/{id}/finalize`, receiving the deterministically validated JSON record.
-6. **Persistence:** The frontend stores this final validated record in the browser's IndexedDB.
+## Packaged-Label Data Flow
 
-## Database Schemas and Relationships
+1. User captures Nutrition Facts, ingredients, front label, and optional barcode images.
+2. Frontend quality checks run locally.
+3. Frontend creates an analysis job with `POST /api/v1/analyses`.
+4. Backend sanitizes uploads, runs the VLM pipeline, classifies ingredients, checks claims, and streams events.
+5. User corrects draft evidence in the review screen.
+6. Frontend finalizes with `POST /api/v1/analyses/{id}/finalize`.
+7. Backend returns a confirmed `AnalysisResult`.
+8. Frontend builds Smart Context and saves the local `packaged_label` log.
 
-Since the application is local-first, there is no traditional relational database. 
+## Curated Unlabeled Demo Data Flow
 
-### Local Storage (`localStorage`)
-- **`daily_dozen_recipes`**: Stores an array of JSON objects representing custom recipes (ID, name, calories, ingredients, Daily Dozen serving values).
+1. User chooses **Unlabeled demo**.
+2. Frontend loads `GET /api/v1/unlabeled-foods/catalog?market=PH`.
+3. User may upload a food photo; `POST /api/v1/unlabeled-foods/identify` can suggest catalog candidates.
+4. User confirms catalog food and portion manually.
+5. Frontend validates with `POST /api/v1/unlabeled-food-records/validate`.
+6. Backend returns a `CuratedFoodRecord` with qualitative tags, context flags, unavailable glycemic evidence, and limitations.
+7. Frontend builds Smart Context and saves the local `curated_unlabeled_demo` log.
 
-### IndexedDB Schema (Sugar pAI History)
-The `sugar-pai-db` IndexedDB database stores confirmed label scans.
+## Local Data Model
+
+### IndexedDB
+
+Database: `sugar-pai-research`
+
+Store: `logs`
+
+Log records are union-shaped:
 
 ```mermaid
 erDiagram
-    ANALYSIS_RECORD {
-        string analysis_id PK
-        string status
-        string market
-        datetime completed_at
+    LOG_ENTRY {
+        string id PK
+        string kind
+        string analysis_id
+        datetime logged_at
+        string meal
+        string product_name
+        float total_carbohydrate_nullable
+        float total_sugars_nullable
+        float added_sugars_nullable
     }
-    PRODUCT {
-        string name
-        string brand
-        string barcode
+    PACKAGED_LABEL_LOG {
+        object result
+        array retained_images_optional
     }
-    NUTRIENTS {
-        float calories
-        float total_carbohydrate
-        float total_sugars
-        float added_sugars
-        float fiber
-        float protein
-        float fat
-    }
-    INGREDIENTS {
-        string raw_text
-        array sugar_variants
+    CURATED_UNLABELED_LOG {
+        object curated_record
     }
 
-    ANALYSIS_RECORD ||--|| PRODUCT : "identifies"
-    ANALYSIS_RECORD ||--|| NUTRIENTS : "contains"
-    ANALYSIS_RECORD ||--|| INGREDIENTS : "analyzes"
+    LOG_ENTRY ||--o| PACKAGED_LABEL_LOG : "kind packaged_label or missing legacy kind"
+    LOG_ENTRY ||--o| CURATED_UNLABELED_LOG : "kind curated_unlabeled_demo"
 ```
 
-## Third-Party API Integrations and Service Boundaries
-- **Ollama (`/api/generate`):** The primary VLM engine. Runs locally, ensuring no image data leaves the user's network unless configured otherwise.
-- **Open Food Facts (Optional):** If `SUGAR_PAI_ENABLE_OFF_LOOKUP=true`, the backend will perform a fast, external lookup via barcode to cross-reference or retrieve missing label data.
+Missing `kind` is treated as `packaged_label` for backward compatibility.
+
+### localStorage
+
+Daily Dozen support state and custom recipes remain local to the browser.
+
+## Service Boundaries
+
+- **FastAPI backend:** No durable database. Analysis jobs and uploads expire after 15 minutes.
+- **Ollama:** Optional VLM provider for packaged-label extraction.
+- **Open Food Facts:** Optional barcode lookup when enabled; community data never replaces current label evidence without review.
+- **Curated catalog:** Static qualitative demo data only. It does not contain calories, macros, GI, GL, or FNRI-derived claims.
+
+## Safety Boundary
+
+Smart Context is deterministic educational context. It does not provide medical advice, medication guidance, insulin guidance, suitability claims, or glucose predictions.

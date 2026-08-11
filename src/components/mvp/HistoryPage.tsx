@@ -17,14 +17,17 @@ import {
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { isCuratedUnlabeledLog, isPackagedLabelLog, logStatusLabel } from '../../domain/logs'
 import { NUTRIENT_KEYS, NUTRIENT_META, correctionsFromResult, makeLogTotals } from '../../domain/nutrition'
-import { buildPairingInsights } from '../../domain/pairing'
+import { buildPairingInsights, smartContextFromCuratedRecord } from '../../domain/pairing'
 import type {
   AnalysisResult,
+  CuratedUnlabeledLogEntry,
   FinalizeCorrections,
   LabelRecordValidation,
   LogEntry,
   MealSlot,
+  PackagedLabelLogEntry,
   ValidationCheck,
 } from '../../domain/types'
 import { useLogs } from '../../hooks/useLogs'
@@ -49,7 +52,7 @@ function servingsFromInput(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function correctionsFromLog(entry: LogEntry): FinalizeCorrections {
+function correctionsFromLog(entry: PackagedLabelLogEntry): FinalizeCorrections {
   const corrections = correctionsFromResult(entry.result)
   return {
     ...corrections,
@@ -91,11 +94,11 @@ function glBandLabel(band: AnalysisResult['glycemic']['glBand']): string {
 }
 
 function mergeValidatedRecord(
-  entry: LogEntry,
+  entry: PackagedLabelLogEntry,
   corrections: FinalizeCorrections,
   meal: MealSlot,
   validation: LabelRecordValidation,
-): LogEntry {
+): PackagedLabelLogEntry {
   const result: AnalysisResult = {
     ...entry.result,
     status: validation.status,
@@ -128,7 +131,7 @@ function mergeValidatedRecord(
   }
 }
 
-function HistoryDetailDrawer({ entry, onClose }: { entry: LogEntry; onClose: () => void }) {
+function HistoryDetailDrawer({ entry, onClose }: { entry: PackagedLabelLogEntry; onClose: () => void }) {
   const [draft, setDraft] = useState<FinalizeCorrections>(() => correctionsFromLog(entry))
   const [meal, setMeal] = useState<MealSlot>(entry.meal)
   const [editing, setEditing] = useState(false)
@@ -439,6 +442,101 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: LogEntry; onClose: () 
   )
 }
 
+function CuratedDemoHistoryDrawer({ entry, onClose }: { entry: CuratedUnlabeledLogEntry; onClose: () => void }) {
+  const record = entry.curatedRecord
+  const insights = useMemo(
+    () => buildPairingInsights(smartContextFromCuratedRecord(record, entry.meal)),
+    [entry.meal, record],
+  )
+
+  const requestClose = useCallback(() => onClose(), [onClose])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') requestClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [requestClose])
+
+  return (
+    <div className="history-drawer-backdrop" role="presentation" onMouseDown={requestClose}>
+      <aside
+        className="history-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${entry.productName} curated demo record`}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="history-drawer-header">
+          <div>
+            <span className="section-kicker">Curated unlabeled demo</span>
+            <h2>{entry.productName}</h2>
+            <p>Logged {formatDateTime(entry.loggedAt)}{entry.updatedAt ? ` · Updated ${formatDateTime(entry.updatedAt)}` : ''}</p>
+          </div>
+          <button type="button" className="icon-button" onClick={requestClose} aria-label="Close record details"><X size={18} /></button>
+        </header>
+
+        <div className="history-drawer-scroll">
+          <section className="drawer-summary-grid" aria-label="Record summary">
+            <div><span>Meal</span><strong>{entry.meal}</strong></div>
+            <div><span>Portion</span><strong>{record.selectedPortionLabel}</strong></div>
+            <div><span>Mode</span><strong>Curated demo</strong></div>
+            <div><span>GI / GL</span><strong>Unavailable</strong></div>
+          </section>
+
+          <section className="drawer-section">
+            <div className="section-heading">
+              <div><span className="section-kicker">Food & portion</span><h3>Confirmed context</h3></div>
+              <StatusPill status="User confirmed" />
+            </div>
+            <div className="drawer-meta-grid">
+              <span><strong>Market</strong>{record.market}</span>
+              <span><strong>Record</strong>{record.recordId}</span>
+              <span><strong>Status</strong>{record.status}</span>
+            </div>
+            {record.notes && <p className="empty-inline">{record.notes}</p>}
+          </section>
+
+          <section className="drawer-section">
+            <div className="section-heading"><div><span className="section-kicker">Qualitative tags</span><h3>Catalog descriptors</h3></div></div>
+            <div className="context-flag-list">
+              {record.contextFlags.map((flag) => (
+                <div className="context-flag flag-curated_demo" key={flag.id}>
+                  <strong>{flag.label}</strong>
+                  <span>{flag.category.replaceAll('_', ' ')}</span>
+                  <p>{flag.detail}</p>
+                  <small>{flag.evidenceLabels.join(' · ')}</small>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="drawer-section">
+            <div className="section-heading"><div><span className="section-kicker">Glycemic evidence</span><h3>Unavailable</h3></div></div>
+            <div className="unavailable-block">
+              <AlertCircle size={22} />
+              <strong>GI and GL unavailable</strong>
+              <p>{record.glycemic.reason}</p>
+            </div>
+          </section>
+
+          <PairingIdeas insights={insights} variant="drawer" />
+
+          <section className="drawer-section">
+            <div className="section-heading"><div><span className="section-kicker">Limitations</span><h3>Demo boundary</h3></div></div>
+            <ul className="limitations-list">{record.limitations.map((item) => <li key={item}>{item}</li>)}</ul>
+          </section>
+        </div>
+
+        <footer className="history-drawer-actions">
+          <button type="button" className="secondary-button" onClick={requestClose}>Close</button>
+        </footer>
+      </aside>
+    </div>
+  )
+}
+
 export default function HistoryPage({ onScan }: Props) {
   const { logs, loading } = useLogs()
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -484,8 +582,8 @@ export default function HistoryPage({ onScan }: Props) {
                 <div className="history-date"><strong>{new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(entry.loggedAt))}</strong><span>{new Intl.DateTimeFormat(undefined, { year: 'numeric' }).format(new Date(entry.loggedAt))}</span></div>
                 <button type="button" className="history-details history-details-button" onClick={() => setSelectedId(entry.id)}>
                   <strong>{entry.productName}</strong>
-                  <span>{entry.meal} · {entry.consumedServings} serving{entry.consumedServings === 1 ? '' : 's'} · {entry.result.market}</span>
-                  <small>Analysis {entry.analysisId.slice(0, 8)}… · {entry.result.status}{entry.updatedAt ? ` · edited ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(entry.updatedAt))}` : ''}</small>
+                  <span>{entry.meal} · {isCuratedUnlabeledLog(entry) ? entry.curatedRecord.selectedPortionLabel : `${entry.consumedServings} serving${entry.consumedServings === 1 ? '' : 's'}`} · {isPackagedLabelLog(entry) ? entry.result.market : entry.curatedRecord.market}</span>
+                  <small>Record {entry.analysisId.slice(0, 8)}… · {logStatusLabel(entry)}{entry.updatedAt ? ` · edited ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(entry.updatedAt))}` : ''}</small>
                 </button>
                 <div className="history-values"><span>{entry.totals.totalCarbohydrate ?? '—'}g <small>carbs</small></span><span>{entry.totals.totalSugars ?? '—'}g <small>sugars</small></span><span>{entry.totals.addedSugars ?? '—'}g <small>added</small></span></div>
                 {entry.retainedImages?.length ? <span className="images-kept" title={`${entry.retainedImages.length} images stored locally`}><Image size={15} /> {entry.retainedImages.length}</span> : <span className="images-kept no-images">No images</span>}
@@ -497,13 +595,19 @@ export default function HistoryPage({ onScan }: Props) {
         )}
       </section>
       {logs.length > 0 && <button className="danger-text-button" onClick={() => void removeAll()}><Trash2 size={16} /> Delete all local data</button>}
-      {selectedEntry && (
+      {selectedEntry && (isPackagedLabelLog(selectedEntry) ? (
         <HistoryDetailDrawer
           key={`${selectedEntry.id}-${selectedEntry.updatedAt ?? selectedEntry.loggedAt}`}
           entry={selectedEntry}
           onClose={() => setSelectedId(null)}
         />
-      )}
+      ) : (
+        <CuratedDemoHistoryDrawer
+          key={`${selectedEntry.id}-${selectedEntry.updatedAt ?? selectedEntry.loggedAt}`}
+          entry={selectedEntry}
+          onClose={() => setSelectedId(null)}
+        />
+      ))}
     </div>
   )
 }

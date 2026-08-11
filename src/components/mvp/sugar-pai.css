@@ -73,6 +73,7 @@
 .sugar-pai-embed .primary-button.wide{ width: 100%; }
 .sugar-pai-embed .secondary-button{ background: var(--paper); border: 1px solid #c8c9c2; color: var(--ink); padding: 10px 15px; }
 .sugar-pai-embed .secondary-button:not(:disabled):hover{ border-color: var(--green); color: var(--green); }
+.sugar-pai-embed .secondary-button.wide{ width: 100%; }
 .sugar-pai-embed .text-button{ padding: 9px 8px; background: none; border: 0; color: var(--green); }
 .sugar-pai-embed .text-button:hover{ color: var(--green-dark); }
 .sugar-pai-embed .icon-button{ width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; border: 1px solid var(--line); color: var(--muted); background: var(--paper); }
@@ -130,6 +131,7 @@
 .sugar-pai-embed .segmented-control button{ min-width: 0; border: 0; border-radius: 7px; padding: 8px 5px; color: var(--muted); background: transparent; display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 9px; font-weight: 700; }
 .sugar-pai-embed .segmented-control button.active{ color: var(--green-dark); background: var(--paper); box-shadow: 0 2px 8px rgba(40, 44, 39, .07); }
 .sugar-pai-embed .segmented-control button span{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sugar-pai-embed .scan-mode-tabs{ grid-template-columns: repeat(2, 1fr); max-width: 540px; margin: -14px 0 28px; }
 .sugar-pai-embed .quality-summary{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 17px 0; }
 .sugar-pai-embed .quality-summary div{ padding: 11px; border-radius: 9px; background: #f3f1ea; display: grid; }
 .sugar-pai-embed .quality-summary strong{ font: 600 20px 'DM Mono', monospace; }
@@ -239,6 +241,17 @@
 .sugar-pai-embed .variant-row > div{ display: grid; }
 .sugar-pai-embed .variant-row strong{ font-size: 11px; }
 .sugar-pai-embed .variant-row small{ color: var(--muted); font-size: 9px; margin-top: 2px; }
+.sugar-pai-embed .context-flag-list{ display: grid; gap: 8px; margin-top: 16px; }
+.sugar-pai-embed .context-flag{ min-width: 0; display: grid; gap: 6px; padding: 11px; border: 1px solid var(--line); border-left: 3px solid #b77921; border-radius: 9px; background: #fff8e4; }
+.sugar-pai-embed .context-flag strong{ font-size: 11px; line-height: 1.3; overflow-wrap: anywhere; }
+.sugar-pai-embed .context-flag span{ width: max-content; max-width: 100%; display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 5px; color: #5d625f; background: rgba(255,255,255,.72); font: 500 8px 'DM Mono', monospace; text-transform: uppercase; overflow-wrap: anywhere; }
+.sugar-pai-embed .context-flag p{ margin: 0; color: var(--ink); font-size: 10px; line-height: 1.45; }
+.sugar-pai-embed .context-flag small{ color: var(--muted); font-size: 8px; line-height: 1.4; overflow-wrap: anywhere; }
+.sugar-pai-embed .flag-hfcs, .sugar-pai-embed .flag-maltodextrin, .sugar-pai-embed .flag-sugar_alias{ border-left-color: #b77921; background: #fff7dc; }
+.sugar-pai-embed .flag-starch{ border-left-color: var(--orange); background: #fff1e8; }
+.sugar-pai-embed .flag-polyol, .sugar-pai-embed .flag-high_intensity_sweetener{ border-left-color: #3f5181; background: #edf0fb; }
+.sugar-pai-embed .flag-processing_marker{ border-left-color: #8a8f8a; background: #f2f1ec; }
+.sugar-pai-embed .flag-curated_demo{ border-left-color: var(--green); background: #edf7f2; }
 .sugar-pai-embed .empty-inline{ color: var(--muted); font-size: 10px; line-height: 1.55; padding: 12px; background: #f4f2eb; border-radius: 8px; margin: 15px 0 0; }
 .sugar-pai-embed .glycemic-card .section-kicker, .sugar-pai-embed .explainer-card .section-kicker, .sugar-pai-embed .limitations-card .section-kicker, .sugar-pai-embed .extraction-card .section-kicker{ margin-bottom: 15px; }
 .sugar-pai-embed .captured-images-card .section-kicker{ margin-bottom: 15px; }
@@ -310,6 +323,8 @@
 .sugar-pai-embed .pairing-content p{ margin: 0; color: var(--ink); font-size: 10px; line-height: 1.5; }
 .sugar-pai-embed .pairing-evidence{ display: flex; flex-wrap: wrap; gap: 5px; }
 .sugar-pai-embed .pairing-evidence span{ padding: 3px 6px; border-radius: 5px; color: #4f524e; background: rgba(255,255,255,.7); border: 1px solid rgba(80,80,70,.09); font: 500 8px 'DM Mono', monospace; }
+.sugar-pai-embed .action-chip-row{ display: flex; flex-wrap: wrap; gap: 5px; }
+.sugar-pai-embed .action-chip-row span{ padding: 4px 7px; border-radius: 999px; color: var(--green-dark); background: rgba(230,242,236,.9); border: 1px solid rgba(12,111,79,.14); font-size: 9px; font-weight: 700; }
 .sugar-pai-embed .pairing-sources{ display: grid; gap: 4px; }
 .sugar-pai-embed .pairing-sources a{ width: max-content; max-width: 100%; display: inline-flex; align-items: center; gap: 5px; color: var(--green); font-size: 9px; line-height: 1.4; text-decoration: none; }
 .sugar-pai-embed .pairing-sources a:hover{ color: var(--green-dark); text-decoration: underline; }
@@ -329,6 +344,22 @@
 .sugar-pai-embed .confirmed-actions > div span{ display: grid; }
 .sugar-pai-embed .confirmed-actions strong{ font-size: 11px; }
 .sugar-pai-embed .confirmed-actions small{ color: var(--muted); font-size: 9px; }
+
+.sugar-pai-embed .unlabeled-layout{ margin-top: 0; }
+.sugar-pai-embed .catalog-card, .sugar-pai-embed .unlabeled-record-card{ padding: 24px; }
+.sugar-pai-embed .catalog-intro{ margin: -6px 0 16px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.sugar-pai-embed .candidate-grid{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.sugar-pai-embed .candidate-food{ min-height: 112px; padding: 13px; display: grid; align-content: start; gap: 7px; text-align: left; color: var(--ink); border: 1px solid var(--line); border-radius: 10px; background: #f8f6ef; }
+.sugar-pai-embed .candidate-food:hover{ border-color: #a8c9b9; background: #f3faf6; }
+.sugar-pai-embed .candidate-food.selected{ border-color: var(--green); background: var(--green-pale); box-shadow: inset 0 0 0 1px rgba(12,111,79,.08); }
+.sugar-pai-embed .candidate-food strong{ font-size: 12px; line-height: 1.25; overflow-wrap: anywhere; }
+.sugar-pai-embed .candidate-food span{ width: max-content; max-width: 100%; padding: 3px 6px; border-radius: 5px; color: #735425; background: #fcf4df; font: 500 8px 'DM Mono', monospace; text-transform: uppercase; }
+.sugar-pai-embed .candidate-food small{ color: var(--muted); font-size: 9px; line-height: 1.45; }
+.sugar-pai-embed .unlabeled-record-grid{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-bottom: 16px; }
+.sugar-pai-embed .unlabeled-record-grid div{ min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 9px; background: #f6f4ee; display: grid; gap: 6px; }
+.sugar-pai-embed .unlabeled-record-grid span{ color: var(--muted); font: 700 8px 'DM Mono', monospace; text-transform: uppercase; }
+.sugar-pai-embed .unlabeled-record-grid strong{ font-size: 12px; overflow-wrap: anywhere; }
+.sugar-pai-embed .limitations-list{ padding-left: 17px; margin: 0; color: var(--muted); font-size: 9px; line-height: 1.6; }
 
 .sugar-pai-embed .totals-grid{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 28px 0; }
 .sugar-pai-embed .total-card{ min-height: 168px; padding: 21px; border-radius: 15px; border: 1px solid var(--line); display: flex; flex-direction: column; }
@@ -442,6 +473,7 @@
 .sugar-pai-embed .mobile-nav button.active{ color: var(--green); }
 .sugar-pai-embed .page{ padding: 38px 18px 100px; }
 .sugar-pai-embed .scan-hero{ grid-template-columns: 1fr; gap: 24px; padding-bottom: 32px; }
+.sugar-pai-embed .scan-mode-tabs{ max-width: none; }
 .sugar-pai-embed .hero-proof{ border: 0; border-top: 1px solid var(--line); padding: 22px 0 0; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .sugar-pai-embed .hero-proof div{ grid-template-columns: 1fr; }
 .sugar-pai-embed .scan-layout, .sugar-pai-embed .review-layout{ grid-template-columns: 1fr; }
@@ -481,6 +513,7 @@
 .sugar-pai-embed .comparison-row{ grid-template-columns: 1fr; }
 .sugar-pai-embed .comparison-field, .sugar-pai-embed .candidate-cell{ border-left: 0; border-top: 1px solid var(--line); }
 .sugar-pai-embed .nutrient-fields, .sugar-pai-embed .two-fields, .sugar-pai-embed .log-card, .sugar-pai-embed .log-controls{ grid-template-columns: 1fr; }
+.sugar-pai-embed .candidate-grid, .sugar-pai-embed .unlabeled-record-grid{ grid-template-columns: 1fr; }
 .sugar-pai-embed .nutrient-totalCarbohydrate{ grid-column: auto; }
 .sugar-pai-embed .field{ grid-template-columns: minmax(0,1fr) 105px; }
 .sugar-pai-embed .log-card .checkbox-row, .sugar-pai-embed .log-card > .notice, .sugar-pai-embed .log-card > .primary-button, .sugar-pai-embed .confirmed-actions{ grid-column: auto; }

@@ -1,70 +1,75 @@
 # Functional Feature Catalog
 
-This document provides an exhaustive, highly technical breakdown of every functional capability within NutritionTracker. It is designed for developers, technical panels, and QA engineers to understand exactly *how* features work, their inputs/outputs, edge cases, and workflow rules.
+This catalog describes the implemented Sugar pAI V2 behavior. Sugar pAI is the primary product surface; Daily Dozen remains available as supporting local tracking.
 
----
+## 1. Sugar pAI Packaged-Label Flow
 
-## 1. Daily Dozen Tracking Engine (Frontend)
+### 1.1 Capture and Image Quality
+- **Capability:** Capture or upload Nutrition Facts, ingredients, front label, and optional barcode images.
+- **Inputs:** JPEG, PNG, or WebP files; Nutrition Facts is required for packaged-label analysis.
+- **Outputs:** Local quality checks and a multipart backend upload.
+- **Workflow rules:** Camera streams are stopped when leaving Sugar pAI. Backend uploads are capped at 8 MB per image and stripped of EXIF metadata.
 
-The core tracker operates entirely on the client side, utilizing React state and `localStorage` for persistence.
+### 1.2 VLM Extraction and Evidence Review
+- **Capability:** Use the backend VLM pipeline to draft label fields, then require user review before confirmation.
+- **Inputs:** Sanitized package-panel images, market, optional barcode.
+- **Outputs:** `AnalysisResult` with evidence values, confidence, provenance, validation checks, diagnostics, limitations, sugar variants, and glycemic evidence.
+- **Workflow rules:** Blank values remain unknown. Sample values are never substituted when extraction fails.
 
-### 1.1 Dashboard & Meal Logging
-- **Capability:** Users can log food items into predefined meal slots (Breakfast, Morning Snack, Lunch, Afternoon Snack, Dinner).
-- **Inputs:** Food items (from pantry, recipes, or manual entry), serving multipliers.
-- **Outputs:** Recalculated total calories, macro/micro category progress (e.g., Beans, Berries, Greens), and real-time deficit updates.
-- **Workflow Rules:**
-  - Progress is calculated dynamically based on a custom target schema (`goalPresets`).
-  - Items can be cleared per meal slot.
-- **Edge Cases:** If an item contains zero calories or undefined serving values, the calculation engine treats them as `0` rather than throwing `NaN`.
+### 1.3 Deterministic Validation
+- **Capability:** Validate reviewed label values using backend rules.
+- **Inputs:** `FinalizeRequest` with product name, serving basis, nutrient fields, raw ingredients, and consumed servings.
+- **Outputs:** Confirmed `AnalysisResult` or `LabelRecordValidationResponse`.
+- **Workflow rules:** Records cannot be saved until validation passes. Missing fields remain `Unavailable`; no missing field is converted to zero.
 
-### 1.2 Target Presets & Custom Overrides
-- **Capability:** Users can select predefined dietary targets (e.g., "Standard Daily Dozen") or manually override specific category targets.
-- **Inputs:** Preset selection string or custom integer overrides for specific categories.
-- **Workflow Rules:** Switching presets overwrites custom overrides unless the user is actively in the configuration mode.
+### 1.4 Glycemic Evidence Policy
+- **Capability:** Display sourced GI only when permitted matched source data exists; otherwise keep `sourced` unavailable.
+- **Current implementation:** No licensed FNRI, Trinidad, or tested-product GI table is bundled. Packaged-label records may show only clearly labeled `heuristic_demo` GL when required current-label/user-confirmed inputs are present.
+- **Workflow rules:** Demo GL bands remain labeled as demo context and do not predict individual glucose response.
 
-### 1.3 Pantry & Grocery Management
-- **Capability:** Tracks available ingredients and their quantities, and allows moving items to a grocery list.
-- **Workflow Rules:** 
-  - Cooking a recipe automatically deducts required ingredients from the Pantry (if available).
-  - Grocery items can be checked off and moved back to the Pantry.
+## 2. Smart Context
 
----
+### 2.1 Shared Smart Context Input
+- **Capability:** Build deterministic context insights from either packaged-label records or curated unlabeled demo records.
+- **Types:** `SmartContextRecordKind`, `SmartContextInput`, `CuratedFoodRecord`, and backward-compatible `LogEntry` handling.
+- **Workflow rules:** Smart Context appears only after backend validation.
 
-## 2. Sugar pAI Extraction Pipeline (Backend & Frontend)
+### 2.2 Context Insights
+- **Capability:** Show context rules for fiber, protein/fat, food order, sugar context, ingredient context, movement education, and data limits.
+- **Outputs:** Insight title, body, evidence labels, source links when applicable, and concise action chips.
+- **Workflow rules:** Movement copy is optional education. Smart Context does not provide medical advice or glucose prediction.
 
-The AI-driven nutritional extraction pipeline relies on a multipart file upload to a FastAPI backend, which streams events back to the client.
+### 2.3 Ingredient Context Flags
+- **Capability:** Surface ingredient flags as first-class context.
+- **Flags:** Sugar aliases, high-fructose corn syrup, maltodextrin, starches, polyols, high-intensity sweeteners, and processing markers.
+- **Workflow rules:** Flags are descriptive evidence context, not food ratings or suitability claims.
 
-### 2.1 Image Capture & Upload
-- **Capability:** Users capture images of Nutrition Facts, Ingredients, and (optionally) the Front Packaging/Barcode.
-- **Inputs:** Device Camera `MediaStream` (converted to blob) or file uploads.
-- **Outputs:** `multipart/form-data` payload containing `nutrition_image`, `ingredient_image`, `front_image`, `market`, and `barcode`.
-- **Workflow Rules:** The frontend halts camera streams immediately upon navigating away from the Sugar pAI tab to ensure privacy and conserve battery.
-- **Edge Cases:** Unsupported file formats or images > 8MB are rejected by the backend with a `413` or `422` HTTP status.
+## 3. Curated Unlabeled Filipino-Food Demo
 
-### 2.2 Image Sanitization & Quality Checks
-- **Capability:** The backend scrubs EXIF data and assesses image quality before processing.
-- **Inputs:** Raw binary image data.
-- **Outputs:** Sanitized temporary `.jpg` files and a list of quality check booleans (e.g., blur detection).
+### 3.1 Catalog
+- **Capability:** List allowed Filipino demo foods for `market=PH`.
+- **Endpoint:** `GET /api/v1/unlabeled-foods/catalog?market=PH`
+- **Data included:** Food ID, display name, aliases, portion labels, qualitative tags, limitations.
+- **Data excluded:** Authoritative calories, macros, GI, GL, and FNRI-derived claims.
 
-### 2.3 VLM Extraction (Ollama)
-- **Capability:** Extracts structured nutritional data from images using a Vision-Language Model.
-- **Inputs:** Sanitized images and an internal prompt schema.
-- **Outputs:** Raw JSON representing extracted macros, serving sizes, and product names.
-- **Edge Cases:** If the VLM hallucinates or returns invalid JSON, the backend's deterministic parsing layer catches it and issues a pipeline error event, prompting the user for a manual review/retry.
+### 3.2 Candidate Identification
+- **Capability:** Accept a food image and return curated catalog candidates when a demo alias hint can be found.
+- **Endpoint:** `POST /api/v1/unlabeled-foods/identify`
+- **Workflow rules:** Vision/candidate output is only a suggestion. If no candidate is found, the UI falls back to manual catalog selection.
 
-### 2.4 Ingredient Taxonomy Classification
-- **Capability:** Analyzes the raw ingredients list to identify hidden sugars using a versioned taxonomy (`SUGAR_TAXONOMY_VERSION`).
-- **Inputs:** Extracted raw ingredients text string.
-- **Outputs:** A categorized list of `sugar_variants` (e.g., "Maltodextrin" -> Hidden Sugar).
+### 3.3 Record Validation
+- **Capability:** Validate selected catalog food and portion.
+- **Endpoint:** `POST /api/v1/unlabeled-food-records/validate`
+- **Outputs:** `CuratedFoodRecord` with qualitative tags, context flags, unavailable glycemic evidence, limitations, and provenance.
+- **Workflow rules:** Smart Context appears only after this validation response.
 
-### 2.5 Deterministic Validation & Glycemic Calculation
-- **Capability:** Enforces mathematical consistency on the extracted data (e.g., `Total Carbs >= Total Sugars`).
-- **Inputs:** Finalized extraction request payload from the user.
-- **Outputs:** `LabelRecordValidationResponse` containing validated `NutrientFields`, `glycemic` evidence, and strict validation checks (Pass/Fail).
-- **Workflow Rules:** A record *cannot* be saved to IndexedDB unless it passes all critical validation checks.
+## 4. Local History and Export
 
-### 2.6 Local Storage & Export
-- **Capability:** Saves confirmed label analyses locally to the browser.
-- **Inputs:** Confirmed `AnalysisResult` JSON.
-- **Outputs:** IndexedDB records, accessible via the History tab. Exportable as CSV or JSON.
-- **Workflow Rules:** Images are discarded by the backend after processing. Local storage of images is opt-in only.
+- **Capability:** Store confirmed records in browser IndexedDB and export JSON/CSV without retained images.
+- **Packaged-label records:** Store `result`; missing `kind` is treated as legacy `packaged_label`.
+- **Curated demo records:** Store `curatedRecord`, context-only totals, and no retained source images.
+- **Workflow rules:** Source images are retained only by explicit opt-in for packaged-label records.
+
+## 5. Daily Dozen Support
+
+Daily Dozen dashboard, pantry, grocery, recipe, and meal logging remain available. Sugar pAI records can add local meal-slot snapshots, but Daily Dozen is secondary to the Sugar pAI V2 evidence and Smart Context story.

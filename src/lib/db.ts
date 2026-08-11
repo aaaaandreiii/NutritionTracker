@@ -1,4 +1,5 @@
 import { openDB } from 'idb'
+import { isCuratedUnlabeledLog, isPackagedLabelLog, logEntryKind, logStatusLabel } from '../domain/logs'
 import type { LogEntry } from '../domain/types'
 
 const DB_NAME = 'sugar-pai-research'
@@ -57,6 +58,10 @@ export function exportLogsCsv(logs: LogEntry[]) {
       'updated_at',
       'meal',
       'product',
+      'kind',
+      'status',
+      'market',
+      'portion_label',
       'consumed_servings',
       'total_carbohydrate_g',
       'total_sugars_g',
@@ -68,6 +73,10 @@ export function exportLogsCsv(logs: LogEntry[]) {
       entry.updatedAt,
       entry.meal,
       entry.productName,
+      logEntryKind(entry),
+      logStatusLabel(entry),
+      isPackagedLabelLog(entry) ? entry.result.market : entry.curatedRecord.market,
+      isCuratedUnlabeledLog(entry) ? entry.curatedRecord.selectedPortionLabel : '',
       entry.consumedServings,
       entry.totals.totalCarbohydrate,
       entry.totals.totalSugars,

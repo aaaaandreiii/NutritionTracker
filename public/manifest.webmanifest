@@ -1,8 +1,8 @@
 {
-  "name": "NutritionTracker",
-  "short_name": "NutritionTracker",
-  "description": "Daily Dozen tracker with Sugar pAI packaged-food label research",
-  "start_url": "/#/dashboard",
+  "name": "Sugar pAI",
+  "short_name": "Sugar pAI",
+  "description": "Packaged-food evidence review and Smart Context research",
+  "start_url": "/#/sugar-pai/scan",
   "display": "standalone",
   "background_color": "#f7f3eb",
   "theme_color": "#0c6f4f",

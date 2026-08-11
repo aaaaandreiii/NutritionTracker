@@ -1,5 +1,7 @@
 export type Market = 'PH' | 'US'
 
+export type SmartContextRecordKind = 'packaged_label' | 'curated_unlabeled_demo'
+
 export type SourceKind =
   | 'label'
   | 'database'
@@ -58,6 +60,24 @@ export interface SugarVariant {
   category: string
   ingredientRank: number
   evidence: EvidenceReference | null
+}
+
+export type SmartContextFlagCategory =
+  | 'sugar_alias'
+  | 'hfcs'
+  | 'maltodextrin'
+  | 'starch'
+  | 'polyol'
+  | 'high_intensity_sweetener'
+  | 'processing_marker'
+  | 'curated_demo'
+
+export interface SmartContextFlag {
+  id: string
+  label: string
+  category: SmartContextFlagCategory
+  detail: string
+  evidenceLabels: string[]
 }
 
 export interface GlycemicEvidence {
@@ -178,28 +198,90 @@ export interface LabelRecordValidation {
   provenance: AnalysisResult['provenance']
 }
 
+export interface CuratedFoodCandidate {
+  foodId: string
+  displayName: string
+  market: Extract<Market, 'PH'>
+  aliases: string[]
+  portionLabels: string[]
+  qualitativeTags: string[]
+  limitations: string[]
+  matchReason: string | null
+  confidence: number | null
+}
+
+export interface UnlabeledFoodCatalogResponse {
+  market: Extract<Market, 'PH'>
+  foods: CuratedFoodCandidate[]
+  limitations: string[]
+}
+
+export interface UnlabeledFoodIdentifyResponse {
+  market: Extract<Market, 'PH'>
+  candidates: CuratedFoodCandidate[]
+  method: 'filename_alias_demo' | 'manual_catalog_fallback'
+  message: string
+  limitations: string[]
+}
+
+export interface UnlabeledFoodRecordRequest {
+  market: Extract<Market, 'PH'>
+  foodId: string
+  portionLabel: string
+  notes?: string
+}
+
+export interface CuratedFoodRecord {
+  kind: 'curated_unlabeled_demo'
+  status: 'confirmed'
+  recordId: string
+  foodId: string
+  market: Extract<Market, 'PH'>
+  displayName: string
+  selectedPortionLabel: string
+  notes: string | null
+  qualitativeTags: string[]
+  contextFlags: SmartContextFlag[]
+  glycemic: GlycemicEvidence
+  limitations: string[]
+  provenance: AnalysisResult['provenance']
+}
+
 export type MealSlot = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack' | 'Other'
 
-export interface LogEntry {
+interface LogEntryBase {
   id: string
+  kind?: SmartContextRecordKind
   analysisId: string
   loggedAt: string
   updatedAt?: string
   meal: MealSlot
   consumedServings: number
   productName: string
-  result: AnalysisResult
   totals: {
     totalCarbohydrate: number | null
     totalSugars: number | null
     addedSugars: number | null
   }
+}
+
+export interface PackagedLabelLogEntry extends LogEntryBase {
+  kind?: 'packaged_label'
+  result: AnalysisResult
   retainedImages?: Array<{
     kind: 'nutrition' | 'ingredients' | 'front'
     blob: Blob
     name: string
   }>
 }
+
+export interface CuratedUnlabeledLogEntry extends LogEntryBase {
+  kind: 'curated_unlabeled_demo'
+  curatedRecord: CuratedFoodRecord
+  retainedImages?: undefined
+}
+
+export type LogEntry = PackagedLabelLogEntry | CuratedUnlabeledLogEntry
 
 export interface ImageQualityReport {
   width: number

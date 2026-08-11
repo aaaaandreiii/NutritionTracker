@@ -1,9 +1,13 @@
 import type {
   AnalysisResult,
   AnalysisStageEvent,
+  CuratedFoodRecord,
   FinalizeCorrections,
   LabelRecordValidation,
   Market,
+  UnlabeledFoodCatalogResponse,
+  UnlabeledFoodIdentifyResponse,
+  UnlabeledFoodRecordRequest,
 } from '../domain/types'
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
@@ -88,6 +92,40 @@ export async function validateLabelRecord(
   })
   if (!response.ok) throw new Error(await responseMessage(response, 'Could not validate this record.'))
   return response.json() as Promise<LabelRecordValidation>
+}
+
+export async function getUnlabeledFoodCatalog(market: Extract<Market, 'PH'>): Promise<UnlabeledFoodCatalogResponse> {
+  const response = await fetchApi(`${API_BASE}/api/v1/unlabeled-foods/catalog?market=${encodeURIComponent(market)}`, {
+    method: 'GET',
+    cache: 'no-store',
+  })
+  if (!response.ok) throw new Error(await responseMessage(response, 'Could not load the curated demo catalog.'))
+  return response.json() as Promise<UnlabeledFoodCatalogResponse>
+}
+
+export async function identifyUnlabeledFood(
+  foodImage: File,
+  market: Extract<Market, 'PH'>,
+): Promise<UnlabeledFoodIdentifyResponse> {
+  const body = new FormData()
+  body.append('food_image', foodImage)
+  body.append('market', market)
+
+  const response = await fetchApi(`${API_BASE}/api/v1/unlabeled-foods/identify`, { method: 'POST', body })
+  if (!response.ok) throw new Error(await responseMessage(response, 'Could not identify a curated demo candidate.'))
+  return response.json() as Promise<UnlabeledFoodIdentifyResponse>
+}
+
+export async function validateUnlabeledFoodRecord(
+  request: UnlabeledFoodRecordRequest,
+): Promise<CuratedFoodRecord> {
+  const response = await fetchApi(`${API_BASE}/api/v1/unlabeled-food-records/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) throw new Error(await responseMessage(response, 'Could not validate this curated demo record.'))
+  return response.json() as Promise<CuratedFoodRecord>
 }
 
 export async function deleteAnalysis(analysisId: string): Promise<void> {

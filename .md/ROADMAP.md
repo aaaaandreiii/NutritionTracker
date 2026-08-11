@@ -1,19 +1,32 @@
 # Project Roadmap
 
-NutritionTracker is an extensible system. This document outlines the planned future phases, differentiating between short-term technical debt reduction and long-term architectural scaling.
+Sugar pAI V2 is now the primary product direction: packaged-label evidence validation, deterministic Smart Context, and qualitative curated demo support for unlabeled Filipino foods. Daily Dozen remains a supporting local tracker.
 
-## Phase 1: Short-Term Fixes (Next 3 Months)
-- **TypeScript Migration:** Convert the legacy Daily Dozen JSX components (e.g., `App.jsx`, `Dashboard.jsx`) to strict TypeScript to eliminate runtime errors and improve developer velocity.
-- **Enhanced Local Persistence:** Upgrade the Daily Dozen state manager to continuously synchronize transient state with `IndexedDB`, preventing data loss upon accidental tab closures.
-- **VLM Prompt Optimization:** Refine the system prompts sent to Ollama to decrease hallucination rates on complex or multi-column nutrition labels.
-- **PWA Enhancements:** Improve the Progressive Web App manifest and service worker caching strategies to allow full offline capability for the Daily Dozen tracker.
+## Phase 1: Stabilize V2
 
-## Phase 2: Medium-Term Features (3 - 9 Months)
-- **Barcode Database Expansion:** Integrate seamlessly with the Open Food Facts API (turning `SUGAR_PAI_ENABLE_OFF_LOOKUP=true` by default) to bypass the VLM entirely if a product is already known and verified.
-- **Data Export & Reporting:** Implement comprehensive PDF and CSV reporting for users to share their Daily Dozen streaks and Sugar pAI logs with their dietitians.
-- **Gamification:** Add streak counters, achievement badges, and weekly summary analytics to improve user retention.
+- **Smart Context UX QA:** Verify packaged-label and curated demo flows across mobile and desktop, including text fit, drawer behavior, and context flag readability.
+- **Catalog governance:** Add review workflow for curated Filipino-food entries, aliases, portion labels, qualitative tags, and limitations.
+- **Backend API hardening:** Add rate limits, request logging hooks, and stricter upload MIME validation for public deployments.
+- **Frontend TypeScript migration:** Convert legacy Daily Dozen JSX components to strict TypeScript.
+- **Daily Dozen persistence:** Move transient Daily Dozen meal state into durable local storage.
 
-## Phase 3: Long-Term Architectural Scaling (9+ Months)
-- **Cloud Synchronization & Accounts:** Introduce an optional backend cloud layer (e.g., via OAuth and a PostgreSQL database) to allow users to sync their data seamlessly across mobile devices and desktops.
-- **Mobile Application Wrapper:** Utilize React Native or Capacitor to package the application as a native iOS/Android application, granting deeper access to native camera APIs and push notifications.
-- **Advanced Glycemic Modeling:** Partner with licensed nutritional databases to replace heuristic glycemic warnings with verified, scientifically-backed Glycemic Index (GI) and Glycemic Load (GL) data.
+## Phase 2: Evidence and Benchmark Expansion
+
+- **Packaged-label benchmark:** Build the private 100-product gold set described in `research/README.md`.
+- **Extraction quality gates:** Keep VLM output as draft until exact-match, sugar-alias, schema-validity, cost, and latency gates pass.
+- **Ingredient flag review:** Expand tests for sugar aliases, HFCS, maltodextrin, starches, polyols, high-intensity sweeteners, and processing markers.
+- **Curated demo evaluation:** Track whether users can correctly confirm food and portion after photo hints, including manual fallback rate.
+
+## Phase 3: Permitted Data Integrations
+
+- **Licensed GI/FNRI path:** Add sourced GI or authoritative Filipino nutrition data only after licensing, provenance, and matching rules are resolved.
+- **Barcode/database expansion:** Enable Open Food Facts lookup only as supporting evidence; current package label and user confirmation stay authoritative.
+- **Reporting:** Improve CSV/JSON exports for packaged-label evidence, curated demo context, and Daily Dozen support snapshots.
+
+## Out of Scope Until Evidence Exists
+
+- Numeric GI/GL for curated unlabeled demo foods.
+- Authoritative calories/macros for curated Filipino foods.
+- Personalized glucose prediction.
+- Medication, insulin, diagnosis, or treatment guidance.
+- Food permission or suitability claims.

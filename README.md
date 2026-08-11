@@ -1,51 +1,70 @@
-# NutritionTracker (Daily Dozen + Sugar pAI)
+# Sugar pAI V2
 
-NutritionTracker is a comprehensive, privacy-first web application designed to help individuals track their whole food plant-based diet (inspired by the Daily Dozen) while simultaneously offering advanced, AI-driven nutritional label analysis to uncover hidden sugars and calculate glycemic impacts.
+Sugar pAI is a privacy-first packaged-food decision-support and Smart Context research prototype. The core flow is: scan a package label, validate the evidence, review deterministic context, then log the record locally. Daily Dozen tracking remains in the app as supporting whole-food tracking, but V2 is positioned around Sugar pAI.
 
-## Overview
-Tracking nutrition shouldn't compromise your privacy or require manual data entry for every complex nutritional label. NutritionTracker solves this by combining an intuitive Daily Dozen checklist with a cutting-edge Vision-Language Model (VLM) backend. Users can log their daily whole food intake locally, scan food labels using their device camera, and have an AI instantly extract and validate the nutritional facts—all without cloud accounts or mandatory data sharing.
+## What V2 Does
 
-## Hero Features
-- **Daily Dozen Tracking Engine:** Seamlessly track servings, calories, and nutritional deficits across custom goals and meal slots, entirely within your browser.
-- **Sugar pAI Vision Extraction:** Snap a photo of a nutrition label and ingredient list; our local VLM (powered by Ollama and Gemma4:12b) automatically extracts macros, identifies hidden sugar aliases, and estimates glycemic impact.
-- **Privacy-First Local Storage:** No cloud accounts required. Daily tracking state is kept in memory and `localStorage`, while AI-scanned labels are securely persisted in your browser's `IndexedDB`.
-- **Deterministic Validation:** The backend AI extraction is paired with strict, deterministic Python validation to catch arithmetic errors and ensure nutritional accuracy before you save a log.
+- **Packaged-label evidence review:** Capture Nutrition Facts, ingredients, front label, and optional barcode images; VLM extraction is treated as draft evidence until the user confirms it.
+- **Deterministic validation:** Backend checks preserve unknown values, reject impossible sugar/carbohydrate arithmetic, and never turn missing fields into zero.
+- **Smart Context:** After backend validation, the app shows context rules for fiber, protein/fat, food order, ingredient flags, movement education, and data limits.
+- **Ingredient context flags:** Sugar aliases, high-fructose corn syrup, maltodextrin, starches, polyols, high-intensity sweeteners, and processing markers are shown as descriptive context rather than ratings.
+- **Curated unlabeled demo mode:** A Filipino-food demo catalog can suggest candidates from a food photo filename hint, but the user must confirm food and portion before Smart Context appears.
+- **Local history:** Confirmed records are stored in browser IndexedDB. Source images are retained only when the user opts in for packaged-label records.
 
-## Setup Steps
+## Safety Boundary
 
-### Prerequisites
-- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
-- [Node.js](https://nodejs.org/) (v18+ recommended)
-- [Ollama](https://ollama.ai/) installed locally (if running the VLM pipeline on your own hardware)
+Sugar pAI is not a diagnostic, treatment, medication, insulin, or glucose-prediction system. It avoids permission-style food claims and guarantees about glucose response.
 
-### Local Environment Setup
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd NutritionTracker
-   ```
-2. **Configure Environment Variables:**
-   ```bash
-   cp .env.example .env
-   # Edit .env to set your LLM_PROVIDER and OLLAMA_BASE_URL if necessary
-   ```
-3. **Pull the AI Model (Optional but recommended):**
-   ```bash
-   ollama pull gemma4:12b
-   ```
+GI and GL are handled conservatively:
 
-## Quickstart Guide
+- `sourced` GI remains unavailable unless a licensed/permitted tested-food dataset is added later.
+- Packaged-label demo GL may appear only as clearly labeled `heuristic_demo` output.
+- Curated unlabeled demo records do not display calories, macros, GI, GL, or FNRI-derived claims.
+- Ingredient aliases and catalog tags are context descriptors only.
 
-The easiest way to run the entire stack (Frontend Vite app and Backend FastAPI service) is via Docker Compose.
+## Backend Interfaces
+
+- `POST /api/v1/analyses`
+- `GET /api/v1/analyses/{analysis_id}/events`
+- `POST /api/v1/analyses/{analysis_id}/finalize`
+- `POST /api/v1/label-records/validate`
+- `GET /api/v1/unlabeled-foods/catalog?market=PH`
+- `POST /api/v1/unlabeled-foods/identify`
+- `POST /api/v1/unlabeled-food-records/validate`
+
+## Quickstart
 
 ```bash
 docker-compose up --build
 ```
 
-- **Frontend:** Access the Daily Dozen and Sugar pAI UI at [http://localhost:5173](http://localhost:5173).
-- **Backend API:** The FastAPI swagger documentation is available at [http://localhost:8000/docs](http://localhost:8000/docs).
+- Frontend: [http://localhost:5173](http://localhost:5173)
+- Sugar pAI default route: `#/sugar-pai/scan`
+- Backend API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-### How to use
-1. **Navigate to the Dashboard (`#/dashboard`)** to set your target presets (e.g., Standard Daily Dozen) and begin logging meals.
-2. **Scan a Label (`#/sugar-pai/scan`)** using your webcam or file upload to experience the AI-powered label extraction.
-3. **Review your History (`#/sugar-pai/history`)** to see your previously saved and validated nutritional records.
+## Local Development
+
+```bash
+npm install
+npm run typecheck
+npm run test
+npm run dev
+```
+
+Backend tests require the backend dependencies plus `backend/requirements-dev.txt`:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+PYTHONPATH=backend .venv/bin/pytest backend/tests
+```
+
+Use Python 3.13 or earlier for the pinned backend stack; Python 3.14 can fail to build the pinned `pydantic-core` dependency.
+
+## Daily Dozen Support
+
+The original Daily Dozen dashboard, pantry, grocery, recipe, and meal-log views remain available from the top navigation. Sugar pAI records can add local snapshots into meal slots, but Daily Dozen targets are secondary to the V2 Sugar pAI research flow.
+
+## Research Data Policy
+
+Do not commit patient data, credentials, copyrighted GI tables, licensed nutrition datasets, or production package images without explicit reuse permission. Curated Filipino-food demo entries are qualitative placeholders until a permitted authoritative dataset is added.

@@ -83,7 +83,7 @@ Rules:
 - Numeric nutrients must be grams per labeled serving, not percentages.
 - Do not infer zero from a missing declaration.
 - Preserve ingredient text in printed order when visible.
-- Do not provide medical advice, diabetes safety claims, or glucose predictions.
+- Do not provide medical advice, diabetes suitability claims, or glucose predictions.
 """
 
 

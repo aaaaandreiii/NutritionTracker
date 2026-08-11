@@ -27,14 +27,26 @@ from .pipeline import (
 from .schemas import (
     AnalysisResult,
     CreateAnalysisResponse,
+    CuratedFoodRecord,
     FinalizeRequest,
     LabelRecordValidationResponse,
     NutrientFields,
     ProductIdentity,
     Provenance,
     ServingInformation,
+    UnlabeledFoodCatalogResponse,
+    UnlabeledFoodIdentifyResponse,
+    UnlabeledFoodRecordRequest,
 )
 from .taxonomy import SUGAR_TAXONOMY_VERSION, classify_ingredients
+from .unlabeled_foods import (
+    UnknownFoodError,
+    UnknownPortionError,
+    UnsupportedMarketError,
+    catalog_response,
+    identify_candidates_from_filename,
+    validate_unlabeled_food_record,
+)
 from .validation import validate_nutrients
 
 
@@ -194,7 +206,7 @@ def validate_label_record(request: FinalizeRequest) -> LabelRecordValidationResp
             f"Ingredient matches use taxonomy {SUGAR_TAXONOMY_VERSION}; they do not estimate ingredient amounts.",
             "Consumed servings are used only for the local log; they do not change the per-serving label snapshot.",
             "No licensed FNRI, Trinidad, or tested-product GI table is bundled.",
-            "This tool does not provide medical advice, diabetes safety claims, medication guidance, or glucose predictions.",
+            "This tool does not provide medical advice, diabetes suitability claims, medication guidance, or glucose predictions.",
             *glycemic_limitations,
         ],
         provenance=Provenance(
@@ -291,6 +303,53 @@ async def finalize_analysis(analysis_id: str, request: FinalizeRequest) -> Analy
 )
 async def validate_label_record_endpoint(request: FinalizeRequest) -> LabelRecordValidationResponse:
     return validate_label_record(request)
+
+
+@app.get(
+    "/api/v1/unlabeled-foods/catalog",
+    response_model=UnlabeledFoodCatalogResponse,
+    response_model_by_alias=True,
+)
+async def unlabeled_food_catalog(market: Literal["PH"] = "PH") -> UnlabeledFoodCatalogResponse:
+    try:
+        return catalog_response(market)
+    except UnsupportedMarketError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post(
+    "/api/v1/unlabeled-foods/identify",
+    response_model=UnlabeledFoodIdentifyResponse,
+    response_model_by_alias=True,
+)
+async def identify_unlabeled_food(
+    food_image: Annotated[UploadFile, File(...)],
+    market: Annotated[Literal["PH"], Form(...)],
+) -> UnlabeledFoodIdentifyResponse:
+    content_type = food_image.content_type or ""
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=422, detail="Use a JPEG, PNG, or WebP food photo.")
+    await read_upload(food_image)
+    try:
+        return identify_candidates_from_filename(food_image.filename, market)
+    except UnsupportedMarketError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post(
+    "/api/v1/unlabeled-food-records/validate",
+    response_model=CuratedFoodRecord,
+    response_model_by_alias=True,
+)
+async def validate_unlabeled_record_endpoint(request: UnlabeledFoodRecordRequest) -> CuratedFoodRecord:
+    try:
+        return validate_unlabeled_food_record(request)
+    except UnknownFoodError as exc:
+        raise HTTPException(status_code=404, detail="Curated demo food not found.") from exc
+    except UnknownPortionError as exc:
+        raise HTTPException(status_code=422, detail="Portion label is not allowed for this curated demo food.") from exc
+    except UnsupportedMarketError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.delete("/api/v1/analyses/{analysis_id}", status_code=status.HTTP_204_NO_CONTENT)

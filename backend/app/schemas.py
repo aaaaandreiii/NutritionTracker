@@ -106,6 +106,26 @@ class GlycemicEvidence(ApiModel):
     reason: str
 
 
+SmartContextFlagCategory = Literal[
+    "sugar_alias",
+    "hfcs",
+    "maltodextrin",
+    "starch",
+    "polyol",
+    "high_intensity_sweetener",
+    "processing_marker",
+    "curated_demo",
+]
+
+
+class SmartContextFlag(ApiModel):
+    id: str
+    label: str
+    category: SmartContextFlagCategory
+    detail: str
+    evidence_labels: list[str] = Field(default_factory=list)
+
+
 class QualityCheck(ApiModel):
     code: str
     label: str
@@ -203,6 +223,55 @@ class LabelRecordValidationResponse(ApiModel):
     sugar_variants: list[SugarVariant]
     glycemic: GlycemicEvidence
     validation_checks: list[ValidationCheck]
+    limitations: list[str]
+    provenance: Provenance
+
+
+class CuratedFoodCandidate(ApiModel):
+    food_id: str
+    display_name: str
+    market: Literal["PH"] = "PH"
+    aliases: list[str]
+    portion_labels: list[str]
+    qualitative_tags: list[str]
+    limitations: list[str]
+    match_reason: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+
+class UnlabeledFoodCatalogResponse(ApiModel):
+    market: Literal["PH"]
+    foods: list[CuratedFoodCandidate]
+    limitations: list[str]
+
+
+class UnlabeledFoodIdentifyResponse(ApiModel):
+    market: Literal["PH"]
+    candidates: list[CuratedFoodCandidate]
+    method: Literal["filename_alias_demo", "manual_catalog_fallback"]
+    message: str
+    limitations: list[str]
+
+
+class UnlabeledFoodRecordRequest(ApiModel):
+    market: Literal["PH"] = "PH"
+    food_id: str = Field(min_length=1, max_length=80)
+    portion_label: str = Field(min_length=1, max_length=120)
+    notes: str = Field(default="", max_length=1000)
+
+
+class CuratedFoodRecord(ApiModel):
+    kind: Literal["curated_unlabeled_demo"] = "curated_unlabeled_demo"
+    status: Literal["confirmed"] = "confirmed"
+    record_id: str
+    food_id: str
+    market: Literal["PH"] = "PH"
+    display_name: str
+    selected_portion_label: str
+    notes: str | None = None
+    qualitative_tags: list[str]
+    context_flags: list[SmartContextFlag]
+    glycemic: GlycemicEvidence
     limitations: list[str]
     provenance: Provenance
 

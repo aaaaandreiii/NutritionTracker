@@ -1,14 +1,15 @@
-import { AlertCircle, ArrowRight, Barcode, Check, LoaderCircle, LockKeyhole, RefreshCw, ScanLine, Server } from 'lucide-react'
-import { useEffect, useMemo } from 'react'
+import { AlertCircle, ArrowRight, Barcode, Check, LoaderCircle, LockKeyhole, RefreshCw, ScanLine, Server, Utensils } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { type AnalysisPanelKind, type PanelKind, type ScanServiceStatus, type ScanSessionState } from '../../domain/scanSession'
-import type { LogEntry, Market } from '../../domain/types'
+import type { LogEntry, Market, SmartContextRecordKind } from '../../domain/types'
 import { API_BASE, checkBackendHealth, createAnalysis, deleteAnalysis, streamAnalysis, type AnalysisImages, type BackendHealth } from '../../lib/api'
 import { decodeBarcode } from '../../lib/barcode'
 import { inspectImage } from '../../lib/imageQuality'
 import CameraCapture from './CameraCapture'
 import EvidenceReview from './EvidenceReview'
 import ImagePanelCard from './ImagePanelCard'
+import UnlabeledFoodDemo from './UnlabeledFoodDemo'
 
 const PIPELINE_STAGES = [
   ['image_check', 'Image check'],
@@ -16,7 +17,7 @@ const PIPELINE_STAGES = [
   ['label_extraction', 'VLM extraction'],
   ['ingredient_classification', 'Ingredient classification'],
   ['evidence_assembly', 'Evidence assembly'],
-  ['safety_validation', 'Safety validation'],
+  ['safety_validation', 'Claim validation'],
 ] as const
 
 interface Props {
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export default function ScanPage({ session, setSession, onLogged }: Props) {
+  const [scanMode, setScanMode] = useState<SmartContextRecordKind>('packaged_label')
   const {
     images,
     barcodeImage,
@@ -231,21 +233,39 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
     return <EvidenceReview result={result} images={images as AnalysisImages} onBack={() => void returnToScan()} onLogged={onLogged} />
   }
 
+  const heroCopy = scanMode === 'packaged_label'
+    ? {
+        eyebrow: 'Sugar pAI label scan',
+        title: <>Scan label.<br /><em>Validate evidence.</em></>,
+        body: 'Photograph the package panels. Sugar pAI separates what can be read, what you confirm, and what cannot be determined before Smart Context appears.',
+        steps: ['Label capture', 'Evidence validation', 'Smart Context'],
+      }
+    : {
+        eyebrow: 'Unlabeled Filipino-food demo',
+        title: <>Confirm food.<br /><em>Keep limits visible.</em></>,
+        body: 'Use a curated demo catalog for unlabeled foods. Photo suggestions are optional hints; the food and portion must be selected before Smart Context appears.',
+        steps: ['Photo or manual choice', 'Catalog confirmation', 'Smart Context'],
+      }
+
   return (
     <div className="page scan-page">
       <section className="scan-hero">
         <div>
-          <span className="eyebrow"><ScanLine size={14} /> Packaged-food scanner</span>
-          <h1>Read the label.<br /><em>See the evidence.</em></h1>
-          <p>Photograph the panels below. Sugar pAI separates what can be read, what you confirm, and what cannot be determined.</p>
+          <span className="eyebrow"><ScanLine size={14} /> {heroCopy.eyebrow}</span>
+          <h1>{heroCopy.title}</h1>
+          <p>{heroCopy.body}</p>
         </div>
         <div className="hero-proof">
-          <div><strong>01</strong><span>Nutrition panel</span></div>
-          <div><strong>02</strong><span>Ingredient panel</span></div>
-          <div><strong>03</strong><span>Evidence review</span></div>
+          {heroCopy.steps.map((step, index) => <div key={step}><strong>{String(index + 1).padStart(2, '0')}</strong><span>{step}</span></div>)}
         </div>
       </section>
 
+      <div className="segmented-control scan-mode-tabs" aria-label="Sugar pAI scan mode">
+        <button type="button" className={scanMode === 'packaged_label' ? 'active' : ''} onClick={() => setScanMode('packaged_label')}><ScanLine size={15} /><span>Packaged label</span></button>
+        <button type="button" className={scanMode === 'curated_unlabeled_demo' ? 'active' : ''} onClick={() => setScanMode('curated_unlabeled_demo')}><Utensils size={15} /><span>Unlabeled demo</span></button>
+      </div>
+
+      {scanMode === 'curated_unlabeled_demo' ? <UnlabeledFoodDemo onLogged={onLogged} /> : (
       <div className="scan-layout">
         <div className="capture-stack">
           <ImagePanelCard
@@ -339,10 +359,11 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
                   </div>
                 })}
               </div>
-            </section>
-          )}
-        </aside>
+          </section>
+        )}
+      </aside>
       </div>
+      )}
 
       {cameraPanel && (
         <CameraCapture

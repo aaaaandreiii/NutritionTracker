@@ -20,7 +20,7 @@ const CATEGORY_LABELS: Record<PairingInsightCategory, string> = {
   food_order: 'Food order',
   ingredients: 'Ingredients',
   movement: 'Movement',
-  data_quality: 'Data quality',
+  data_quality: 'Evidence',
 }
 
 const CATEGORY_ICONS = {
@@ -35,8 +35,8 @@ const CATEGORY_ICONS = {
 export default function PairingIdeas({ insights, variant = 'card' }: Props) {
   const heading = (
     <div>
-      <span className="section-kicker">Pairing ideas</span>
-      {variant === 'drawer' ? <h3>Full pairing engine</h3> : <h2>Full pairing engine</h2>}
+      <span className="section-kicker">Smart Context</span>
+      {variant === 'drawer' ? <h3>Validated context rules</h3> : <h2>Validated context rules</h2>}
     </div>
   )
 
@@ -64,6 +64,11 @@ export default function PairingIdeas({ insights, variant = 'card' }: Props) {
                     {insight.evidenceLabels.map((label) => <span key={label}>{label}</span>)}
                   </div>
                 )}
+                {insight.actionChips?.length ? (
+                  <div className="action-chip-row">
+                    {insight.actionChips.map((chip) => <span key={chip}>{chip}</span>)}
+                  </div>
+                ) : null}
                 {insight.sourceIds?.length ? (
                   <div className="pairing-sources">
                     {insight.sourceIds.map((sourceId) => {
@@ -82,7 +87,7 @@ export default function PairingIdeas({ insights, variant = 'card' }: Props) {
         })}
       </div>
 
-      <p className="pairing-disclaimer">Educational pairing context only. It is not medical advice and does not predict or guarantee glucose response.</p>
+      <p className="pairing-disclaimer">Educational Smart Context only. It is not medical advice and does not predict or guarantee glucose response.</p>
     </section>
   )
 }

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { NUTRIENT_KEYS, NUTRIENT_META, correctionsFromResult, makeLogTotals } from '../../domain/nutrition'
-import { buildPairingInsights } from '../../domain/pairing'
+import { buildIngredientContextFlags, buildPairingInsights } from '../../domain/pairing'
 import type {
   AnalysisResult,
   FinalizeCorrections,
@@ -20,6 +20,7 @@ import type {
   MealSlot,
   MethodDiagnostic,
   PanelDiagnostic,
+  SmartContextFlag,
 } from '../../domain/types'
 import { finalizeAnalysis } from '../../lib/api'
 import { saveLog } from '../../lib/db'
@@ -63,6 +64,10 @@ function statusLabel(status: string | undefined): string {
   return status[0].toUpperCase() + status.slice(1)
 }
 
+function flagCategoryLabel(flag: SmartContextFlag): string {
+  return flag.category.replaceAll('_', ' ')
+}
+
 function panelSummary(panel: PanelDiagnostic | null | undefined): string {
   if (!panel) return 'Not supplied'
   if (panel.status === 'skipped') return 'Not supplied'
@@ -100,6 +105,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
   const fallbackReason = diagnostics?.fallbackReason
   const ingredientFieldHasText = Boolean(current.rawIngredients.value?.trim())
   const ingredientTextAccepted = current.rawIngredients.sourceKind === 'label' && ingredientFieldHasText
+  const ingredientFlags = useMemo(() => buildIngredientContextFlags(current), [current])
   const pairingInsights = useMemo(
     () => current.status === 'confirmed'
       ? buildPairingInsights({
@@ -135,6 +141,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
     try {
       const entry: LogEntry = {
         id: crypto.randomUUID(),
+        kind: 'packaged_label',
         analysisId: confirmed.analysisId,
         loggedAt: new Date().toISOString(),
         meal,
@@ -259,7 +266,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
           </section>
 
           <section className="card form-card">
-            <div className="section-heading"><div><span className="section-kicker">Ingredient order</span><h2>Sugar-related ingredients</h2></div></div>
+            <div className="section-heading"><div><span className="section-kicker">Ingredient order</span><h2>Ingredient context flags</h2></div></div>
             <label className="field full-field">
               <span>Ingredients, in printed order</span>
               <textarea
@@ -276,6 +283,20 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
             {!ingredientFieldHasText && !corrections.rawIngredients.trim() && (
               <p className="empty-inline">No ingredient text accepted{fallbackReason ? `: ${fallbackReason}` : '. Confirm by typing it from the panel if readable.'}</p>
             )}
+            {ingredientFlags.length > 0 ? (
+              <div className="context-flag-list">
+                {ingredientFlags.map((flag) => (
+                  <div className={`context-flag flag-${flag.category}`} key={flag.id}>
+                    <strong>{flag.label}</strong>
+                    <span>{flagCategoryLabel(flag)}</span>
+                    <p>{flag.detail}</p>
+                    <small>{flag.evidenceLabels.join(' · ')}</small>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-inline">No ingredient context flags are accepted yet. Confirm the ingredient text to run the versioned taxonomy.</p>
+            )}
             {current.sugarVariants.length > 0 ? (
               <div className="variant-list">
                 {current.sugarVariants.map((variant) => (
@@ -286,7 +307,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
                   </div>
                 ))}
               </div>
-            ) : <p className="empty-inline">No sugar variants are accepted yet. Confirm the ingredient text to run the versioned taxonomy.</p>}
+            ) : null}
           </section>
         </div>
 
@@ -375,8 +396,6 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
             )}
           </section>
 
-          {current.status === 'confirmed' && <PairingIdeas insights={pairingInsights} />}
-
           <section className="card explainer-card">
             <span className="section-kicker">Interpretation</span>
             <div><strong>What is printed</strong><p>The values above use one serving basis and retain their evidence status.</p></div>
@@ -393,10 +412,12 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
         </aside>
       </div>
 
+      {current.status === 'confirmed' && <PairingIdeas insights={pairingInsights} />}
+
       <section className="card log-card">
         <div>
           <span className="section-kicker">Consumed portion</span>
-          <h2>Confirm, then log locally</h2>
+          <h2>Validate, view Smart Context, then log locally</h2>
           <p>Your label values remain per serving; Today totals use the multiplier below.</p>
         </div>
         <div className="log-controls">

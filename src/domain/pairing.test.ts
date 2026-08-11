@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { buildPairingInsights } from './pairing'
+import { buildIngredientContextFlags, buildPairingInsights, smartContextFromCuratedRecord } from './pairing'
 import type {
   AnalysisResult,
+  CuratedFoodRecord,
   EvidenceValue,
   GlycemicEvidence,
   NutrientKey,
+  SmartContextFlag,
   SugarVariant,
 } from './types'
 
@@ -144,6 +146,7 @@ describe('pairing insights', () => {
     expect(ids).toContain('food-order-higher-gl')
     expect(ids).toContain('movement-yellow-red-gl')
     expect(insights.find((insight) => insight.id === 'movement-yellow-red-gl')?.body).not.toMatch(/prevent|fix/i)
+    expect(insights.find((insight) => insight.id === 'food-order-higher-gl')?.actionChips).toContain('Vegetables first')
   })
 
   it('suggests fiber additions for high-carb low-fiber context', () => {
@@ -198,6 +201,26 @@ describe('pairing insights', () => {
     expect(insights.map((insight) => insight.id)).toContain('ingredient-processing-markers')
   })
 
+  it('builds first-class ingredient context flags without rating language', () => {
+    const flags = buildIngredientContextFlags(result({
+      sugarVariants: [
+        variant({ rawSpan: 'high fructose corn syrup', canonicalName: 'High-fructose corn syrup', category: 'added sugar', ingredientRank: 2 }),
+        variant({ rawSpan: 'maltodextrin', canonicalName: 'Maltodextrin', category: 'carbohydrate ingredient', ingredientRank: 3 }),
+      ],
+      rawIngredients: 'Corn, high fructose corn syrup, maltodextrin, modified corn starch, xylitol, sucralose, artificial flavor',
+    }))
+
+    expect(flags.map((flag) => flag.category)).toEqual(expect.arrayContaining([
+      'hfcs',
+      'maltodextrin',
+      'starch',
+      'polyol',
+      'high_intensity_sweetener',
+      'processing_marker',
+    ]))
+    expect(flags.map((flag) => `${flag.label} ${flag.detail}`).join(' ')).not.toMatch(/safe|unsafe|diabetic-friendly/i)
+  })
+
   it('returns data-quality guidance when carbohydrate data is incomplete', () => {
     const insights = buildPairingInsights({
       result: result({
@@ -224,5 +247,56 @@ describe('pairing insights', () => {
     }
 
     expect(buildPairingInsights(savedContext)).toEqual(buildPairingInsights({ ...savedContext }))
+  })
+
+  it('creates qualitative Smart Context for curated unlabeled demo records without numeric GI or GL', () => {
+    const record: CuratedFoodRecord = {
+      kind: 'curated_unlabeled_demo',
+      status: 'confirmed',
+      recordId: 'record-1',
+      foodId: 'ph_pandesal',
+      market: 'PH',
+      displayName: 'Pandesal',
+      selectedPortionLabel: '1 piece',
+      notes: null,
+      qualitativeTags: ['bread', 'portion-sensitive'],
+      contextFlags: [
+        {
+          id: 'tag-bread',
+          label: 'bread',
+          category: 'curated_demo',
+          detail: 'Curated catalog descriptor only.',
+          evidenceLabels: ['Curated demo catalog'],
+        },
+      ] satisfies SmartContextFlag[],
+      glycemic: {
+        status: 'unavailable',
+        testedFoodMatchDescription: null,
+        matchLevel: null,
+        gi: null,
+        availableCarbohydrateGrams: null,
+        gl: null,
+        glBand: null,
+        citation: null,
+        licensing: null,
+        reason: 'Curated demo only.',
+      },
+      limitations: ['No authoritative calories, macros, GI, or GL.'],
+      provenance: {
+        pipelineVersion: 'test',
+        completedAt: '2026-08-11T00:00:00.000Z',
+        externalProcessors: [],
+      },
+    }
+
+    const input = smartContextFromCuratedRecord(record, 'Snack')
+    const insights = buildPairingInsights(input)
+
+    expect(input.kind).toBe('curated_unlabeled_demo')
+    expect(input.nutrients.totalCarbohydrate).toBeNull()
+    expect(input.glycemic.gl).toBeNull()
+    expect(insights[0].id).toBe('curated-demo-boundary')
+    expect(insights[0].actionChips).toContain('Confirm portion')
+    expect(insights.map((insight) => insight.body).join(' ')).not.toMatch(/diabetic-friendly|guaranteed|prevent spikes/i)
   })
 })
