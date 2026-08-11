@@ -39,6 +39,38 @@ The primary deployment strategy for self-hosted instances.
    ```
 3. The frontend is accessible at port `5173`, and the backend at `8000`.
 
+### Linux VPS / CCS Cloud Deployment (Without Docker)
+If your remote instance does not allow running Docker containers, you can use PM2 to manage the processes directly.
+1. **Navigate to the project directory:**
+   ```bash
+   cd /home/aaaaandreiii/STAI100_Sugar-pAI/NutritionTracker
+   ```
+2. **Install system updates (optional but recommended):**
+   ```bash
+   sudo apt update
+   ```
+3. **Install project dependencies:**
+   ```bash
+   # Activate your Python virtual environment
+   source .venv/bin/activate
+   # Install Python requirements
+   pip install -r backend/requirements.txt
+   
+   # Install Node packages
+   npm install
+   ```
+4. **Build the frontend:**
+   Ensure your `VITE_API_BASE_URL` is configured correctly (e.g., as an environment variable) to point to the external backend IP and port before building.
+   ```bash
+   npm run build
+   ```
+5. **Start the application using PM2:**
+   The `ecosystem.config.cjs` file orchestrates both the Uvicorn backend and the Vite preview server.
+   ```bash
+   pm2 start ecosystem.config.cjs
+   pm2 save
+   ```
+
 ### Vercel Deployment (Frontend Only)
 If you wish to deploy the frontend to the cloud (Vercel) while keeping the backend local or on a separate VPS:
 1. Connect your repository to Vercel.
