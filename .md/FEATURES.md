@@ -4,8 +4,8 @@ This catalog describes the implemented Sugar pAI V2 behavior. Sugar pAI is the p
 
 ## 1. Sugar pAI Packaged-Label Flow
 
-### 1.1 Capture and Image Quality
-- **Capability:** Capture or upload Nutrition Facts, ingredients, and front-label images; scan a UPC/EAN barcode live or from a still image.
+### 1.1 Barcode-First Capture and Image Quality
+- **Capability:** Start packaged-label analysis from a prominent live UPC/EAN scanner, typed barcode, or uploaded barcode photo; capture Nutrition Facts, ingredients, and front-label images when database data is partial or missing.
 - **Inputs:** JPEG, PNG, or WebP files for image-based analysis. Nutrition Facts is required only when no complete local barcode database match is used.
 - **Outputs:** Local image quality checks, local barcode detection state, optional local database lookup preview, and a backend upload or barcode-only analysis request.
 - **Workflow rules:** Camera streams are stopped when leaving Sugar pAI. Backend uploads are capped at 8 MB per image and stripped of EXIF metadata.

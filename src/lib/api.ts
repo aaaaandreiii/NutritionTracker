@@ -11,9 +11,14 @@ import type {
   UnlabeledFoodRecordRequest,
 } from '../domain/types'
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+const configuredApiBase = import.meta.env.VITE_API_BASE_URL
 
-const BACKEND_UNAVAILABLE_MESSAGE = `Backend unavailable at ${API_BASE}. Check Docker/uvicorn and retry.`
+export const API_BASE = configuredApiBase === 'same-origin'
+  ? ''
+  : configuredApiBase ?? 'http://localhost:8000'
+export const API_BASE_LABEL = API_BASE || 'same-origin backend'
+
+const BACKEND_UNAVAILABLE_MESSAGE = `Backend unavailable at ${API_BASE_LABEL}. Check Docker/uvicorn and retry.`
 
 export interface AnalysisImages {
   nutrition?: File
@@ -160,11 +165,11 @@ export async function checkBackendHealth(): Promise<BackendHealth> {
     if (!response.ok) {
       return {
         ok: false,
-        message: `Backend responded with HTTP ${response.status} at ${API_BASE}. Check Docker/uvicorn and retry.`,
+        message: `Backend responded with HTTP ${response.status} at ${API_BASE_LABEL}. Check Docker/uvicorn and retry.`,
         baseUrl: API_BASE,
       }
     }
-    return { ok: true, message: `Backend reachable at ${API_BASE}.`, baseUrl: API_BASE }
+    return { ok: true, message: `Backend reachable at ${API_BASE_LABEL}.`, baseUrl: API_BASE }
   } catch (caught) {
     return {
       ok: false,

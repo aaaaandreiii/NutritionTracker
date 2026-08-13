@@ -1,14 +1,15 @@
-import { AlertCircle, ArrowRight, Barcode, Check, Database, LoaderCircle, LockKeyhole, RefreshCw, ScanLine, Server, Utensils } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AlertCircle, ArrowRight, Barcode, Camera, Check, Database, LoaderCircle, LockKeyhole, RefreshCw, RotateCcw, ScanLine, Server, Upload, Utensils, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { type AnalysisPanelKind, type PanelKind, type ScanServiceStatus, type ScanSessionState } from '../../domain/scanSession'
-import type { LogEntry, Market, OffProductLookupResponse, SmartContextRecordKind } from '../../domain/types'
-import { API_BASE, checkBackendHealth, createAnalysis, createBarcodeAnalysis, deleteAnalysis, lookupOffProduct, streamAnalysis, type AnalysisImages, type BackendHealth } from '../../lib/api'
+import type { ImageQualityReport, LogEntry, Market, OffProductLookupResponse, SmartContextRecordKind } from '../../domain/types'
+import { API_BASE_LABEL, checkBackendHealth, createAnalysis, createBarcodeAnalysis, deleteAnalysis, lookupOffProduct, streamAnalysis, type AnalysisImages, type BackendHealth } from '../../lib/api'
 import { decodeBarcode } from '../../lib/barcode'
 import { inspectImage } from '../../lib/imageQuality'
 import BarcodeScannerModal from './BarcodeScannerModal'
 import CameraCapture from './CameraCapture'
 import EvidenceReview from './EvidenceReview'
+import ImagePreviewButton from './ImagePreviewButton'
 import ImagePanelCard from './ImagePanelCard'
 import UnlabeledFoodDemo from './UnlabeledFoodDemo'
 
@@ -56,7 +57,7 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
       ...previous,
       serviceStatus: {
         state: 'checking',
-        message: `Checking backend at ${API_BASE}...`,
+        message: `Checking backend at ${API_BASE_LABEL}...`,
         checkedAt: null,
       },
     }))
@@ -222,7 +223,7 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
       ...previous,
       serviceStatus: {
         state: 'checking',
-        message: `Checking backend at ${API_BASE}...`,
+        message: `Checking backend at ${API_BASE_LABEL}...`,
         checkedAt: null,
       },
     }))
@@ -336,16 +337,42 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
 
   return (
     <div className="page scan-page">
-      <section className="scan-hero">
-        <div>
-          <span className="eyebrow"><ScanLine size={14} /> {heroCopy.eyebrow}</span>
-          <h1>{heroCopy.title}</h1>
-          <p>{heroCopy.body}</p>
-        </div>
-        <div className="hero-proof">
-          {heroCopy.steps.map((step, index) => <div key={step}><strong>{String(index + 1).padStart(2, '0')}</strong><span>{step}</span></div>)}
-        </div>
-      </section>
+      {scanMode === 'packaged_label' ? (
+        <BarcodeFirstPanel
+          market={market}
+          barcode={barcode}
+          barcodeImage={barcodeImage}
+          barcodeReading={barcodeReading}
+          barcodeMessage={barcodeMessage}
+          barcodeLookup={barcodeLookup}
+          barcodeLookupLoading={barcodeLookupLoading}
+          barcodeReport={reports.barcode}
+          busy={analyzing}
+          onOpenScanner={() => setBarcodeScannerOpen(true)}
+          onChooseBarcodeImage={(file) => void chooseBarcodeImage(file)}
+          onRemoveBarcodeImage={removeBarcodeImage}
+          onUseDatabaseMatch={() => void useDatabaseMatch()}
+          onMarketChange={(nextMarket) => setSession((previous) => ({ ...previous, market: nextMarket }))}
+          onBarcodeChange={(nextBarcode) => setSession((previous) => ({
+            ...previous,
+            barcode: nextBarcode.replace(/[^0-9]/g, ''),
+            barcodeMessage: null,
+            barcodeLookup: null,
+            barcodeLookupLoading: false,
+          }))}
+        />
+      ) : (
+        <section className="scan-hero">
+          <div>
+            <span className="eyebrow"><ScanLine size={14} /> {heroCopy.eyebrow}</span>
+            <h1>{heroCopy.title}</h1>
+            <p>{heroCopy.body}</p>
+          </div>
+          <div className="hero-proof">
+            {heroCopy.steps.map((step, index) => <div key={step}><strong>{String(index + 1).padStart(2, '0')}</strong><span>{step}</span></div>)}
+          </div>
+        </section>
+      )}
 
       <div className="segmented-control scan-mode-tabs" aria-label="Sugar pAI scan mode">
         <button type="button" className={scanMode === 'packaged_label' ? 'active' : ''} onClick={() => setScanMode('packaged_label')}><ScanLine size={15} /><span>Packaged label</span></button>
@@ -390,30 +417,11 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
             onCamera={() => setSession((previous) => ({ ...previous, cameraPanel: 'front' }))}
             onRemove={() => removeImage('front')}
           />
-          <ImagePanelCard
-            number={4}
-            title="Barcode scanner"
-            description="Capture a close-up UPC or EAN barcode. It is decoded on this device into the barcode field."
-            recommended
-            file={barcodeImage ?? undefined}
-            report={reports.barcode}
-            checking={checking === 'barcode' || barcodeReading}
-            onChoose={(file) => void chooseBarcodeImage(file)}
-            onCamera={() => setBarcodeScannerOpen(true)}
-            onRemove={removeBarcodeImage}
-          />
         </div>
 
         <aside className="scan-sidebar">
           <section className="card analysis-card">
             <div className="section-heading"><div><span className="section-kicker">Analysis setup</span><h2>Before upload</h2></div><LockKeyhole size={19} /></div>
-            <label className="select-field"><span>Label market</span><select value={market} onChange={(event) => setSession((previous) => ({ ...previous, market: event.target.value as Market }))}><option value="PH">Philippines</option><option value="US">United States</option></select></label>
-            <label className="select-field"><span><Barcode size={15} /> Barcode {barcodeReading && '(reading…)'} </span><input value={barcode} inputMode="numeric" placeholder="Optional UPC / EAN" onChange={(event) => setSession((previous) => ({ ...previous, barcode: event.target.value.replace(/[^0-9]/g, ''), barcodeMessage: null, barcodeLookup: null, barcodeLookupLoading: false }))} /></label>
-            {barcodeMessage && <div className={`notice ${barcodeMessage.startsWith('No ') ? 'warning' : 'neutral'}`}><Barcode size={17} /><span>{barcodeMessage}</span></div>}
-            {barcodeLookupLoading && <div className="notice neutral"><LoaderCircle className="spin" size={17} /><span>Checking the local Open Food Facts database...</span></div>}
-            {barcodeLookup && !barcodeLookupLoading && (
-              <BarcodeLookupPanel lookup={barcodeLookup} busy={analyzing} onUse={() => void useDatabaseMatch()} />
-            )}
             <div className="quality-summary">
               <div><strong>{qualitySummary.fails}</strong><span>blocking issues</span></div>
               <div><strong>{qualitySummary.warnings}</strong><span>review notes</span></div>
@@ -474,6 +482,117 @@ function statusFromHealth(health: BackendHealth): ScanServiceStatus {
     message: health.message,
     checkedAt: new Date().toISOString(),
   }
+}
+
+function BarcodeFirstPanel({
+  market,
+  barcode,
+  barcodeImage,
+  barcodeReading,
+  barcodeMessage,
+  barcodeLookup,
+  barcodeLookupLoading,
+  barcodeReport,
+  busy,
+  onOpenScanner,
+  onChooseBarcodeImage,
+  onRemoveBarcodeImage,
+  onUseDatabaseMatch,
+  onMarketChange,
+  onBarcodeChange,
+}: {
+  market: Market
+  barcode: string
+  barcodeImage: File | null
+  barcodeReading: boolean
+  barcodeMessage: string | null
+  barcodeLookup: OffProductLookupResponse | null
+  barcodeLookupLoading: boolean
+  barcodeReport?: ImageQualityReport
+  busy: boolean
+  onOpenScanner: () => void
+  onChooseBarcodeImage: (file: File) => void
+  onRemoveBarcodeImage: () => void
+  onUseDatabaseMatch: () => void
+  onMarketChange: (market: Market) => void
+  onBarcodeChange: (barcode: string) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const stateLabel = barcodeLookupLoading
+    ? 'Checking database'
+    : barcodeLookup?.complete
+      ? 'Database match'
+      : barcode
+        ? 'Barcode ready'
+        : 'Ready to scan'
+  const warningMessage = barcodeMessage?.startsWith('No ')
+
+  return (
+    <section className={`barcode-first-card ${barcodeLookup?.complete ? 'has-database-match' : ''}`}>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          if (file) onChooseBarcodeImage(file)
+          event.target.value = ''
+        }}
+      />
+      <div className="barcode-first-copy">
+        <span className="eyebrow"><Barcode size={14} /> Barcode lookup</span>
+        <h1>Scan the barcode</h1>
+        <p>Start with UPC or EAN. A complete local match opens review immediately; otherwise add label photos below.</p>
+        <div className="barcode-first-actions">
+          <button type="button" className="primary-button barcode-open-button" onClick={onOpenScanner}>
+            <Camera size={19} />
+            Open live scanner
+          </button>
+          <button type="button" className="secondary-button" onClick={() => inputRef.current?.click()}>
+            <Upload size={17} />
+            Upload barcode photo
+          </button>
+        </div>
+      </div>
+
+      <button type="button" className="barcode-camera-tile" onClick={onOpenScanner}>
+        <span className="barcode-tile-icon"><ScanLine size={40} /></span>
+        <span>{stateLabel}</span>
+        <strong>{barcode || 'UPC / EAN'}</strong>
+      </button>
+
+      <div className="barcode-first-controls">
+        <label className="select-field"><span>Label market</span><select value={market} onChange={(event) => onMarketChange(event.target.value as Market)}><option value="PH">Philippines</option><option value="US">United States</option></select></label>
+        <label className="select-field"><span><Barcode size={15} /> Barcode {barcodeReading && '(reading...)'}</span><input value={barcode} inputMode="numeric" placeholder="UPC / EAN digits" onChange={(event) => onBarcodeChange(event.target.value)} /></label>
+
+        {barcodeImage && (
+          <div className="image-review barcode-photo-review">
+            <ImagePreviewButton file={barcodeImage} label="Barcode photo" />
+            <div className="quality-list">
+              <strong>{barcodeImage.name}</strong>
+              {barcodeReading && <small>Reading barcode...</small>}
+              {barcodeReport?.checks.map((check) => (
+                <span key={check.code} className={`quality-${check.status}`} title={check.detail}>
+                  <i /> {check.label}
+                </span>
+              ))}
+            </div>
+            <div className="image-actions">
+              <button type="button" onClick={() => inputRef.current?.click()} aria-label="Replace barcode photo"><RotateCcw size={16} /></button>
+              <button type="button" onClick={onRemoveBarcodeImage} aria-label="Remove barcode photo"><X size={17} /></button>
+            </div>
+          </div>
+        )}
+
+        {barcodeMessage && <div className={`notice ${warningMessage ? 'warning' : 'neutral'}`}><Barcode size={17} /><span>{barcodeMessage}</span></div>}
+        {barcodeLookupLoading && <div className="notice neutral"><LoaderCircle className="spin" size={17} /><span>Checking the local Open Food Facts database...</span></div>}
+        {barcodeLookup && !barcodeLookupLoading && (
+          <BarcodeLookupPanel lookup={barcodeLookup} busy={busy} onUse={onUseDatabaseMatch} />
+        )}
+      </div>
+    </section>
+  )
 }
 
 function BarcodeLookupPanel({ lookup, busy, onUse }: { lookup: OffProductLookupResponse; busy: boolean; onUse: () => void }) {

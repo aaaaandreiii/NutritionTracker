@@ -1,10 +1,10 @@
 # Sugar pAI V2
 
-Sugar pAI is a privacy-first packaged-food decision-support and Smart Context research prototype. The core flow is: scan a package label, validate the evidence, review deterministic context, then log the record locally. Daily Dozen tracking remains in the app as supporting whole-food tracking, but V2 is positioned around Sugar pAI.
+Sugar pAI is a privacy-first packaged-food decision-support and Smart Context research prototype. The core flow is: scan a barcode first when available, validate the evidence, review deterministic context, then log the record locally. Daily Dozen tracking remains in the app as supporting whole-food tracking, but V2 is positioned around Sugar pAI.
 
 ## What V2 Does
 
-- **Packaged-label evidence review:** Capture Nutrition Facts, ingredients, and front label panels; scan or type barcodes first when available.
+- **Barcode-first packaged flow:** The scan page opens with a live UPC/EAN scanner, manual barcode entry, local database lookup, and label-photo fallback.
 - **Local barcode lookup:** When enabled, UPC/EAN scans query a generated local Open Food Facts Philippines SQLite database before any label-image extraction.
 - **Deterministic validation:** Backend checks preserve unknown values, reject impossible sugar/carbohydrate arithmetic, and never turn missing fields into zero.
 - **Smart Context:** After backend validation, the app shows context rules for fiber, protein/fat, food order, ingredient flags, movement education, and data limits.
@@ -73,6 +73,8 @@ PYTHONPATH=backend python -m app.db.ingest_off \
 ```
 
 Set `SUGAR_PAI_ENABLE_OFF_LOOKUP=true` to enable local lookup. `SUGAR_PAI_OFF_DB_PATH` defaults to `backend/app/data/off_ph_products.db`.
+
+For same-domain tunnels or reverse proxies, build the frontend with `VITE_API_BASE_URL=same-origin` and route `/api/*` plus `/health` to the backend service.
 
 ## Daily Dozen Support
 

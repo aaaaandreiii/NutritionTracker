@@ -24,6 +24,7 @@ SUGAR_PAI_OFF_DB_PATH=backend/app/data/off_ph_products.db
 MLFLOW_TRACKING_URI=
 
 # Frontend Configuration
+# Use `same-origin` when a tunnel or reverse proxy routes /api/* and /health to the backend.
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
@@ -84,6 +85,46 @@ If your remote instance does not allow running Docker containers, you can use PM
    pm2 start ecosystem.config.cjs
    pm2 save
    ```
+
+### Cloudflare Tunnel Deployment
+
+Do not build the public frontend with a plain `http://<ip>:<port>` backend URL when the app is served over `https://`. Browsers can block that mixed-content request before it reaches FastAPI.
+
+Recommended same-domain setup:
+
+1. Run the frontend and backend on the VM, for example frontend on `127.0.0.1:5173` and backend on `127.0.0.1:2164`.
+2. Configure the Cloudflare Tunnel so API paths go to the backend before the catch-all frontend route:
+
+   ```yaml
+   ingress:
+     - hostname: sugar-pai.balingit.me
+       path: /api/*
+       service: http://127.0.0.1:2164
+     - hostname: sugar-pai.balingit.me
+       path: /health
+       service: http://127.0.0.1:2164
+     - hostname: sugar-pai.balingit.me
+       service: http://127.0.0.1:5173
+     - service: http_status:404
+   ```
+
+3. Build or restart the frontend with:
+
+   ```bash
+   VITE_API_BASE_URL=same-origin npm run build
+   ```
+
+4. Verify that these return FastAPI JSON, not the frontend HTML shell:
+
+   ```bash
+   curl -s https://sugar-pai.balingit.me/health
+   curl -s 'https://sugar-pai.balingit.me/api/v1/off-products/4800361403764?market=PH'
+   ```
+
+Alternative subdomain setup:
+
+1. Add another tunnel public hostname such as `api.sugar-pai.balingit.me` pointing to `http://127.0.0.1:2164`.
+2. Build the frontend with `VITE_API_BASE_URL=https://api.sugar-pai.balingit.me`.
 
 ### Vercel Deployment (Frontend Only)
 If you wish to deploy the frontend to the cloud (Vercel) while keeping the backend local or on a separate VPS:
