@@ -5,7 +5,7 @@ Sugar pAI is a privacy-first packaged-food decision-support and Smart Context re
 ## What V2 Does
 
 - **Barcode-first packaged flow:** The scan page opens with a live UPC/EAN scanner, manual barcode entry, local database lookup, and label-photo fallback.
-- **Local barcode lookup:** When enabled, UPC/EAN scans query a generated local Open Food Facts Philippines SQLite database before any label-image extraction.
+- **Local barcode lookup:** When enabled, UPC/EAN scans query a generated local Open Food Facts Philippines SQLite database before any label-image extraction. UPC-A and zero-prefixed EAN-13 variants resolve to the same database row.
 - **Deterministic validation:** Backend checks preserve unknown values, reject impossible sugar/carbohydrate arithmetic, and never turn missing fields into zero.
 - **Smart Context:** After backend validation, the app shows context rules for fiber, protein/fat, food order, ingredient flags, movement education, and data limits.
 - **Ingredient context flags:** Sugar aliases, high-fructose corn syrup, maltodextrin, starches, polyols, high-intensity sweeteners, and processing markers are shown as descriptive context rather than ratings.

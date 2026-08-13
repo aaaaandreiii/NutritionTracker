@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 
 from app.db.ingest_off import ingest_off_csv
-from app.db.off_products import lookup_local_off_product, lookup_response
+from app.db.off_products import barcode_lookup_candidates, lookup_local_off_product, lookup_response
 
 
 CSV_PATH = Path(__file__).resolve().parents[2] / "research" / "openfoodfacts_export.csv"
@@ -74,3 +74,19 @@ def test_lookup_statuses_for_found_partial_not_found_disabled_and_missing_db(tmp
     monkeypatch.setenv("SUGAR_PAI_ENABLE_OFF_LOOKUP", "true")
     monkeypatch.setenv("SUGAR_PAI_OFF_DB_PATH", str(tmp_path / "missing.db"))
     assert lookup_local_off_product("4800361403764").status == "db_missing"
+
+
+def test_lookup_matches_upc_a_without_leading_zero(tmp_path, monkeypatch):
+    db_path = build_test_db(tmp_path)
+    monkeypatch.setenv("SUGAR_PAI_ENABLE_OFF_LOOKUP", "true")
+    monkeypatch.setenv("SUGAR_PAI_OFF_DB_PATH", str(db_path))
+
+    assert barcode_lookup_candidates("750515018402") == ["750515018402", "0750515018402"]
+
+    lookup = lookup_response("750515018402")
+
+    assert lookup.status == "found"
+    assert lookup.complete is True
+    assert lookup.barcode == "0750515018402"
+    assert lookup.product is not None
+    assert lookup.product.product_name == "sky flakes 25g"

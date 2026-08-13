@@ -57,7 +57,7 @@ graph TD
 
 ## Packaged-Label Data Flow
 
-1. User scans or types a UPC/EAN barcode. The frontend calls `GET /api/v1/off-products/{barcode}?market=PH`.
+1. User scans or types a UPC/EAN barcode. The frontend calls `GET /api/v1/off-products/{barcode}?market=PH`, and the backend resolves exact plus UPC-A / zero-prefixed EAN-13 aliases before returning the canonical database barcode.
 2. If the local Open Food Facts row is complete, the frontend calls `POST /api/v1/analyses/barcode` and opens review without requiring images.
 3. If the local row is partial or missing, the user captures Nutrition Facts, ingredients, and front-label panels as needed.
 4. Frontend quality checks run locally.

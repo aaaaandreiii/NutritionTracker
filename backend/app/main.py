@@ -211,7 +211,7 @@ async def create_barcode_analysis(request: BarcodeAnalysisRequest) -> CreateBarc
         temp_dir=temp_dir,
         image_paths={},
         quality_checks=[],
-        barcode=request.barcode,
+        barcode=lookup.barcode,
     )
     diagnostics = build_analysis_diagnostics(job)
     result = result_from_database(job, lookup.product, lookup.source_url, [LOCAL_OFF_SOURCE_NAME], diagnostics)

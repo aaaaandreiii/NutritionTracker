@@ -12,7 +12,7 @@ This catalog describes the implemented Sugar pAI V2 behavior. Sugar pAI is the p
 
 ### 1.2 Local Barcode Lookup
 - **Capability:** Query a generated local Open Food Facts Philippines SQLite database by UPC/EAN before running image extraction.
-- **Inputs:** Numeric barcode and `market=PH`.
+- **Inputs:** Numeric barcode and `market=PH`; 12-digit UPC-A values and zero-prefixed EAN-13 values are treated as equivalent lookup candidates.
 - **Outputs:** `OffProductLookupResponse` with found/partial/missing status, missing field list, product/nutrient preview, ingredient text, and qualitative database markers such as NOVA, Nutri-Score, and allergens.
 - **Workflow rules:** Complete local records can open `EvidenceReview` without images through `POST /api/v1/analyses/barcode`. Partial records guide the user to capture missing Nutrition Facts and ingredients panels. Database values are marked `sourceKind: "database"` and still require final user confirmation.
 

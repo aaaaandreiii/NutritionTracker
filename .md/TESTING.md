@@ -30,7 +30,7 @@ PYTHONPATH=backend pytest backend/tests
 If the active `python3` is Python 3.14, use Python 3.13 or earlier for the pinned backend stack because `pydantic-core==2.33.2` may not build on 3.14.
 
 Current coverage includes:
-- CSV ingest into the generated OFF SQLite table, including Nescafe barcode `4800361403764` nutrient parsing.
+- CSV ingest into the generated OFF SQLite table, including Nescafe barcode `4800361403764` nutrient parsing and SkyFlakes UPC-A alias lookup from `750515018402` to `0750515018402`.
 - Local OFF lookup statuses: complete match, partial match, not found, disabled, and missing database.
 - Packaged-label analysis/finalize/delete round trip.
 - Barcode-only analysis creation and finalize round trip.

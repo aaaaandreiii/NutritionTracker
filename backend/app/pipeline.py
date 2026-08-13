@@ -451,7 +451,7 @@ def result_from_database(
             return unavailable("g")
         return database_value(_number(nutriments.get(f"{key}_{suffix}")), unit="g", basis=basis, url=source_url)
 
-    barcode_value = database_value(job.barcode or (product.get("code") if product else None), url=source_url) if (job.barcode or product) else unavailable(None, None)
+    barcode_value = database_value((product.get("code") if product else None) or job.barcode, url=source_url) if (job.barcode or product) else unavailable(None, None)
     nutrients = NutrientFields(
         total_carbohydrate=nutrient("carbohydrates"),
         fiber=nutrient("fiber"),

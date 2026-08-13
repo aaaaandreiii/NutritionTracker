@@ -52,6 +52,8 @@ Errors:
 
 Returns an `OffProductLookupResponse` from the generated local SQLite database. This endpoint does not contact the public Open Food Facts API.
 
+Lookup is exact first, then tries equivalent UPC-A / zero-prefixed EAN-13 forms. For example, `750515018402` can resolve to canonical database barcode `0750515018402`.
+
 Response statuses:
 - `found`: barcode exists locally
 - `not_found`: no local row
@@ -101,7 +103,7 @@ Example response for a complete match:
 
 `POST /api/v1/analyses/barcode`
 
-Creates an already-completed analysis job from a complete local Open Food Facts match. The returned `AnalysisResult` can be finalized through the normal finalize endpoint, so user confirmation remains required before logging.
+Creates an already-completed analysis job from a complete local Open Food Facts match. The returned `AnalysisResult` can be finalized through the normal finalize endpoint, so user confirmation remains required before logging. UPC-A / zero-prefixed EAN-13 aliases are resolved before evidence assembly.
 
 Payload:
 

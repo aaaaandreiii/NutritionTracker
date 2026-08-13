@@ -229,6 +229,31 @@ def test_barcode_only_analysis_can_be_finalized(tmp_path, monkeypatch):
         assert finalized.json()["status"] == "confirmed"
 
 
+def test_barcode_only_analysis_accepts_upc_a_alias(tmp_path, monkeypatch):
+    db_path = tmp_path / "off.db"
+    ingest_off_csv(CSV_PATH, db_path)
+    monkeypatch.setenv("SUGAR_PAI_ENABLE_OFF_LOOKUP", "true")
+    monkeypatch.setenv("SUGAR_PAI_OFF_DB_PATH", str(db_path))
+
+    with TestClient(app) as client:
+        lookup = client.get("/api/v1/off-products/750515018402?market=PH")
+        assert lookup.status_code == 200, lookup.text
+        lookup_payload = lookup.json()
+        assert lookup_payload["status"] == "found"
+        assert lookup_payload["complete"] is True
+        assert lookup_payload["barcode"] == "0750515018402"
+        assert lookup_payload["product"]["productName"] == "sky flakes 25g"
+
+        created = client.post(
+            "/api/v1/analyses/barcode",
+            json={"barcode": "750515018402", "market": "PH"},
+        )
+        assert created.status_code == 201, created.text
+        result = created.json()["result"]
+        assert result["product"]["barcode"]["value"] == "0750515018402"
+        assert result["product"]["name"]["value"] == "sky flakes 25g"
+
+
 def test_unlabeled_food_catalog_lists_curated_ph_demo_foods():
     with TestClient(app) as client:
         response = client.get("/api/v1/unlabeled-foods/catalog?market=PH")

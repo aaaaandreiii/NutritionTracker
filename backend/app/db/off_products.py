@@ -134,6 +134,16 @@ def local_off_product_is_complete(product: dict[str, Any] | None) -> bool:
     return not product_missing_fields(product)
 
 
+def barcode_lookup_candidates(barcode: str) -> list[str]:
+    normalized = re.sub(r"\D", "", barcode)
+    candidates = [normalized]
+    if len(normalized) == 12:
+        candidates.append(f"0{normalized}")
+    if len(normalized) == 13 and normalized.startswith("0"):
+        candidates.append(normalized[1:])
+    return list(dict.fromkeys(candidates))
+
+
 def lookup_local_off_product(barcode: str, market: Literal["PH", "US"] = "PH") -> LocalOffLookup:
     normalized = re.sub(r"\D", "", barcode)
     if not off_lookup_enabled():
@@ -148,10 +158,14 @@ def lookup_local_off_product(barcode: str, market: Literal["PH", "US"] = "PH") -
     try:
         with sqlite3.connect(path) as connection:
             connection.row_factory = sqlite3.Row
-            row = connection.execute(
-                "SELECT * FROM off_ph_products WHERE code = ?",
-                (normalized,),
-            ).fetchone()
+            row = None
+            for candidate in barcode_lookup_candidates(normalized):
+                row = connection.execute(
+                    "SELECT * FROM off_ph_products WHERE code = ?",
+                    (candidate,),
+                ).fetchone()
+                if row is not None:
+                    break
     except sqlite3.Error:
         return LocalOffLookup(normalized, market, "db_missing")
 
@@ -161,7 +175,7 @@ def lookup_local_off_product(barcode: str, market: Literal["PH", "US"] = "PH") -
     product = product_from_row(row)
     missing = tuple(product_missing_fields(product))
     return LocalOffLookup(
-        normalized,
+        str(product.get("code") or normalized),
         market,
         "found",
         product=product,

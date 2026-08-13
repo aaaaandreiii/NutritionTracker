@@ -9,6 +9,7 @@ All notable changes to the project are documented here.
 - CSV ingest script `backend/app/db/ingest_off.py` for `research/openfoodfacts_export.csv`.
 - Local barcode lookup endpoint `GET /api/v1/off-products/{barcode}?market=PH`.
 - Barcode-only analysis endpoint `POST /api/v1/analyses/barcode` for complete local database matches.
+- UPC-A and zero-prefixed EAN-13 barcode aliases resolve to the same local database row.
 - Live ZXing camera barcode scanner modal with detected/not-detected state.
 - Image-free evidence review support for complete database-prefilled matches.
 
