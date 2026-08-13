@@ -1,6 +1,6 @@
 # API Documentation
 
-The FastAPI backend exposes short-lived packaged-label analysis jobs, stateless label validation, and curated unlabeled-food demo endpoints.
+The FastAPI backend exposes short-lived packaged-label analysis jobs, local barcode lookup, stateless label validation, and curated unlabeled-food demo endpoints.
 
 ## General Notes
 
@@ -9,6 +9,7 @@ The FastAPI backend exposes short-lived packaged-label analysis jobs, stateless 
 - Response field names are camelCase.
 - Uploaded images are limited to 8 MB each.
 - Backend analysis jobs are in-memory and expire after 15 minutes.
+- Local Open Food Facts lookup is enabled with `SUGAR_PAI_ENABLE_OFF_LOOKUP=true` and reads `SUGAR_PAI_OFF_DB_PATH` or `backend/app/data/off_ph_products.db`.
 
 ## Endpoints
 
@@ -44,6 +45,85 @@ Returns `202 Accepted`:
 Errors:
 - `413`: image exceeds 8 MB
 - `422`: invalid image or form value
+
+### Lookup Local Open Food Facts Product
+
+`GET /api/v1/off-products/{barcode}?market=PH`
+
+Returns an `OffProductLookupResponse` from the generated local SQLite database. This endpoint does not contact the public Open Food Facts API.
+
+Response statuses:
+- `found`: barcode exists locally
+- `not_found`: no local row
+- `disabled`: `SUGAR_PAI_ENABLE_OFF_LOOKUP` is not `true`
+- `db_missing`: the configured SQLite file is unavailable
+- `unsupported_market`: only `PH` is bundled
+
+Example response for a complete match:
+
+```json
+{
+  "barcode": "4800361403764",
+  "market": "PH",
+  "status": "found",
+  "complete": true,
+  "missingFields": [],
+  "product": {
+    "barcode": "4800361403764",
+    "productName": "nescafe original 20g",
+    "brand": "Nestlé",
+    "servingSize": 20,
+    "servingUnit": "g",
+    "servingBasis": "per database serving",
+    "nutrients": {
+      "totalCarbohydrate": 14,
+      "fiber": 0.34,
+      "totalSugars": 9.7,
+      "addedSugars": null,
+      "sugarAlcohols": null,
+      "protein": 0.27,
+      "fat": 3.4
+    }
+  },
+  "ingredients": "Sugar, Coffee creamer...",
+  "qualitativeMarkers": {
+    "novaGroup": "4 - Ultra processed food and drink products",
+    "nutriscoreGrade": null,
+    "allergensTags": "en:milk"
+  },
+  "sourceUrl": "https://world.openfoodfacts.org/product/4800361403764",
+  "sourceKind": "local_open_food_facts",
+  "message": "A complete local Open Food Facts record is available for review."
+}
+```
+
+### Create Barcode-Only Analysis
+
+`POST /api/v1/analyses/barcode`
+
+Creates an already-completed analysis job from a complete local Open Food Facts match. The returned `AnalysisResult` can be finalized through the normal finalize endpoint, so user confirmation remains required before logging.
+
+Payload:
+
+```json
+{ "barcode": "4800361403764", "market": "PH" }
+```
+
+Returns `201 Created`:
+
+```json
+{
+  "analysisId": "uuid-string",
+  "expiresInSeconds": 900,
+  "result": { "status": "ready" }
+}
+```
+
+Errors:
+- `404`: barcode is not in the local database
+- `409`: local lookup is disabled
+- `422`: unsupported market or local row is missing required nutrition fields
+- `503`: local SQLite database is unavailable
 
 ### Stream Analysis Events
 

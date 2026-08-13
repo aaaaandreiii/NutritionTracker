@@ -8,6 +8,8 @@ The automated extraction proof point is evaluated before any VLM provider become
 
 For each product, capture a nutrition panel and ingredient panel under clean and challenging conditions. Include glare, curved packages, rotation, small text, dual-column formats, per-serving/per-100 g formats, and missing added-sugar declarations. Two annotators independently record the gold fields and sugar spans; adjudicate disagreements. Split at the product level into 30 development and 70 locked evaluation products.
 
+For products with readable UPC/EAN codes, record the barcode and whether the generated local Open Food Facts database contains a complete, partial, or missing match. Compare local database fields against the photographed current package; database-prefilled values are useful only when the user can confirm them during review.
+
 Run the same images and schema through pinned candidates. A provider is eligible only if it meets every gate:
 
 - ≥95% exact match for serving size, total carbohydrate, fiber, total sugars, and added sugars on images that pass quality checks
@@ -32,6 +34,16 @@ PYTHONPATH=backend python -m app.benchmark \
 ```
 
 For the 20-30 item development run, keep real product images private and store predictions in the same shape as `research/fixtures/synthetic_predictions.json`. Required reported metrics are total sugar MAE, exact match for serving/carbohydrate/fiber/sugars, sugar-alias precision/recall, schema-valid-after-retry rate, p95 latency, API error count, and fallback counts.
+
+Regenerate the local Open Food Facts runtime database after updating `openfoodfacts_export.csv`:
+
+```bash
+PYTHONPATH=backend python -m app.db.ingest_off \
+  --csv research/openfoodfacts_export.csv \
+  --db backend/app/data/off_ph_products.db
+```
+
+Track barcode hit rate, complete-record rate, partial-record missing fields, and disagreement rate versus the current photographed label.
 
 ## Curated unlabeled demo mode
 

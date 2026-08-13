@@ -6,14 +6,16 @@ Sugar pAI V2 is a packaged-food evidence and Smart Context research prototype. I
 
 1. **Packaged labels are hard to interpret:** Users must reconcile serving size, carbohydrate, sugars, fiber, protein, fat, and ingredient lists.
 2. **Ingredient naming is opaque:** Sugar-related ingredients can appear under many names, including HFCS, maltodextrin, syrups, starches, polyols, and high-intensity sweeteners.
-3. **Unlabeled foods lack reliable package evidence:** Common Filipino foods often have no nutrition panel, and recipe/portion variation makes authoritative claims risky without licensed data.
-4. **Privacy concerns are real:** Food and health-adjacent records are sensitive, and many users prefer local storage.
+3. **Barcode databases are useful but uneven:** Community product records can reduce typing, but missing or outdated rows must stay visible.
+4. **Unlabeled foods lack reliable package evidence:** Common Filipino foods often have no nutrition panel, and recipe/portion variation makes authoritative claims risky without licensed data.
+5. **Privacy concerns are real:** Food and health-adjacent records are sensitive, and many users prefer local storage.
 
 ## Value Proposition
 
 Sugar pAI reduces interpretation friction while preserving evidence boundaries:
 
 - Scan a packaged label.
+- Use offline barcode lookup when a complete local Open Food Facts Philippines match exists.
 - Validate what was actually read or user-confirmed.
 - Show deterministic Smart Context.
 - Log locally.
@@ -24,6 +26,7 @@ Sugar pAI reduces interpretation friction while preserving evidence boundaries:
 | Persona | Pain point | V2 response |
 | --- | --- | --- |
 | Label reviewer | Wants help reading complex package panels. | Evidence-preserving scan, correction, validation, and local log. |
+| Barcode-first shopper | Wants instant product lookup when a UPC/EAN exists. | Local database match preview, image-free review for complete rows, and capture guidance for partial rows. |
 | Ingredient-conscious shopper | Wants to notice sugar aliases and processing markers. | First-class ingredient context flags without food ratings. |
 | Filipino-food researcher | Wants a prototype flow for unlabeled foods. | Curated demo catalog with manual confirmation and qualitative tags. |
 | Privacy-focused user | Does not want cloud history. | IndexedDB local records and opt-in image retention. |
@@ -33,6 +36,7 @@ Sugar pAI reduces interpretation friction while preserving evidence boundaries:
 
 - **B2C local-first app:** Packaged-label evidence review and local logging.
 - **B2B extraction validation:** Deterministic validation pipeline for nutrition-label extraction workflows.
+- **Offline database assist:** Local barcode lookup can reduce VLM calls and user typing for complete records while preserving review requirements.
 - **Research prototype:** Evaluates whether Smart Context improves label review without unsupported claims.
 - **Future licensed-data path:** Sourced GI or Filipino nutrition values can be added only with permitted datasets and provenance.
 

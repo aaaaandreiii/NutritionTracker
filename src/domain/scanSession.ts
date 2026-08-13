@@ -1,6 +1,6 @@
 import type { AnalysisImages } from '../lib/api'
 import { API_BASE } from '../lib/api'
-import type { AnalysisResult, AnalysisStageEvent, ImageQualityReport, Market } from './types'
+import type { AnalysisResult, AnalysisStageEvent, ImageQualityReport, Market, OffProductLookupResponse } from './types'
 
 export type AnalysisPanelKind = 'nutrition' | 'ingredients' | 'front'
 export type PanelKind = AnalysisPanelKind | 'barcode'
@@ -21,6 +21,8 @@ export interface ScanSessionState {
   barcode: string
   barcodeReading: boolean
   barcodeMessage: string | null
+  barcodeLookup: OffProductLookupResponse | null
+  barcodeLookupLoading: boolean
   analysisId: string | null
   result: AnalysisResult | null
   stages: Record<string, AnalysisStageEvent>
@@ -40,6 +42,8 @@ export function createInitialScanSession(): ScanSessionState {
     barcode: '',
     barcodeReading: false,
     barcodeMessage: null,
+    barcodeLookup: null,
+    barcodeLookupLoading: false,
     analysisId: null,
     result: null,
     stages: {},

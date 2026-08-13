@@ -5,24 +5,30 @@ This catalog describes the implemented Sugar pAI V2 behavior. Sugar pAI is the p
 ## 1. Sugar pAI Packaged-Label Flow
 
 ### 1.1 Capture and Image Quality
-- **Capability:** Capture or upload Nutrition Facts, ingredients, front label, and optional barcode images.
-- **Inputs:** JPEG, PNG, or WebP files; Nutrition Facts is required for packaged-label analysis.
-- **Outputs:** Local quality checks and a multipart backend upload.
+- **Capability:** Capture or upload Nutrition Facts, ingredients, and front-label images; scan a UPC/EAN barcode live or from a still image.
+- **Inputs:** JPEG, PNG, or WebP files for image-based analysis. Nutrition Facts is required only when no complete local barcode database match is used.
+- **Outputs:** Local image quality checks, local barcode detection state, optional local database lookup preview, and a backend upload or barcode-only analysis request.
 - **Workflow rules:** Camera streams are stopped when leaving Sugar pAI. Backend uploads are capped at 8 MB per image and stripped of EXIF metadata.
 
-### 1.2 VLM Extraction and Evidence Review
-- **Capability:** Use the backend VLM pipeline to draft label fields, then require user review before confirmation.
-- **Inputs:** Sanitized package-panel images, market, optional barcode.
-- **Outputs:** `AnalysisResult` with evidence values, confidence, provenance, validation checks, diagnostics, limitations, sugar variants, and glycemic evidence.
-- **Workflow rules:** Blank values remain unknown. Sample values are never substituted when extraction fails.
+### 1.2 Local Barcode Lookup
+- **Capability:** Query a generated local Open Food Facts Philippines SQLite database by UPC/EAN before running image extraction.
+- **Inputs:** Numeric barcode and `market=PH`.
+- **Outputs:** `OffProductLookupResponse` with found/partial/missing status, missing field list, product/nutrient preview, ingredient text, and qualitative database markers such as NOVA, Nutri-Score, and allergens.
+- **Workflow rules:** Complete local records can open `EvidenceReview` without images through `POST /api/v1/analyses/barcode`. Partial records guide the user to capture missing Nutrition Facts and ingredients panels. Database values are marked `sourceKind: "database"` and still require final user confirmation.
 
-### 1.3 Deterministic Validation
+### 1.3 VLM Extraction and Evidence Review
+- **Capability:** Use the backend VLM pipeline to draft label fields, then require user review before confirmation.
+- **Inputs:** Sanitized package-panel images, market, optional barcode, and optional local database fallback.
+- **Outputs:** `AnalysisResult` with evidence values, confidence, provenance, validation checks, diagnostics, limitations, sugar variants, and glycemic evidence.
+- **Workflow rules:** Blank values remain unknown. Sample values are never substituted when extraction fails. Complete local database matches skip VLM; partial local matches can provide fallback values while VLM reads supplied label photos.
+
+### 1.4 Deterministic Validation
 - **Capability:** Validate reviewed label values using backend rules.
 - **Inputs:** `FinalizeRequest` with product name, serving basis, nutrient fields, raw ingredients, and consumed servings.
 - **Outputs:** Confirmed `AnalysisResult` or `LabelRecordValidationResponse`.
 - **Workflow rules:** Records cannot be saved until validation passes. Missing fields remain `Unavailable`; no missing field is converted to zero.
 
-### 1.4 Glycemic Evidence Policy
+### 1.5 Glycemic Evidence Policy
 - **Capability:** Display sourced GI only when permitted matched source data exists; otherwise keep `sourced` unavailable.
 - **Current implementation:** No licensed FNRI, Trinidad, or tested-product GI table is bundled. Packaged-label records may show only clearly labeled `heuristic_demo` GL when required current-label/user-confirmed inputs are present.
 - **Workflow rules:** Demo GL bands remain labeled as demo context and do not predict individual glucose response.

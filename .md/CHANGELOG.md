@@ -2,6 +2,27 @@
 
 All notable changes to the project are documented here.
 
+## [Unreleased] - Offline Barcode Lookup
+
+### Added
+- Generated local Open Food Facts Philippines SQLite database at `backend/app/data/off_ph_products.db`.
+- CSV ingest script `backend/app/db/ingest_off.py` for `research/openfoodfacts_export.csv`.
+- Local barcode lookup endpoint `GET /api/v1/off-products/{barcode}?market=PH`.
+- Barcode-only analysis endpoint `POST /api/v1/analyses/barcode` for complete local database matches.
+- Live ZXing camera barcode scanner modal with detected/not-detected state.
+- Image-free evidence review support for complete database-prefilled matches.
+
+### Changed
+- Image-based packaged-label analysis now checks the local OFF database before running VLM.
+- Complete local barcode matches skip VLM and open user review with `sourceKind: "database"` evidence.
+- Partial local barcode matches keep database values as fallback evidence while VLM reads submitted label photos.
+- OFF `ingredients_text_en` is used for raw ingredient context and existing sugar taxonomy classification.
+
+### Guardrails
+- Added sugars remain unknown when not declared in package-level OFF fields.
+- NOVA, Nutri-Score, allergens, categories, and labels remain descriptive database context only.
+- User confirmation through finalize remains required before local logging.
+
 ## [v2.0.0] - Sugar pAI Product Consolidation
 
 ### Added

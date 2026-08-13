@@ -20,6 +20,7 @@ SUGAR_PAI_VISION_TIMEOUT_SECONDS=120
 
 # Backend Feature Flags
 SUGAR_PAI_ENABLE_OFF_LOOKUP=false
+SUGAR_PAI_OFF_DB_PATH=backend/app/data/off_ph_products.db
 MLFLOW_TRACKING_URI=
 
 # Frontend Configuration
@@ -27,6 +28,18 @@ VITE_API_BASE_URL=http://localhost:8000
 ```
 
 *Note: When running Ollama locally on the host machine while the backend is in a Docker container, `host.docker.internal` is crucial for the container to access the host's Ollama API port.*
+
+### Local Open Food Facts Database
+
+Barcode lookup uses a generated SQLite artifact at `backend/app/data/off_ph_products.db` by default. Regenerate it when `research/openfoodfacts_export.csv` changes:
+
+```bash
+PYTHONPATH=backend python -m app.db.ingest_off \
+  --csv research/openfoodfacts_export.csv \
+  --db backend/app/data/off_ph_products.db
+```
+
+Set `SUGAR_PAI_ENABLE_OFF_LOOKUP=true` to enable local lookup. The lookup path is offline at runtime; the raw CSV is not loaded by the API service.
 
 ## Deployment Steps
 
@@ -97,7 +110,8 @@ After deployment, verify:
 
 ```bash
 curl -s http://localhost:8000/health
+curl -s 'http://localhost:8000/api/v1/off-products/4800361403764?market=PH'
 curl -s 'http://localhost:8000/api/v1/unlabeled-foods/catalog?market=PH'
 ```
 
-The curated catalog response must not include numeric calories, macros, GI, or GL.
+The barcode smoke response should report `status: "found"` and `complete: true` when local lookup is enabled. The curated catalog response must not include numeric calories, macros, GI, or GL.

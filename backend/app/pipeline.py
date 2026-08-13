@@ -9,9 +9,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-import httpx
 from PIL import Image, ImageFilter, ImageOps, ImageStat, UnidentifiedImageError
 
+from .db.off_products import (
+    LOCAL_OFF_SOURCE_KIND,
+    LOCAL_OFF_SOURCE_NAME,
+    clean_text,
+    local_off_product_is_complete,
+    lookup_local_off_product,
+    product_missing_fields,
+)
 from .extraction import (
     DEFAULT_VISION_MODEL,
     ExtractedLabel,
@@ -25,7 +32,6 @@ from .schemas import (
     AnalysisResult,
     EvidenceReference,
     EvidenceValue,
-    GlycemicEvidence,
     MethodDiagnostic,
     NutrientCorrections,
     NutrientFields,
@@ -46,7 +52,6 @@ PIPELINE_VERSION = "research-mvp-vlm-0.3.0"
 JOB_TTL_SECONDS = 15 * 60
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 MAX_IMAGE_PIXELS = 36_000_000
-OPEN_FOOD_FACTS_URL = "https://world.openfoodfacts.org/api/v3/product/{barcode}.json"
 
 
 @dataclass(frozen=True)
@@ -289,21 +294,14 @@ def inspect_and_sanitize_image(data: bytes, mime_type: str, target: Path, kind: 
     ]
 
 
-async def lookup_open_food_facts(barcode: str) -> tuple[dict[str, Any] | None, str | None]:
+async def lookup_open_food_facts(barcode: str, market: Literal["PH", "US"] = "PH") -> tuple[dict[str, Any] | None, str | None]:
     if os.getenv("SUGAR_PAI_ENABLE_OFF_LOOKUP", "false").casefold() != "true":
         return None, None
-    url = OPEN_FOOD_FACTS_URL.format(barcode=barcode)
-    params = {"fields": "code,product_name,brands,nutriments,serving_size,servings_per_container"}
-    try:
-        async with httpx.AsyncClient(timeout=5.0, headers={"User-Agent": "Sugar-pAI-Research-MVP/0.1"}) as client:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-            payload = response.json()
-        if payload.get("status") != "success" or not payload.get("product"):
-            return None, url
-        return payload["product"], url
-    except (httpx.HTTPError, ValueError):
-        return None, url
+
+    local = await asyncio.to_thread(lookup_local_off_product, barcode, market)
+    if local.status == "found":
+        return local.product, local.source_url
+    return None, local.source_url
 
 
 def _short_reason(value: str | None, limit: int = 800) -> str | None:
@@ -388,6 +386,52 @@ def build_analysis_diagnostics(
     )
 
 
+def _serving_from_product(product: dict[str, Any] | None) -> tuple[float | None, str | None, str | None]:
+    if not product:
+        return None, None, None
+    serving_size = _number(product.get("serving_quantity"))
+    serving_unit = clean_text(product.get("serving_unit"))
+    household = clean_text(product.get("serving_household_measure"))
+    if serving_size is not None:
+        return serving_size, serving_unit, household or clean_text(product.get("serving_size"))
+    parsed_size, parsed_unit, parsed_household = _serving_size(product.get("serving_size"))
+    return parsed_size, serving_unit or parsed_unit, household or parsed_household
+
+
+def _ingredient_text_from_product(product: dict[str, Any] | None) -> str | None:
+    if not product:
+        return None
+    return clean_text(product.get("ingredients_text_en")) or clean_text(product.get("ingredients_text"))
+
+
+def _database_nutrient_corrections(nutrients: NutrientFields) -> NutrientCorrections:
+    return NutrientCorrections(
+        total_carbohydrate=nutrients.total_carbohydrate.value,
+        fiber=nutrients.fiber.value,
+        total_sugars=nutrients.total_sugars.value,
+        added_sugars=nutrients.added_sugars.value,
+        sugar_alcohols=nutrients.sugar_alcohols.value,
+        protein=nutrients.protein.value,
+        fat=nutrients.fat.value,
+    )
+
+
+def _database_context_limitations(product: dict[str, Any] | None) -> list[str]:
+    if not product:
+        return []
+    context: list[str] = []
+    nova = clean_text(product.get("nova_group"))
+    nutriscore = clean_text(product.get("nutriscore_grade"))
+    allergens = clean_text(product.get("allergens_tags")) or clean_text(product.get("allergens"))
+    if nova:
+        context.append(f"Open Food Facts NOVA context is descriptive only: {nova}.")
+    if nutriscore:
+        context.append(f"Open Food Facts Nutri-Score context is descriptive only: {nutriscore}.")
+    if allergens:
+        context.append(f"Open Food Facts allergen context is descriptive only: {allergens}.")
+    return context
+
+
 def result_from_database(
     job: AnalysisJob,
     product: dict[str, Any] | None,
@@ -395,10 +439,9 @@ def result_from_database(
     processors: list[str],
     diagnostics: AnalysisDiagnostics | None = None,
 ) -> AnalysisResult:
-    source_url = source_url or "https://world.openfoodfacts.org/"
+    source_url = source_url or (product.get("source_url") if product else None) or "https://world.openfoodfacts.org/"
     nutriments = product.get("nutriments", {}) if product else {}
-    serving_raw = product.get("serving_size") if product else None
-    serving_size, serving_unit, household = _serving_size(serving_raw)
+    serving_size, serving_unit, household = _serving_from_product(product)
     has_serving = serving_size is not None
     suffix = "serving" if has_serving else "100g"
     basis = "per database serving" if has_serving else "per 100 g database basis"
@@ -408,10 +451,43 @@ def result_from_database(
             return unavailable("g")
         return database_value(_number(nutriments.get(f"{key}_{suffix}")), unit="g", basis=basis, url=source_url)
 
-    barcode_value = database_value(job.barcode, url=source_url) if job.barcode else unavailable(None, None)
+    barcode_value = database_value(job.barcode or (product.get("code") if product else None), url=source_url) if (job.barcode or product) else unavailable(None, None)
+    nutrients = NutrientFields(
+        total_carbohydrate=nutrient("carbohydrates"),
+        fiber=nutrient("fiber"),
+        total_sugars=nutrient("sugars"),
+        added_sugars=nutrient("added-sugars"),
+        sugar_alcohols=nutrient("polyols"),
+        protein=nutrient("proteins"),
+        fat=nutrient("fat"),
+    )
+    raw_ingredients = database_value(_ingredient_text_from_product(product), basis=None, url=source_url) if product else unavailable(None)
+    sugar_variants = classify_ingredients(raw_ingredients.value or "")
+    for variant in sugar_variants:
+        variant.evidence = EvidenceReference(
+            url=source_url,
+            note="Matched from Open Food Facts ingredient text; confirm against the current package.",
+        )
+
+    validation_checks = validate_nutrients(_database_nutrient_corrections(nutrients)) if product else []
+    database_complete = product is not None and not product_missing_fields(product) and not any(
+        check.status == "fail" for check in validation_checks
+    )
+    glycemic, glycemic_limitations = build_glycemic_evidence(
+        nutrients,
+        sugar_variants,
+        product_name=str(product.get("product_name") if product else ""),
+        raw_ingredients=raw_ingredients.value or "",
+    )
+    review_message = (
+        "Review every database-filled value against the current package before saving."
+        if database_complete
+        else "No vision extraction produced accepted label evidence. Confirm values manually from the current package."
+    )
+    retake_reasons = build_retake_reasons(job, nutrients)
     result = AnalysisResult(
         analysis_id=job.analysis_id,
-        status="partial",
+        status="ready" if database_complete else "partial",
         market=job.market,
         product=ProductIdentity(
             name=database_value(product.get("product_name") if product else None, url=source_url, basis=None),
@@ -424,39 +500,31 @@ def result_from_database(
             household_measure=household,
             servings_per_container=database_value(_number(product.get("servings_per_container")) if product else None, basis="container", url=source_url),
         ),
-        nutrients=NutrientFields(
-            total_carbohydrate=nutrient("carbohydrates"),
-            fiber=nutrient("fiber"),
-            total_sugars=nutrient("sugars"),
-            added_sugars=nutrient("added-sugars"),
-            sugar_alcohols=nutrient("polyols"),
-            protein=nutrient("proteins"),
-            fat=nutrient("fat"),
-        ),
-        raw_ingredients=unavailable(None),
-        sugar_variants=[],
-        glycemic=GlycemicEvidence(
-            status="unavailable",
-            reason=(
-                "No eligible tested-product GI evidence was matched. Sourced GI is not bundled, and demo GL "
-                "requires confirmed label carbohydrate, fiber, and sugar-alias evidence."
-            ),
-        ),
+        nutrients=nutrients,
+        raw_ingredients=raw_ingredients,
+        sugar_variants=sugar_variants,
+        glycemic=glycemic,
         quality_checks=job.quality_checks,
-        validation_checks=[ValidationCheck(
-            code="manual_review_required",
-            status="review",
-            message="No vision extraction produced accepted label evidence. Confirm values manually from the current package.",
-        )],
+        validation_checks=[
+            *validation_checks,
+            ValidationCheck(
+                code="manual_review_required",
+                status="review",
+                message=review_message,
+            ),
+        ],
         limitations=[
-            "Live label extraction did not produce accepted evidence; database values, if present, are unconfirmed.",
+            "Open Food Facts values are community data and require user confirmation against the current package.",
+            f"Ingredient matches use taxonomy {SUGAR_TAXONOMY_VERSION}; they do not estimate ingredient amounts.",
             "Ingredient order cannot establish grams of an individual sweetener.",
             "No licensed FNRI, Trinidad, or tested-product GI table is bundled.",
             "This tool does not provide medical advice, diabetes suitability claims, medication guidance, or glucose predictions.",
+            *glycemic_limitations,
+            *_database_context_limitations(product),
         ],
         diagnostics=diagnostics or build_analysis_diagnostics(job),
-        retake_recommended=any(check.status == "warn" for check in job.quality_checks),
-        retake_reasons=build_retake_reasons(job, None),
+        retake_recommended=any(check.status == "warn" for check in job.quality_checks) or (not database_complete and bool(retake_reasons)),
+        retake_reasons=[] if database_complete else retake_reasons,
         provenance=Provenance(
             pipeline_version=PIPELINE_VERSION,
             completed_at=datetime.now(timezone.utc),
@@ -694,12 +762,22 @@ async def run_pipeline(job: AnalysisJob) -> None:
         product: dict[str, Any] | None = None
         source_url: str | None = None
         processors: list[str] = []
+        local_database_complete = False
         if job.barcode:
             await job.publish({"type": "stage", "stage": "barcode_lookup", "status": "running", "label": "Checking product identity"})
-            product, source_url = await lookup_open_food_facts(job.barcode)
+            product, source_url = await lookup_open_food_facts(job.barcode, job.market)
             if os.getenv("SUGAR_PAI_ENABLE_OFF_LOOKUP", "false").casefold() == "true":
-                processors.append("Open Food Facts")
-                label = "Community record found; current label still takes precedence" if product else "No usable community record found"
+                if product:
+                    is_local = product.get("_lookup_source") == LOCAL_OFF_SOURCE_KIND
+                    processors.append(LOCAL_OFF_SOURCE_NAME if is_local else "Open Food Facts")
+                    local_database_complete = is_local and local_off_product_is_complete(product)
+                    label = (
+                        "Complete local database record found; VLM can be skipped"
+                        if local_database_complete
+                        else "Local database record found; current label still takes precedence"
+                    )
+                else:
+                    label = "No usable local database record found"
                 status = "complete"
             else:
                 label = "External lookup disabled in this environment"
@@ -707,6 +785,72 @@ async def run_pipeline(job: AnalysisJob) -> None:
             await job.publish({"type": "stage", "stage": "barcode_lookup", "status": status, "label": label})
         else:
             await job.publish({"type": "stage", "stage": "barcode_lookup", "status": "skipped", "label": "No barcode supplied"})
+
+        if local_database_complete and product:
+            await job.publish({
+                "type": "stage",
+                "stage": "label_extraction",
+                "status": "skipped",
+                "label": "Complete local database record used for review",
+            })
+            ingredient_text = _ingredient_text_from_product(product)
+            if ingredient_text:
+                variant_count = len(classify_ingredients(ingredient_text))
+                await job.publish({
+                    "type": "stage",
+                    "stage": "ingredient_classification",
+                    "status": "complete",
+                    "label": f"Matched {variant_count} sugar-related ingredient aliases from database text",
+                })
+            else:
+                await job.publish({
+                    "type": "stage",
+                    "stage": "ingredient_classification",
+                    "status": "skipped",
+                    "label": "Database ingredient text unavailable; user transcription required",
+                })
+            await job.publish({"type": "stage", "stage": "evidence_assembly", "status": "running", "label": "Building editable database evidence record"})
+            diagnostics = build_analysis_diagnostics(job)
+            result = result_from_database(job, product, source_url, processors, diagnostics)
+            accepted_count = sum(
+                1
+                for value in [
+                    result.product.name,
+                    result.product.brand,
+                    result.serving.size,
+                    result.nutrients.total_carbohydrate,
+                    result.nutrients.fiber,
+                    result.nutrients.total_sugars,
+                    result.nutrients.added_sugars,
+                    result.nutrients.sugar_alcohols,
+                    result.nutrients.protein,
+                    result.nutrients.fat,
+                    result.raw_ingredients,
+                ]
+                if value.source_kind == "database"
+            )
+            await job.publish({
+                "type": "stage",
+                "stage": "evidence_assembly",
+                "status": "complete",
+                "label": f"Accepted {accepted_count} database-filled fields for review",
+            })
+            await job.publish({"type": "stage", "stage": "safety_validation", "status": "running", "label": "Checking units, evidence, and prohibited claims"})
+            await asyncio.sleep(0.04)
+            job.result = result
+            emit_telemetry(
+                "analysis_complete",
+                analysis_id=job.analysis_id,
+                status=result.status,
+                extraction_method="local_off",
+                vlm_model=None,
+                fallback_reason=None,
+                glycemic_status=result.glycemic.status,
+                gl=result.glycemic.gl,
+            )
+            await job.publish({"type": "stage", "stage": "safety_validation", "status": "complete", "label": "Deterministic copy only; unsupported health claims suppressed"})
+            await job.publish({"type": "result", "result": result.model_dump(mode="json", by_alias=True)})
+            return
 
         await job.publish({
             "type": "stage",

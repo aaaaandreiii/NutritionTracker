@@ -279,3 +279,59 @@ class CuratedFoodRecord(ApiModel):
 class CreateAnalysisResponse(ApiModel):
     analysis_id: str
     expires_in_seconds: int = 900
+
+
+class OffProductNutrientPreview(ApiModel):
+    total_carbohydrate: float | None = None
+    fiber: float | None = None
+    total_sugars: float | None = None
+    added_sugars: float | None = None
+    sugar_alcohols: float | None = None
+    protein: float | None = None
+    fat: float | None = None
+
+
+class OffProductPreview(ApiModel):
+    barcode: str
+    product_name: str | None = None
+    brand: str | None = None
+    serving_size: float | None = None
+    serving_unit: str | None = None
+    serving_basis: str
+    nutrients: OffProductNutrientPreview
+
+
+class OffProductQualitativeMarkers(ApiModel):
+    nova_group: str | None = None
+    nova_groups_tags: str | None = None
+    nutriscore_grade: str | None = None
+    nutriscore_score: float | None = None
+    allergens: str | None = None
+    allergens_tags: str | None = None
+    traces: str | None = None
+    traces_tags: str | None = None
+    categories: str | None = None
+    labels: str | None = None
+
+
+class OffProductLookupResponse(ApiModel):
+    barcode: str
+    market: Literal["PH", "US"]
+    status: Literal["found", "not_found", "disabled", "db_missing", "unsupported_market"]
+    complete: bool
+    missing_fields: list[str] = Field(default_factory=list)
+    product: OffProductPreview | None = None
+    ingredients: str | None = None
+    qualitative_markers: OffProductQualitativeMarkers | None = None
+    source_url: str | None = None
+    source_kind: Literal["local_open_food_facts"] = "local_open_food_facts"
+    message: str
+
+
+class BarcodeAnalysisRequest(ApiModel):
+    barcode: str = Field(min_length=6, max_length=32, pattern=r"^[0-9]+$")
+    market: Literal["PH", "US"] = "PH"
+
+
+class CreateBarcodeAnalysisResponse(CreateAnalysisResponse):
+    result: AnalysisResult

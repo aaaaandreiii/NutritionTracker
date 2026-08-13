@@ -28,7 +28,8 @@ If a multi-tenant cloud version is developed, it will utilize:
 
 ### Data at Rest
 - **Frontend:** Daily Dozen support state, custom recipes, and Sugar pAI historical records are stored locally on the user's device using `localStorage` and `IndexedDB`. No personal health data is sent to a central database.
-- **Backend:** The FastAPI backend does not persist user data. It utilizes temporary directories (`tempfile.mkdtemp`) to hold uploaded images just long enough for the VLM to process them. 
+- **Backend:** The FastAPI backend does not persist user data. It utilizes temporary directories (`tempfile.mkdtemp`) to hold uploaded images just long enough for the VLM to process them. Complete barcode database matches can skip image upload entirely.
+- **Local OFF database:** `backend/app/data/off_ph_products.db` is a static generated Open Food Facts product dataset for offline lookup. It is not a user-data store.
 - A background worker (`cleanup_expired_jobs`) guarantees that temporary files are purged when a job expires, and `shutil.rmtree` is used aggressively upon pipeline completion or error.
 - **Curated unlabeled demo:** Catalog entries are static qualitative data. User-selected demo records are saved only in local IndexedDB unless a future sync feature is explicitly added.
 
@@ -46,4 +47,4 @@ Before exposing the backend beyond a local or controlled research environment:
 - Restrict CORS origins.
 - Serve over HTTPS.
 - Decide whether authentication is required.
-- Document VLM and optional barcode lookup processors in user-facing disclosure.
+- Document VLM and local barcode lookup processors in user-facing disclosure.

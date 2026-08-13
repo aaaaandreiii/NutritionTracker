@@ -166,6 +166,53 @@ export interface AnalysisResult {
   }
 }
 
+export interface OffProductNutrientPreview {
+  totalCarbohydrate: number | null
+  fiber: number | null
+  totalSugars: number | null
+  addedSugars: number | null
+  sugarAlcohols: number | null
+  protein: number | null
+  fat: number | null
+}
+
+export interface OffProductPreview {
+  barcode: string
+  productName: string | null
+  brand: string | null
+  servingSize: number | null
+  servingUnit: string | null
+  servingBasis: string
+  nutrients: OffProductNutrientPreview
+}
+
+export interface OffProductQualitativeMarkers {
+  novaGroup: string | null
+  novaGroupsTags: string | null
+  nutriscoreGrade: string | null
+  nutriscoreScore: number | null
+  allergens: string | null
+  allergensTags: string | null
+  traces: string | null
+  tracesTags: string | null
+  categories: string | null
+  labels: string | null
+}
+
+export interface OffProductLookupResponse {
+  barcode: string
+  market: Market
+  status: 'found' | 'not_found' | 'disabled' | 'db_missing' | 'unsupported_market'
+  complete: boolean
+  missingFields: string[]
+  product: OffProductPreview | null
+  ingredients: string | null
+  qualitativeMarkers: OffProductQualitativeMarkers | null
+  sourceUrl: string | null
+  sourceKind: 'local_open_food_facts'
+  message: string
+}
+
 export interface AnalysisStageEvent {
   type: 'stage' | 'result' | 'error'
   stage?: string

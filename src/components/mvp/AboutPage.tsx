@@ -4,7 +4,7 @@ const sources = [
   ['ADA: Making Sense of Food Labels', 'https://diabetes.org/food-nutrition/reading-food-labels/making-sense-food-labels'],
   ['FDA: Added Sugars on the Nutrition Facts Label', 'https://www.fda.gov/food/nutrition-facts-label/added-sugars-nutrition-facts-label'],
   ['University of Sydney: About GI', 'https://glycemicindex.com/about-gi/'],
-  ['Open Food Facts API documentation', 'https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/'],
+  ['Open Food Facts data export', 'https://world.openfoodfacts.org/data'],
   ['USDA FoodData Central API guide', 'https://fdc.nal.usda.gov/api-guide/'],
 ]
 
@@ -26,7 +26,7 @@ export default function AboutPage() {
           <ol className="processing-list">
             <li><strong>This device</strong><p>Image previews, basic quality checks, and UPC/EAN barcode decoding.</p></li>
             <li><strong>Temporary Sugar pAI service</strong><p>MIME/dimension validation, EXIF stripping, orchestration, validation, and short-lived job state. Temporary files expire after 15 minutes.</p></li>
-            <li><strong>Configured external processors</strong><p>A hosted Ollama VLM is used for constrained JSON label extraction. Open Food Facts is contacted for barcode lookup only when enabled. The result’s provenance lists processors actually used.</p></li>
+            <li><strong>Configured processors</strong><p>A generated local Open Food Facts database is checked for enabled barcode lookup. A hosted Ollama VLM is used for constrained JSON label extraction when label photos are needed. The result’s provenance lists processors actually used.</p></li>
           </ol>
           <div className="notice neutral">Provider integrations are optional in development. When extraction fails, the app asks for manual confirmation and does not substitute sample nutrition values.</div>
         </section>

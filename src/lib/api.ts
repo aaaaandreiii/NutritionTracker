@@ -5,6 +5,7 @@ import type {
   FinalizeCorrections,
   LabelRecordValidation,
   Market,
+  OffProductLookupResponse,
   UnlabeledFoodCatalogResponse,
   UnlabeledFoodIdentifyResponse,
   UnlabeledFoodRecordRequest,
@@ -15,7 +16,7 @@ export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8
 const BACKEND_UNAVAILABLE_MESSAGE = `Backend unavailable at ${API_BASE}. Check Docker/uvicorn and retry.`
 
 export interface AnalysisImages {
-  nutrition: File
+  nutrition?: File
   ingredients?: File
   front?: File
 }
@@ -31,6 +32,7 @@ export async function createAnalysis(
   market: Market,
   barcode?: string,
 ): Promise<string> {
+  if (!images.nutrition) throw new Error('Add a readable Nutrition Facts panel to continue.')
   const body = new FormData()
   body.append('nutrition_image', images.nutrition)
   if (images.ingredients) body.append('ingredient_image', images.ingredients)
@@ -42,6 +44,26 @@ export async function createAnalysis(
   if (!response.ok) throw new Error(await responseMessage(response, 'Could not start analysis.'))
   const payload = (await response.json()) as { analysisId: string }
   return payload.analysisId
+}
+
+export async function lookupOffProduct(barcode: string, market: Market): Promise<OffProductLookupResponse> {
+  const response = await fetchApi(`${API_BASE}/api/v1/off-products/${encodeURIComponent(barcode)}?market=${encodeURIComponent(market)}`, {
+    method: 'GET',
+    cache: 'no-store',
+  })
+  if (!response.ok) throw new Error(await responseMessage(response, 'Could not check the local product database.'))
+  return response.json() as Promise<OffProductLookupResponse>
+}
+
+export async function createBarcodeAnalysis(barcode: string, market: Market): Promise<AnalysisResult> {
+  const response = await fetchApi(`${API_BASE}/api/v1/analyses/barcode`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ barcode, market }),
+  })
+  if (!response.ok) throw new Error(await responseMessage(response, 'Could not create a database-prefilled analysis.'))
+  const payload = (await response.json()) as { analysisId: string; result: AnalysisResult }
+  return payload.result
 }
 
 export function streamAnalysis(

@@ -104,7 +104,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
   const diagnostics = current.diagnostics
   const fallbackReason = diagnostics?.fallbackReason
   const ingredientFieldHasText = Boolean(current.rawIngredients.value?.trim())
-  const ingredientTextAccepted = current.rawIngredients.sourceKind === 'label' && ingredientFieldHasText
+  const ingredientTextAccepted = ['label', 'database'].includes(current.rawIngredients.sourceKind) && ingredientFieldHasText
   const ingredientFlags = useMemo(() => buildIngredientContextFlags(current), [current])
   const pairingInsights = useMemo(
     () => current.status === 'confirmed'
@@ -118,10 +118,10 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
     [corrections.consumedServings, corrections.productName, current, meal],
   )
   const capturedImages = [
-    { label: 'Nutrition', file: images.nutrition },
-    { label: 'Ingredients', file: images.ingredients },
-    { label: 'Front', file: images.front },
-  ].filter((item): item is { label: string; file: File } => Boolean(item.file))
+    { kind: 'nutrition' as const, label: 'Nutrition', file: images.nutrition },
+    { kind: 'ingredients' as const, label: 'Ingredients', file: images.ingredients },
+    { kind: 'front' as const, label: 'Front', file: images.front },
+  ].filter((item): item is { kind: 'nutrition' | 'ingredients' | 'front'; label: string; file: File } => Boolean(item.file))
 
   const validate = async () => {
     setSaving(true)
@@ -149,12 +149,8 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
         productName: corrections.productName.trim(),
         result: confirmed,
         totals: makeLogTotals(confirmed, corrections.consumedServings),
-        retainedImages: retainImages
-          ? [
-              { kind: 'nutrition' as const, blob: images.nutrition, name: images.nutrition.name },
-              ...(images.ingredients ? [{ kind: 'ingredients' as const, blob: images.ingredients, name: images.ingredients.name }] : []),
-              ...(images.front ? [{ kind: 'front' as const, blob: images.front, name: images.front.name }] : []),
-            ]
+        retainedImages: retainImages && capturedImages.length > 0
+          ? capturedImages.map((image) => ({ kind: image.kind, blob: image.file, name: image.file.name }))
           : undefined,
       }
       await saveLog(entry)
@@ -315,12 +311,12 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
           <section className="card captured-images-card">
             <span className="section-kicker">Captured panels</span>
             <div className="captured-image-list">
-              {capturedImages.map((image) => (
+              {capturedImages.length > 0 ? capturedImages.map((image) => (
                 <div className="captured-image-row" key={image.label}>
                   <ImagePreviewButton file={image.file} label={`${image.label} panel`} className="captured-image-button" />
                   <div><strong>{image.label}</strong><span>{image.file.name}</span></div>
                 </div>
-              ))}
+              )) : <p className="empty-inline">No captured panels were needed for this database match.</p>}
             </div>
           </section>
 
@@ -427,7 +423,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
           }} /></label>
           <label className="compact-field"><span>Meal</span><select value={meal} onChange={(event) => setMeal(event.target.value as MealSlot)}>{['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Other'].map((slot) => <option key={slot}>{slot}</option>)}</select></label>
         </div>
-        <label className="checkbox-row"><input type="checkbox" checked={retainImages} onChange={(event) => setRetainImages(event.target.checked)} /><span><strong>Keep original images on this device</strong><small>Off by default. Images are otherwise removed from the server after 15 minutes.</small></span></label>
+        {capturedImages.length > 0 && <label className="checkbox-row"><input type="checkbox" checked={retainImages} onChange={(event) => setRetainImages(event.target.checked)} /><span><strong>Keep original images on this device</strong><small>Off by default. Images are otherwise removed from the server after 15 minutes.</small></span></label>}
         {error && <div className="notice error"><AlertCircle size={17} />{error}</div>}
         {!hasNutrition && <div className="notice warning"><AlertCircle size={17} />Enter at least one printed nutrition value before confirming.</div>}
         {!confirmed ? (

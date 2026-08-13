@@ -1,10 +1,15 @@
 from io import BytesIO
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
 
+from app.db.ingest_off import ingest_off_csv
 from app.extraction import ExtractedLabel, ExtractionResult
 from app.main import app
+
+
+CSV_PATH = Path(__file__).resolve().parents[2] / "research" / "openfoodfacts_export.csv"
 
 
 def readable_test_image() -> bytes:
@@ -179,6 +184,49 @@ def test_label_record_validation_rejects_impossible_nutrition_math():
 
     assert response.status_code == 422
     assert "Added sugars cannot exceed total sugars" in response.json()["detail"]
+
+
+def test_barcode_only_analysis_can_be_finalized(tmp_path, monkeypatch):
+    db_path = tmp_path / "off.db"
+    ingest_off_csv(CSV_PATH, db_path)
+    monkeypatch.setenv("SUGAR_PAI_ENABLE_OFF_LOOKUP", "true")
+    monkeypatch.setenv("SUGAR_PAI_OFF_DB_PATH", str(db_path))
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/analyses/barcode",
+            json={"barcode": "4800361403764", "market": "PH"},
+        )
+        assert created.status_code == 201, created.text
+        payload = created.json()
+        result = payload["result"]
+        assert result["status"] == "ready"
+        assert result["product"]["name"]["status"] == "Database match"
+        assert result["rawIngredients"]["status"] == "Database match"
+        assert result["diagnostics"]["extractionStatus"] == "skipped"
+        assert payload["analysisId"] == result["analysisId"]
+
+        finalized = client.post(
+            f"/api/v1/analyses/{payload['analysisId']}/finalize",
+            json={
+                "productName": result["product"]["name"]["value"],
+                "servingSize": result["serving"]["size"]["value"],
+                "servingUnit": result["serving"]["unit"],
+                "nutrients": {
+                    "totalCarbohydrate": result["nutrients"]["totalCarbohydrate"]["value"],
+                    "fiber": result["nutrients"]["fiber"]["value"],
+                    "totalSugars": result["nutrients"]["totalSugars"]["value"],
+                    "addedSugars": result["nutrients"]["addedSugars"]["value"],
+                    "sugarAlcohols": result["nutrients"]["sugarAlcohols"]["value"],
+                    "protein": result["nutrients"]["protein"]["value"],
+                    "fat": result["nutrients"]["fat"]["value"],
+                },
+                "rawIngredients": result["rawIngredients"]["value"],
+                "consumedServings": 1,
+            },
+        )
+        assert finalized.status_code == 200, finalized.text
+        assert finalized.json()["status"] == "confirmed"
 
 
 def test_unlabeled_food_catalog_lists_curated_ph_demo_foods():

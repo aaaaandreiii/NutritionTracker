@@ -1,11 +1,12 @@
-import { AlertCircle, ArrowRight, Barcode, Check, LoaderCircle, LockKeyhole, RefreshCw, ScanLine, Server, Utensils } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { AlertCircle, ArrowRight, Barcode, Check, Database, LoaderCircle, LockKeyhole, RefreshCw, ScanLine, Server, Utensils } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { type AnalysisPanelKind, type PanelKind, type ScanServiceStatus, type ScanSessionState } from '../../domain/scanSession'
-import type { LogEntry, Market, SmartContextRecordKind } from '../../domain/types'
-import { API_BASE, checkBackendHealth, createAnalysis, deleteAnalysis, streamAnalysis, type AnalysisImages, type BackendHealth } from '../../lib/api'
+import type { LogEntry, Market, OffProductLookupResponse, SmartContextRecordKind } from '../../domain/types'
+import { API_BASE, checkBackendHealth, createAnalysis, createBarcodeAnalysis, deleteAnalysis, lookupOffProduct, streamAnalysis, type AnalysisImages, type BackendHealth } from '../../lib/api'
 import { decodeBarcode } from '../../lib/barcode'
 import { inspectImage } from '../../lib/imageQuality'
+import BarcodeScannerModal from './BarcodeScannerModal'
 import CameraCapture from './CameraCapture'
 import EvidenceReview from './EvidenceReview'
 import ImagePanelCard from './ImagePanelCard'
@@ -28,6 +29,7 @@ interface Props {
 
 export default function ScanPage({ session, setSession, onLogged }: Props) {
   const [scanMode, setScanMode] = useState<SmartContextRecordKind>('packaged_label')
+  const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false)
   const {
     images,
     barcodeImage,
@@ -38,6 +40,8 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
     barcode,
     barcodeReading,
     barcodeMessage,
+    barcodeLookup,
+    barcodeLookupLoading,
     analysisId,
     result,
     stages,
@@ -67,6 +71,43 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
   const canAnalyze = Boolean(
     images.nutrition && reports.nutrition?.canSubmit && !checking && !analyzing,
   )
+
+  useEffect(() => {
+    const normalized = barcode.replace(/[^0-9]/g, '')
+    if (normalized.length < 6 || market !== 'PH') {
+      setSession((previous) => ({ ...previous, barcodeLookup: null, barcodeLookupLoading: false }))
+      return
+    }
+
+    let active = true
+    const timer = window.setTimeout(() => {
+      setSession((previous) => ({ ...previous, barcodeLookupLoading: true }))
+      void lookupOffProduct(normalized, market)
+        .then((lookup) => {
+          if (!active) return
+          setSession((previous) => ({
+            ...previous,
+            barcodeLookup: lookup,
+            barcodeLookupLoading: false,
+            error: null,
+          }))
+        })
+        .catch((caught) => {
+          if (!active) return
+          setSession((previous) => ({
+            ...previous,
+            barcodeLookup: null,
+            barcodeLookupLoading: false,
+            barcodeMessage: caught instanceof Error ? caught.message : 'Could not check the local product database.',
+          }))
+        })
+    }, 300)
+
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [barcode, market, setSession])
 
   const qualitySummary = useMemo(() => {
     const allChecks = [reports.nutrition, reports.ingredients, reports.front].flatMap((report) => report?.checks ?? [])
@@ -120,6 +161,7 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
         barcodeMessage: decoded
           ? `Barcode detected: ${decoded}.`
           : 'No UPC or EAN barcode was detected. Retake the close-up or type the digits manually.',
+        barcodeLookup: decoded ? null : previous.barcodeLookup,
         error: null,
         reports: { ...previous.reports, barcode: report },
       }))
@@ -156,10 +198,24 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
       barcode: '',
       barcodeImage: null,
       barcodeMessage: null,
+      barcodeLookup: null,
+      barcodeLookupLoading: false,
       reports: { ...previous.reports, barcode: undefined },
       error: null,
     }))
   }
+
+  const handleLiveBarcodeDetected = useCallback((detected: string) => {
+    setSession((previous) => ({
+      ...previous,
+      barcode: detected,
+      barcodeMessage: `Barcode detected: ${detected}.`,
+      barcodeLookup: null,
+      barcodeLookupLoading: true,
+      error: null,
+    }))
+    setBarcodeScannerOpen(false)
+  }, [setSession])
 
   const refreshServiceStatus = async (): Promise<BackendHealth> => {
     setSession((previous) => ({
@@ -217,6 +273,37 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
     }
   }
 
+  const useDatabaseMatch = async () => {
+    if (!barcodeLookup?.complete) return
+    setSession((previous) => ({
+      ...previous,
+      analyzing: true,
+      error: null,
+      stages: {},
+    }))
+    try {
+      const health = await refreshServiceStatus()
+      if (!health.ok) {
+        setSession((previous) => ({ ...previous, error: health.message }))
+        return
+      }
+      if (analysisId) await deleteAnalysis(analysisId).catch(() => undefined)
+      const analysis = await createBarcodeAnalysis(barcodeLookup.barcode, market)
+      setSession((previous) => ({
+        ...previous,
+        analysisId: analysis.analysisId,
+        result: analysis,
+      }))
+    } catch (caught) {
+      setSession((previous) => ({
+        ...previous,
+        error: caught instanceof Error ? caught.message : 'Could not open the database match.',
+      }))
+    } finally {
+      setSession((previous) => ({ ...previous, analyzing: false }))
+    }
+  }
+
   const returnToScan = async () => {
     if (analysisId) await deleteAnalysis(analysisId).catch(() => undefined)
     setSession((previous) => ({
@@ -229,8 +316,8 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
     }))
   }
 
-  if (result && images.nutrition) {
-    return <EvidenceReview result={result} images={images as AnalysisImages} onBack={() => void returnToScan()} onLogged={onLogged} />
+  if (result) {
+    return <EvidenceReview result={result} images={images} onBack={() => void returnToScan()} onLogged={onLogged} />
   }
 
   const heroCopy = scanMode === 'packaged_label'
@@ -312,7 +399,7 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
             report={reports.barcode}
             checking={checking === 'barcode' || barcodeReading}
             onChoose={(file) => void chooseBarcodeImage(file)}
-            onCamera={() => setSession((previous) => ({ ...previous, cameraPanel: 'barcode' }))}
+            onCamera={() => setBarcodeScannerOpen(true)}
             onRemove={removeBarcodeImage}
           />
         </div>
@@ -321,8 +408,12 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
           <section className="card analysis-card">
             <div className="section-heading"><div><span className="section-kicker">Analysis setup</span><h2>Before upload</h2></div><LockKeyhole size={19} /></div>
             <label className="select-field"><span>Label market</span><select value={market} onChange={(event) => setSession((previous) => ({ ...previous, market: event.target.value as Market }))}><option value="PH">Philippines</option><option value="US">United States</option></select></label>
-            <label className="select-field"><span><Barcode size={15} /> Barcode {barcodeReading && '(reading…)'} </span><input value={barcode} inputMode="numeric" placeholder="Optional UPC / EAN" onChange={(event) => setSession((previous) => ({ ...previous, barcode: event.target.value.replace(/[^0-9]/g, ''), barcodeMessage: null }))} /></label>
+            <label className="select-field"><span><Barcode size={15} /> Barcode {barcodeReading && '(reading…)'} </span><input value={barcode} inputMode="numeric" placeholder="Optional UPC / EAN" onChange={(event) => setSession((previous) => ({ ...previous, barcode: event.target.value.replace(/[^0-9]/g, ''), barcodeMessage: null, barcodeLookup: null, barcodeLookupLoading: false }))} /></label>
             {barcodeMessage && <div className={`notice ${barcodeMessage.startsWith('No ') ? 'warning' : 'neutral'}`}><Barcode size={17} /><span>{barcodeMessage}</span></div>}
+            {barcodeLookupLoading && <div className="notice neutral"><LoaderCircle className="spin" size={17} /><span>Checking the local Open Food Facts database...</span></div>}
+            {barcodeLookup && !barcodeLookupLoading && (
+              <BarcodeLookupPanel lookup={barcodeLookup} busy={analyzing} onUse={() => void useDatabaseMatch()} />
+            )}
             <div className="quality-summary">
               <div><strong>{qualitySummary.fails}</strong><span>blocking issues</span></div>
               <div><strong>{qualitySummary.warnings}</strong><span>review notes</span></div>
@@ -372,6 +463,7 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
           onClose={() => setSession((previous) => ({ ...previous, cameraPanel: null }))}
         />
       )}
+      {barcodeScannerOpen && <BarcodeScannerModal onDetected={handleLiveBarcodeDetected} onClose={() => setBarcodeScannerOpen(false)} />}
     </div>
   )
 }
@@ -382,4 +474,56 @@ function statusFromHealth(health: BackendHealth): ScanServiceStatus {
     message: health.message,
     checkedAt: new Date().toISOString(),
   }
+}
+
+function BarcodeLookupPanel({ lookup, busy, onUse }: { lookup: OffProductLookupResponse; busy: boolean; onUse: () => void }) {
+  const product = lookup.product
+  const nutrients = product?.nutrients
+  const nutrientSummary = nutrients
+    ? [
+        ['Carb', nutrients.totalCarbohydrate],
+        ['Sugar', nutrients.totalSugars],
+        ['Fiber', nutrients.fiber],
+        ['Protein', nutrients.protein],
+        ['Fat', nutrients.fat],
+      ].map(([label, value]) => `${label} ${typeof value === 'number' ? `${value} g` : 'unknown'}`).join(' · ')
+    : null
+  const context = lookup.qualitativeMarkers
+  const contextBits = [
+    context?.novaGroup ? `NOVA: ${context.novaGroup}` : null,
+    context?.nutriscoreGrade ? `Nutri-Score: ${context.nutriscoreGrade}` : null,
+    context?.allergensTags ? `Allergens: ${context.allergensTags}` : null,
+  ].filter(Boolean)
+
+  return (
+    <div className={`off-lookup-card off-lookup-${lookup.complete ? 'complete' : lookup.status}`}>
+      <div className="off-lookup-title">
+        <Database size={17} />
+        <div>
+          <strong>{product?.productName ?? lookup.barcode}</strong>
+          <span>{lookup.message}</span>
+        </div>
+      </div>
+      {product && (
+        <div className="off-lookup-details">
+          <span>{product.brand ?? 'Brand unknown'}</span>
+          <span>{product.servingSize != null ? `${product.servingSize} ${product.servingUnit ?? ''}`.trim() : 'Serving unknown'}</span>
+          {nutrientSummary && <span>{nutrientSummary}</span>}
+          {contextBits.length > 0 && <span>{contextBits.join(' · ')}</span>}
+        </div>
+      )}
+      {lookup.missingFields.length > 0 && (
+        <div className="off-missing-fields">
+          <strong>Capture label photos for</strong>
+          <span>{lookup.missingFields.join(', ')}</span>
+        </div>
+      )}
+      {lookup.complete && (
+        <button className="secondary-button wide" disabled={busy} onClick={onUse}>
+          {busy ? <LoaderCircle className="spin" size={16} /> : <Check size={16} />}
+          Use database match
+        </button>
+      )}
+    </div>
+  )
 }

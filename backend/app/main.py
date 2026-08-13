@@ -14,23 +14,29 @@ from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile, st
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+from .db.off_products import LOCAL_OFF_SOURCE_NAME, lookup_local_off_product, lookup_response
 from .glycemic import build_glycemic_evidence
 from .pipeline import (
     JOB_TTL_SECONDS,
     MAX_UPLOAD_BYTES,
     AnalysisJob,
+    build_analysis_diagnostics,
     clone_result,
     inspect_and_sanitize_image,
+    result_from_database,
     run_pipeline,
     user_value,
 )
 from .schemas import (
     AnalysisResult,
+    BarcodeAnalysisRequest,
+    CreateBarcodeAnalysisResponse,
     CreateAnalysisResponse,
     CuratedFoodRecord,
     FinalizeRequest,
     LabelRecordValidationResponse,
     NutrientFields,
+    OffProductLookupResponse,
     ProductIdentity,
     Provenance,
     ServingInformation,
@@ -120,6 +126,18 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get(
+    "/api/v1/off-products/{barcode}",
+    response_model=OffProductLookupResponse,
+    response_model_by_alias=True,
+)
+async def off_product_lookup(barcode: str, market: Literal["PH", "US"] = "PH") -> OffProductLookupResponse:
+    normalized = "".join(character for character in barcode if character.isdigit())
+    if normalized != barcode or not 6 <= len(normalized) <= 32:
+        raise HTTPException(status_code=422, detail="Barcode must be 6 to 32 digits.")
+    return await asyncio.to_thread(lookup_response, normalized, market)
+
+
 @app.post(
     "/api/v1/analyses",
     response_model=CreateAnalysisResponse,
@@ -161,6 +179,57 @@ async def create_analysis(
     JOBS[analysis_id] = job
     asyncio.create_task(run_pipeline(job))
     return CreateAnalysisResponse(analysis_id=analysis_id)
+
+
+@app.post(
+    "/api/v1/analyses/barcode",
+    response_model=CreateBarcodeAnalysisResponse,
+    response_model_by_alias=True,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_barcode_analysis(request: BarcodeAnalysisRequest) -> CreateBarcodeAnalysisResponse:
+    lookup = await asyncio.to_thread(lookup_local_off_product, request.barcode, request.market)
+    if lookup.status == "disabled":
+        raise HTTPException(status_code=409, detail="Local Open Food Facts lookup is disabled.")
+    if lookup.status == "db_missing":
+        raise HTTPException(status_code=503, detail="Local Open Food Facts database is not available.")
+    if lookup.status == "unsupported_market":
+        raise HTTPException(status_code=422, detail="The local Open Food Facts database currently supports the Philippines market.")
+    if lookup.status == "not_found" or not lookup.product:
+        raise HTTPException(status_code=404, detail="Barcode was not found in the local Open Food Facts database.")
+    if not lookup.complete:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Local Open Food Facts record is missing: {', '.join(lookup.missing_fields)}.",
+        )
+
+    analysis_id = str(uuid.uuid4())
+    temp_dir = Path(tempfile.mkdtemp(prefix=f"sugar-pai-{analysis_id[:8]}-"))
+    job = AnalysisJob(
+        analysis_id=analysis_id,
+        market=request.market,
+        temp_dir=temp_dir,
+        image_paths={},
+        quality_checks=[],
+        barcode=request.barcode,
+    )
+    diagnostics = build_analysis_diagnostics(job)
+    result = result_from_database(job, lookup.product, lookup.source_url, [LOCAL_OFF_SOURCE_NAME], diagnostics)
+    job.result = result
+    JOBS[analysis_id] = job
+
+    for event in [
+        {"type": "stage", "stage": "image_check", "status": "skipped", "label": "No images required for complete database match"},
+        {"type": "stage", "stage": "barcode_lookup", "status": "complete", "label": "Complete local database record found"},
+        {"type": "stage", "stage": "label_extraction", "status": "skipped", "label": "Complete local database record used for review"},
+        {"type": "stage", "stage": "ingredient_classification", "status": "complete" if result.raw_ingredients.value else "skipped", "label": "Database ingredient text classified" if result.raw_ingredients.value else "Database ingredient text unavailable"},
+        {"type": "stage", "stage": "evidence_assembly", "status": "complete", "label": "Database fields assembled for manual review"},
+        {"type": "stage", "stage": "safety_validation", "status": "complete", "label": "Deterministic copy only; unsupported health claims suppressed"},
+        {"type": "result", "result": result.model_dump(mode="json", by_alias=True)},
+    ]:
+        await job.publish(event)
+    job.done = True
+    return CreateBarcodeAnalysisResponse(analysis_id=analysis_id, result=result)
 
 
 def require_job(analysis_id: str) -> AnalysisJob:

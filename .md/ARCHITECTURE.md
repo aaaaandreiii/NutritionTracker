@@ -19,6 +19,8 @@ graph TD
     subgraph Backend [FastAPI]
         API[REST and SSE endpoints]
         Sanitizer[Image validation and EXIF stripping]
+        LocalOFF[(Generated OFF PH SQLite DB)]
+        Barcode[Local barcode lookup]
         Pipeline[VLM label pipeline]
         Validator[Deterministic validation]
         Catalog[Curated Filipino-food demo catalog]
@@ -26,7 +28,6 @@ graph TD
 
     subgraph External [Optional integrations]
         Ollama[Ollama VLM]
-        OFF[Open Food Facts barcode lookup]
     end
 
     Shell --> Packaged
@@ -35,10 +36,14 @@ graph TD
     Camera --> Packaged
     Camera --> Unlabeled
     Packaged -->|multipart package panels| API
+    Packaged -->|barcode lookup| API
+    API --> Barcode
+    Barcode --> LocalOFF
+    Barcode -->|complete match| Validator
     API --> Sanitizer
     Sanitizer --> Pipeline
     Pipeline --> Ollama
-    Pipeline -->|optional barcode| OFF
+    Pipeline --> Barcode
     Pipeline --> Validator
     Validator -->|SSE result| Packaged
     Unlabeled -->|catalog, identify, validate| API
@@ -52,14 +57,16 @@ graph TD
 
 ## Packaged-Label Data Flow
 
-1. User captures Nutrition Facts, ingredients, front label, and optional barcode images.
-2. Frontend quality checks run locally.
-3. Frontend creates an analysis job with `POST /api/v1/analyses`.
-4. Backend sanitizes uploads, runs the VLM pipeline, classifies ingredients, checks claims, and streams events.
-5. User corrects draft evidence in the review screen.
-6. Frontend finalizes with `POST /api/v1/analyses/{id}/finalize`.
-7. Backend returns a confirmed `AnalysisResult`.
-8. Frontend builds Smart Context and saves the local `packaged_label` log.
+1. User scans or types a UPC/EAN barcode. The frontend calls `GET /api/v1/off-products/{barcode}?market=PH`.
+2. If the local Open Food Facts row is complete, the frontend calls `POST /api/v1/analyses/barcode` and opens review without requiring images.
+3. If the local row is partial or missing, the user captures Nutrition Facts, ingredients, and front-label panels as needed.
+4. Frontend quality checks run locally.
+5. Frontend creates an image-based analysis job with `POST /api/v1/analyses`.
+6. Backend sanitizes uploads, checks the local OFF database first, runs the VLM only when label photos are needed, classifies ingredients, checks claims, and streams events.
+7. User corrects draft evidence in the review screen.
+8. Frontend finalizes with `POST /api/v1/analyses/{id}/finalize`.
+9. Backend returns a confirmed `AnalysisResult`.
+10. Frontend builds Smart Context and saves the local `packaged_label` log.
 
 ## Curated Unlabeled Demo Data Flow
 
@@ -114,9 +121,10 @@ Daily Dozen support state and custom recipes remain local to the browser.
 
 ## Service Boundaries
 
-- **FastAPI backend:** No durable database. Analysis jobs and uploads expire after 15 minutes.
+- **FastAPI backend:** No durable user database. Analysis jobs and uploads expire after 15 minutes.
+- **Generated local OFF database:** `backend/app/data/off_ph_products.db` is a static SQLite artifact generated from `research/openfoodfacts_export.csv`. It supports offline barcode lookup for `market=PH`; raw CSV is not required at runtime.
 - **Ollama:** Optional VLM provider for packaged-label extraction.
-- **Open Food Facts:** Optional barcode lookup when enabled; community data never replaces current label evidence without review.
+- **Open Food Facts data:** Community data is used as database evidence only. Complete matches can prefill review, and partial matches can act as fallback evidence, but user confirmation remains required before logging.
 - **Curated catalog:** Static qualitative demo data only. It does not contain calories, macros, GI, GL, or FNRI-derived claims.
 
 ## Safety Boundary

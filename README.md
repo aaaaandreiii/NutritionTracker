@@ -4,7 +4,8 @@ Sugar pAI is a privacy-first packaged-food decision-support and Smart Context re
 
 ## What V2 Does
 
-- **Packaged-label evidence review:** Capture Nutrition Facts, ingredients, front label, and optional barcode images; VLM extraction is treated as draft evidence until the user confirms it.
+- **Packaged-label evidence review:** Capture Nutrition Facts, ingredients, and front label panels; scan or type barcodes first when available.
+- **Local barcode lookup:** When enabled, UPC/EAN scans query a generated local Open Food Facts Philippines SQLite database before any label-image extraction.
 - **Deterministic validation:** Backend checks preserve unknown values, reject impossible sugar/carbohydrate arithmetic, and never turn missing fields into zero.
 - **Smart Context:** After backend validation, the app shows context rules for fiber, protein/fat, food order, ingredient flags, movement education, and data limits.
 - **Ingredient context flags:** Sugar aliases, high-fructose corn syrup, maltodextrin, starches, polyols, high-intensity sweeteners, and processing markers are shown as descriptive context rather than ratings.
@@ -25,6 +26,8 @@ GI and GL are handled conservatively:
 ## Backend Interfaces
 
 - `POST /api/v1/analyses`
+- `GET /api/v1/off-products/{barcode}?market=PH`
+- `POST /api/v1/analyses/barcode`
 - `GET /api/v1/analyses/{analysis_id}/events`
 - `POST /api/v1/analyses/{analysis_id}/finalize`
 - `POST /api/v1/label-records/validate`
@@ -60,6 +63,16 @@ PYTHONPATH=backend .venv/bin/pytest backend/tests
 ```
 
 Use Python 3.13 or earlier for the pinned backend stack; Python 3.14 can fail to build the pinned `pydantic-core` dependency.
+
+To regenerate the local Open Food Facts database from the research CSV:
+
+```bash
+PYTHONPATH=backend python -m app.db.ingest_off \
+  --csv research/openfoodfacts_export.csv \
+  --db backend/app/data/off_ph_products.db
+```
+
+Set `SUGAR_PAI_ENABLE_OFF_LOOKUP=true` to enable local lookup. `SUGAR_PAI_OFF_DB_PATH` defaults to `backend/app/data/off_ph_products.db`.
 
 ## Daily Dozen Support
 

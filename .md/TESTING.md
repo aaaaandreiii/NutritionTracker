@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Sugar pAI V2 uses Vitest for frontend domain logic and pytest for backend API, validation, extraction, taxonomy, glycemic, image-quality, and benchmark behavior.
+Sugar pAI V2 uses Vitest for frontend domain logic and pytest for backend API, validation, extraction, taxonomy, glycemic, image-quality, local Open Food Facts lookup, and benchmark behavior.
 
 ## Frontend
 
@@ -17,6 +17,7 @@ Current coverage includes:
 - Curated unlabeled demo Smart Context with no numeric GI or GL.
 - Backward-compatible log handling where missing `kind` means packaged-label.
 - Unknown label values remaining unknown.
+- Type coverage for image-free packaged-label review and local barcode lookup API shapes.
 
 ## Backend
 
@@ -29,7 +30,13 @@ PYTHONPATH=backend pytest backend/tests
 If the active `python3` is Python 3.14, use Python 3.13 or earlier for the pinned backend stack because `pydantic-core==2.33.2` may not build on 3.14.
 
 Current coverage includes:
+- CSV ingest into the generated OFF SQLite table, including Nescafe barcode `4800361403764` nutrient parsing.
+- Local OFF lookup statuses: complete match, partial match, not found, disabled, and missing database.
 - Packaged-label analysis/finalize/delete round trip.
+- Barcode-only analysis creation and finalize round trip.
+- Complete local barcode match skipping VLM.
+- Partial local barcode match running VLM while preserving local database fallback values.
+- OFF ingredient text classification for sucrose, glucose syrup, maltodextrin, and acesulfame potassium.
 - Stateless label-record validation.
 - Sugar taxonomy and heuristic demo GL labeling.
 - Image quality checks.
@@ -54,6 +61,8 @@ The production Vite build should complete without type or bundling errors.
 
 - Default app route opens `#/sugar-pai/scan`.
 - Packaged-label mode shows Smart Context only after validation.
+- Live barcode scanner detects UPC/EAN codes, shows local lookup status, and opens image-free review for complete local matches.
+- Partial or missing barcode matches explain missing fields and keep the image capture path available.
 - Unlabeled demo mode allows manual catalog selection when photo hints fail.
 - Curated demo logs show context-only totals in Today and History.
 - Old packaged-label logs without `kind` still open in History.
