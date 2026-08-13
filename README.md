@@ -74,7 +74,7 @@ PYTHONPATH=backend python -m app.db.ingest_off \
 
 Set `SUGAR_PAI_ENABLE_OFF_LOOKUP=true` to enable local lookup. `SUGAR_PAI_OFF_DB_PATH` defaults to `backend/app/data/off_ph_products.db`.
 
-For same-domain tunnels or reverse proxies, build the frontend with `VITE_API_BASE_URL=same-origin` and route `/api/*` plus `/health` to the backend service.
+For same-domain tunnels or reverse proxies, build the frontend with `VITE_API_BASE_URL=same-origin` and route API paths plus `/health` to the backend service. With `cloudflared` path rules, use `/api/.*` for nested API routes.
 
 ## Daily Dozen Support
 

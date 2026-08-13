@@ -47,7 +47,7 @@ export async function createAnalysis(
 
   const response = await fetchApi(`${API_BASE}/api/v1/analyses`, { method: 'POST', body })
   if (!response.ok) throw new Error(await responseMessage(response, 'Could not start analysis.'))
-  const payload = (await response.json()) as { analysisId: string }
+  const payload = await jsonResponse<{ analysisId: string }>(response, 'Could not start analysis.')
   return payload.analysisId
 }
 
@@ -57,7 +57,7 @@ export async function lookupOffProduct(barcode: string, market: Market): Promise
     cache: 'no-store',
   })
   if (!response.ok) throw new Error(await responseMessage(response, 'Could not check the local product database.'))
-  return response.json() as Promise<OffProductLookupResponse>
+  return jsonResponse<OffProductLookupResponse>(response, 'Could not check the local product database.')
 }
 
 export async function createBarcodeAnalysis(barcode: string, market: Market): Promise<AnalysisResult> {
@@ -67,7 +67,7 @@ export async function createBarcodeAnalysis(barcode: string, market: Market): Pr
     body: JSON.stringify({ barcode, market }),
   })
   if (!response.ok) throw new Error(await responseMessage(response, 'Could not create a database-prefilled analysis.'))
-  const payload = (await response.json()) as { analysisId: string; result: AnalysisResult }
+  const payload = await jsonResponse<{ analysisId: string; result: AnalysisResult }>(response, 'Could not create a database-prefilled analysis.')
   return payload.result
 }
 
@@ -106,7 +106,7 @@ export async function finalizeAnalysis(
     body: JSON.stringify(corrections),
   })
   if (!response.ok) throw new Error(await responseMessage(response, 'Could not confirm this result.'))
-  return response.json() as Promise<AnalysisResult>
+  return jsonResponse<AnalysisResult>(response, 'Could not confirm this result.')
 }
 
 export async function validateLabelRecord(
@@ -118,7 +118,7 @@ export async function validateLabelRecord(
     body: JSON.stringify(corrections),
   })
   if (!response.ok) throw new Error(await responseMessage(response, 'Could not validate this record.'))
-  return response.json() as Promise<LabelRecordValidation>
+  return jsonResponse<LabelRecordValidation>(response, 'Could not validate this record.')
 }
 
 export async function getUnlabeledFoodCatalog(market: Extract<Market, 'PH'>): Promise<UnlabeledFoodCatalogResponse> {
@@ -127,7 +127,7 @@ export async function getUnlabeledFoodCatalog(market: Extract<Market, 'PH'>): Pr
     cache: 'no-store',
   })
   if (!response.ok) throw new Error(await responseMessage(response, 'Could not load the curated demo catalog.'))
-  return response.json() as Promise<UnlabeledFoodCatalogResponse>
+  return jsonResponse<UnlabeledFoodCatalogResponse>(response, 'Could not load the curated demo catalog.')
 }
 
 export async function identifyUnlabeledFood(
@@ -140,7 +140,7 @@ export async function identifyUnlabeledFood(
 
   const response = await fetchApi(`${API_BASE}/api/v1/unlabeled-foods/identify`, { method: 'POST', body })
   if (!response.ok) throw new Error(await responseMessage(response, 'Could not identify a curated demo candidate.'))
-  return response.json() as Promise<UnlabeledFoodIdentifyResponse>
+  return jsonResponse<UnlabeledFoodIdentifyResponse>(response, 'Could not identify a curated demo candidate.')
 }
 
 export async function validateUnlabeledFoodRecord(
@@ -152,7 +152,7 @@ export async function validateUnlabeledFoodRecord(
     body: JSON.stringify(request),
   })
   if (!response.ok) throw new Error(await responseMessage(response, 'Could not validate this curated demo record.'))
-  return response.json() as Promise<CuratedFoodRecord>
+  return jsonResponse<CuratedFoodRecord>(response, 'Could not validate this curated demo record.')
 }
 
 export async function deleteAnalysis(analysisId: string): Promise<void> {
@@ -166,6 +166,13 @@ export async function checkBackendHealth(): Promise<BackendHealth> {
       return {
         ok: false,
         message: `Backend responded with HTTP ${response.status} at ${API_BASE_LABEL}. Check Docker/uvicorn and retry.`,
+        baseUrl: API_BASE,
+      }
+    }
+    if (!isJsonResponse(response)) {
+      return {
+        ok: false,
+        message: routeReturnedHtmlMessage('/health'),
         baseUrl: API_BASE,
       }
     }
@@ -188,8 +195,40 @@ async function fetchApi(input: RequestInfo | URL, init?: RequestInit): Promise<R
   }
 }
 
+async function jsonResponse<T>(response: Response, fallback: string): Promise<T> {
+  if (!isJsonResponse(response)) {
+    const text = await response.text().catch(() => '')
+    if (looksLikeHtml(text)) throw new Error(routeReturnedHtmlMessage(new URL(response.url).pathname))
+    throw new Error(fallback)
+  }
+  try {
+    return await response.json() as T
+  } catch {
+    throw new Error(fallback)
+  }
+}
+
+function isJsonResponse(response: Response): boolean {
+  return (response.headers.get('content-type') ?? '').toLowerCase().includes('application/json')
+}
+
+function looksLikeHtml(text: string): boolean {
+  const trimmed = text.trimStart().toLowerCase()
+  return trimmed.startsWith('<!doctype html') || trimmed.startsWith('<html')
+}
+
+function routeReturnedHtmlMessage(path: string): string {
+  const route = path.startsWith('/api/') ? '/api/.*' : path
+  return `Backend route ${route} returned the frontend page. Check Cloudflare Tunnel path routing so /health and /api/.* point to FastAPI.`
+}
+
 async function responseMessage(response: Response, fallback: string) {
   try {
+    if (!isJsonResponse(response)) {
+      const text = await response.text().catch(() => '')
+      if (looksLikeHtml(text)) return routeReturnedHtmlMessage(new URL(response.url).pathname)
+      return fallback
+    }
     const payload = (await response.json()) as { detail?: string }
     return payload.detail ?? fallback
   } catch {

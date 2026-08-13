@@ -24,7 +24,7 @@ SUGAR_PAI_OFF_DB_PATH=backend/app/data/off_ph_products.db
 MLFLOW_TRACKING_URI=
 
 # Frontend Configuration
-# Use `same-origin` when a tunnel or reverse proxy routes /api/* and /health to the backend.
+# Use `same-origin` when a tunnel or reverse proxy routes API paths and /health to the backend.
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
@@ -93,12 +93,12 @@ Do not build the public frontend with a plain `http://<ip>:<port>` backend URL w
 Recommended same-domain setup:
 
 1. Run the frontend and backend on the VM, for example frontend on `127.0.0.1:5173` and backend on `127.0.0.1:2164`.
-2. Configure the Cloudflare Tunnel so API paths go to the backend before the catch-all frontend route:
+2. Configure the Cloudflare Tunnel so API paths go to the backend before the catch-all frontend route. In `cloudflared` tunnel configs, `path` is a regular expression, so use `/api/.*` for nested API routes rather than `/api/*`.
 
    ```yaml
    ingress:
      - hostname: sugar-pai.balingit.me
-       path: /api/*
+       path: /api/.*
        service: http://127.0.0.1:2164
      - hostname: sugar-pai.balingit.me
        path: /health
@@ -107,6 +107,8 @@ Recommended same-domain setup:
        service: http://127.0.0.1:5173
      - service: http_status:404
    ```
+
+   If `cloudflared` runs on the VM host while the backend runs in Docker, use the host-published backend port, not the container-internal port. For example, if `http://103.231.240.130:2164/health` works publicly and `curl http://localhost:2164/health` works on the VM, use `http://127.0.0.1:2164` as the tunnel service.
 
 3. Build or restart the frontend with:
 
