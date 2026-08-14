@@ -27,6 +27,8 @@ dist-ssr
 *.sw?
 
 .vercel
+playwright-report/
+test-results/
 
 # Python research service
 __pycache__/

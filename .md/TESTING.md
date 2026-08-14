@@ -18,6 +18,7 @@ Current coverage includes:
 - Backward-compatible log handling where missing `kind` means packaged-label.
 - Unknown label values remaining unknown.
 - Type coverage for image-free packaged-label review and local barcode lookup API shapes.
+- Workflow progress, citation-link parsing, chunked POST-SSE parsing, and local chat-thread IndexedDB v1→v2 migration/CRUD.
 
 ## Backend
 
@@ -46,6 +47,7 @@ Current coverage includes:
 - Curated record validation.
 - Unknown curated food and invalid portion rejection.
 - Guarantee that curated demo records return no numeric GI or GL.
+- Chat event ordering, product grounding, safety and out-of-scope refusals, request limits, authoritative-domain filtering, and source deduplication with mocked Ollama output.
 
 ## Build Verification
 
@@ -68,3 +70,5 @@ The production Vite build should complete without type or bundling errors.
 - Old packaged-label logs without `kind` still open in History.
 - Exported JSON/CSV excludes retained image blobs.
 - No UI copy makes treatment, medication, insulin, suitability, or glucose-prediction claims.
+- Ask supports general or validated-product context; sources appear before text; citation activation highlights matching evidence; stop/retry/regenerate preserve the local thread.
+- At 375, 430, 768, 1024, 1440, and 1920 px, check for horizontal overflow, fixed-UI overlap, truncated controls, camera denial recovery, and touch targets under 44 px.

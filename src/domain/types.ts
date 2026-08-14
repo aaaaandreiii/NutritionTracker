@@ -336,3 +336,59 @@ export interface ImageQualityReport {
   checks: QualityCheck[]
   canSubmit: boolean
 }
+
+export type ChatSourceType = 'product' | 'curated' | 'web'
+
+export interface ChatSource {
+  id: string
+  index: number
+  type: ChatSourceType
+  relationship: 'direct' | 'supporting' | 'background'
+  strength: 'strong' | 'moderate' | 'weak'
+  title: string
+  publisher: string
+  domain: string
+  url: string | null
+  excerpt: string
+}
+
+export interface ChatProductContext {
+  localLogId: string
+  productName: string
+  brand: string | null
+  market: Market
+  servingLabel: string | null
+  barcode: string | null
+  nutrients: Record<NutrientKey, number | null>
+  ingredients: string | null
+  sugarVariants: string[]
+  glycemicStatus: GlycemicEvidence['status'] | null
+  glycemicReason: string | null
+}
+
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+  sources: ChatSource[]
+  warnings: string[]
+  state: 'complete' | 'streaming' | 'error' | 'cancelled'
+  error?: { code: string; message: string; retryable: boolean }
+}
+
+export interface ChatThread {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  context: ChatProductContext | null
+  messages: ChatMessage[]
+}
+
+export type ChatStreamEvent =
+  | { type: 'stage'; stage: string; label: string }
+  | { type: 'sources'; sources: ChatSource[]; warnings: string[] }
+  | { type: 'delta'; text: string }
+  | { type: 'done'; finishReason: string }
+  | { type: 'error'; code: string; message: string; retryable: boolean }

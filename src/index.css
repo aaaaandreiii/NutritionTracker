@@ -58,6 +58,50 @@ body {
   margin: 0;
 }
 
+.global-menu-button {
+  display: none;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  color: #374151;
+  align-items: center;
+  justify-content: center;
+}
+
+.global-app-header h1 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.global-app-header p { margin: 2px 0 0; }
+
+html.sugar-pai-focus-active .global-app-header { display: none; }
+
+@media (max-width: 760px) {
+  .global-app-header { min-height: 58px; }
+  .global-menu-button { display: inline-flex; }
+  .global-target-menu { display: none; }
+  .global-destinations {
+    display: none !important;
+    position: absolute;
+    z-index: 80;
+    top: calc(100% + 6px);
+    left: 12px;
+    right: 12px;
+    padding: 8px !important;
+    background: #fffdf8 !important;
+    border: 1px solid #dedbd1;
+    box-shadow: 0 18px 45px rgba(35, 45, 39, .14);
+  }
+  .global-destinations.open { display: grid !important; grid-template-columns: 1fr 1fr; }
+  .global-destinations a { min-height: 48px; justify-content: flex-start; }
+  .global-brand-subtitle { display: none; }
+}
+
 #root {
   width: 1920px;
   max-width: 100%;

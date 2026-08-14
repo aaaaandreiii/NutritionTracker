@@ -59,7 +59,7 @@ export default function TodayPage({ onScan }: Props) {
           </div>
         )}
       </section>
-      <p className="page-footnote">Totals are educational records of confirmed package-label values. “Unknown” is preserved and does not count as zero.</p>
+      <p className="page-footnote">Totals are educational records of confirmed package-label values. “Not declared / unavailable” is preserved and does not count as zero.</p>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  Activity, Target, ShoppingBag, ChefHat, ChevronDown, CheckCircle2, AlertTriangle, Sparkles 
+  Activity, Target, ShoppingBag, ChefHat, ChevronDown, CheckCircle2, AlertTriangle, Sparkles, Menu, X
 } from 'lucide-react';
 
 import { DAILY_DOZEN_CATEGORIES, goalPresets, mealSlots, healthyRecipesDB } from './data/constants';
@@ -35,6 +35,7 @@ export default function App() {
   const [customTargets, setCustomTargets] = useState({ ...goalPresets['Standard Daily Dozen'] });
   const [isConfiguringTargets, setIsConfiguringTargets] = useState(false);
   const [isPresetDropdownOpen, setIsPresetDropdownOpen] = useState(false);
+  const [isGlobalMenuOpen, setIsGlobalMenuOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -81,8 +82,10 @@ export default function App() {
   }, []);
 
   const handleTabChange = (tabName) => {
+    if (tabName !== 'sugar-pai' && document.documentElement.dataset.sugarPaiUnsaved === 'true' && !window.confirm('Leave this label workflow? The unvalidated capture has not been saved.')) return;
     window.location.hash = tabName === 'sugar-pai' ? '#/sugar-pai/scan' : `#/${tabName}`;
     setActiveTab(tabName);
+    setIsGlobalMenuOpen(false);
   };
 
   // State-driven Camera Monitor: Automatically turn off camera whenever not on 'sugar-pai' tab
@@ -228,27 +231,31 @@ export default function App() {
         </div>
       )}
 
-      <header className="sticky top-0 z-40 bg-[#FAF9F6]/90 backdrop-blur-md border-b border-gray-100/60 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 max-w-7xl mx-auto w-full">
+      <header className="global-app-header sticky top-0 z-40 bg-[#FAF9F6]/90 backdrop-blur-md border-b border-gray-100/60 px-5 py-2.5 flex items-center justify-between gap-4 max-w-7xl mx-auto w-full">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/10">
+          <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/10">
             <Activity size={20} />
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-900 font-serif flex items-center gap-1.5">
               Sugar pAI <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-sans font-bold">V2</span>
             </h1>
-            <p className="text-[10px] text-gray-400 font-medium">Packaged-food evidence and Smart Context research</p>
+            <p className="global-brand-subtitle text-[11px] text-gray-500 font-medium">Nutrition evidence and daily support</p>
           </div>
         </div>
 
-        <nav className="flex items-center gap-1 bg-gray-100/65 p-1 rounded-2xl">
+        <button className="global-menu-button" onClick={() => setIsGlobalMenuOpen((open) => !open)} aria-expanded={isGlobalMenuOpen} aria-label="Open app destinations">
+          {isGlobalMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+
+        <nav className={`global-destinations flex items-center gap-1 bg-gray-100/65 p-1 rounded-lg ${isGlobalMenuOpen ? 'open' : ''}`}>
           <a 
             href="#/sugar-pai/scan"
             onClick={(e) => {
               e.preventDefault();
               handleTabChange('sugar-pai');
             }}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-all ${
               activeTab === 'sugar-pai' ? 'bg-white text-emerald-600 shadow-xs' : 'text-gray-500 hover:text-gray-900'
             }`}
           >
@@ -261,7 +268,7 @@ export default function App() {
               e.preventDefault();
               handleTabChange('dashboard');
             }}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-all ${
               activeTab === 'dashboard' ? 'bg-white text-emerald-600 shadow-xs' : 'text-gray-500 hover:text-gray-900'
             }`}
           >
@@ -274,7 +281,7 @@ export default function App() {
               e.preventDefault();
               handleTabChange('pantry');
             }}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-all ${
               activeTab === 'pantry' ? 'bg-white text-emerald-600 shadow-xs' : 'text-gray-500 hover:text-gray-900'
             }`}
           >
@@ -287,7 +294,7 @@ export default function App() {
               e.preventDefault();
               handleTabChange('recipes');
             }}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-all ${
               activeTab === 'recipes' ? 'bg-white text-emerald-600 shadow-xs' : 'text-gray-500 hover:text-gray-900'
             }`}
           >
@@ -296,7 +303,7 @@ export default function App() {
           </a>
         </nav>
 
-        <div className="relative">
+        <div className="global-target-menu relative">
           <button 
             onClick={() => setIsPresetDropdownOpen(!isPresetDropdownOpen)}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-100 hover:bg-gray-50 rounded-2xl text-xs font-bold text-gray-700 shadow-xs transition-all"
@@ -343,7 +350,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 mt-8">
+      <main className={activeTab === 'sugar-pai' ? '' : 'max-w-7xl mx-auto px-6 mt-8'}>
         <div className={activeTab === 'sugar-pai' ? 'block' : 'hidden'}>
           <SugarPAI 
             triggerToast={triggerToast}

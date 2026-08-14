@@ -17,6 +17,9 @@ LLM_PROVIDER=ollama
 OLLAMA_BASE_URL=http://host.docker.internal:11434
 SUGAR_PAI_VISION_MODEL=gemma4:12b
 SUGAR_PAI_VISION_TIMEOUT_SECONDS=120
+SUGAR_PAI_CHAT_MODEL=gemma4:12b
+SUGAR_PAI_CHAT_TIMEOUT_SECONDS=120
+TAVILY_API_KEY=
 
 # Backend Feature Flags
 SUGAR_PAI_ENABLE_OFF_LOOKUP=false
@@ -29,6 +32,8 @@ VITE_API_BASE_URL=http://localhost:8000
 ```
 
 *Note: When running Ollama locally on the host machine while the backend is in a Docker container, `host.docker.internal` is crucial for the container to access the host's Ollama API port.*
+
+`SUGAR_PAI_CHAT_MODEL` falls back to `SUGAR_PAI_VISION_MODEL` when omitted. `TAVILY_API_KEY` is optional: without it, or if Tavily fails, chat retrieval remains curated-only. Never expose the Tavily key through a `VITE_` variable.
 
 ### Local Open Food Facts Database
 
@@ -155,6 +160,7 @@ After deployment, verify:
 curl -s http://localhost:8000/health
 curl -s 'http://localhost:8000/api/v1/off-products/4800361403764?market=PH'
 curl -s 'http://localhost:8000/api/v1/unlabeled-foods/catalog?market=PH'
+curl -N -X POST http://localhost:8000/api/v1/chat/stream -H 'Content-Type: application/json' -d '{"question":"What are added sugars?","turns":[]}'
 ```
 
 The barcode smoke response should report `status: "found"` and `complete: true` when local lookup is enabled. The curated catalog response must not include numeric calories, macros, GI, or GL.

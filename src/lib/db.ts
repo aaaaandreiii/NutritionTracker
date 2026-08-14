@@ -1,21 +1,32 @@
 import { openDB } from 'idb'
 import { isCuratedUnlabeledLog, isPackagedLabelLog, logEntryKind, logStatusLabel } from '../domain/logs'
-import type { LogEntry } from '../domain/types'
+import type { ChatThread, LogEntry } from '../domain/types'
 
 const DB_NAME = 'sugar-pai-research'
 const STORE_NAME = 'logs'
+const THREAD_STORE = 'chatThreads'
 
-const dbPromise = openDB(DB_NAME, 1, {
-  upgrade(db) {
-    const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' })
-    store.createIndex('loggedAt', 'loggedAt')
+function announce(name: string) {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(name))
+}
+
+const dbPromise = openDB(DB_NAME, 2, {
+  upgrade(db, oldVersion) {
+    if (oldVersion < 1) {
+      const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' })
+      store.createIndex('loggedAt', 'loggedAt')
+    }
+    if (oldVersion < 2) {
+      const threads = db.createObjectStore(THREAD_STORE, { keyPath: 'id' })
+      threads.createIndex('updatedAt', 'updatedAt')
+    }
   },
 })
 
 export async function saveLog(entry: LogEntry): Promise<void> {
   const db = await dbPromise
   await db.put(STORE_NAME, entry)
-  window.dispatchEvent(new CustomEvent('sugar-pai:logs-changed'))
+  announce('sugar-pai:logs-changed')
 }
 
 export async function listLogs(): Promise<LogEntry[]> {
@@ -27,13 +38,42 @@ export async function listLogs(): Promise<LogEntry[]> {
 export async function deleteLog(id: string): Promise<void> {
   const db = await dbPromise
   await db.delete(STORE_NAME, id)
-  window.dispatchEvent(new CustomEvent('sugar-pai:logs-changed'))
+  announce('sugar-pai:logs-changed')
 }
 
 export async function deleteAllLogs(): Promise<void> {
   const db = await dbPromise
   await db.clear(STORE_NAME)
-  window.dispatchEvent(new CustomEvent('sugar-pai:logs-changed'))
+  announce('sugar-pai:logs-changed')
+}
+
+export async function saveChatThread(thread: ChatThread): Promise<void> {
+  const db = await dbPromise
+  await db.put(THREAD_STORE, thread)
+  announce('sugar-pai:threads-changed')
+}
+
+export async function listChatThreads(): Promise<ChatThread[]> {
+  const db = await dbPromise
+  const threads = await db.getAll(THREAD_STORE) as ChatThread[]
+  return threads.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+}
+
+export async function getChatThread(id: string): Promise<ChatThread | undefined> {
+  const db = await dbPromise
+  return db.get(THREAD_STORE, id) as Promise<ChatThread | undefined>
+}
+
+export async function deleteChatThread(id: string): Promise<void> {
+  const db = await dbPromise
+  await db.delete(THREAD_STORE, id)
+  announce('sugar-pai:threads-changed')
+}
+
+export async function deleteAllChatThreads(): Promise<void> {
+  const db = await dbPromise
+  await db.clear(THREAD_STORE)
+  announce('sugar-pai:threads-changed')
 }
 
 function download(contents: string, mime: string, filename: string) {

@@ -11,6 +11,7 @@ Sugar pAI is a privacy-first packaged-food decision-support and Smart Context re
 - **Ingredient context flags:** Sugar aliases, high-fructose corn syrup, maltodextrin, starches, polyols, high-intensity sweeteners, and processing markers are shown as descriptive context rather than ratings.
 - **Curated unlabeled demo mode:** A Filipino-food demo catalog can suggest candidates from a food photo filename hint, but the user must confirm food and portion before Smart Context appears.
 - **Local history:** Confirmed records are stored in browser IndexedDB. Source images are retained only when the user opts in for packaged-label records.
+- **Evidence chat:** `#/sugar-pai/ask` streams Markdown answers grounded in a selected local product plus curated sources, with interactive citation highlighting and browser-local thread history.
 
 ## Safety Boundary
 
@@ -34,6 +35,7 @@ GI and GL are handled conservatively:
 - `GET /api/v1/unlabeled-foods/catalog?market=PH`
 - `POST /api/v1/unlabeled-foods/identify`
 - `POST /api/v1/unlabeled-food-records/validate`
+- `POST /api/v1/chat/stream` (POST-based SSE: `stage`, `sources`, `delta`, `done`, and `error`)
 
 ## Quickstart
 
@@ -73,6 +75,8 @@ PYTHONPATH=backend python -m app.db.ingest_off \
 ```
 
 Set `SUGAR_PAI_ENABLE_OFF_LOOKUP=true` to enable local lookup. `SUGAR_PAI_OFF_DB_PATH` defaults to `backend/app/data/off_ph_products.db`.
+
+Evidence chat uses `SUGAR_PAI_CHAT_MODEL` (falling back to `SUGAR_PAI_VISION_MODEL`) and `SUGAR_PAI_CHAT_TIMEOUT_SECONDS=120`. `TAVILY_API_KEY` is optional; missing credentials or search failures use curated evidence only. Conversations remain in browser IndexedDB and are not stored by FastAPI.
 
 For same-domain tunnels or reverse proxies, build the frontend with `VITE_API_BASE_URL=same-origin` and route API paths plus `/health` to the backend service. With `cloudflared` path rules, use `/api/.*` for nested API routes.
 

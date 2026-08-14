@@ -21,7 +21,7 @@ export default function ImagePanelCard(props: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   return (
-    <section className={`panel-card ${props.file ? 'has-image' : ''}`}>
+    <section className={`panel-card ${props.file ? 'has-image' : ''} ${props.required ? 'panel-required' : 'panel-optional'}`}>
       <input
         ref={inputRef}
         type="file"

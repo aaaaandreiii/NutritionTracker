@@ -69,7 +69,7 @@ function formatDateTime(iso: string): string {
 }
 
 function formatValue(value: number | null): string {
-  return value == null ? 'Unknown' : `${value} g`
+  return value == null ? 'Not declared / unavailable' : `${value} g`
 }
 
 function statusSlug(status: string): string {
@@ -279,7 +279,7 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: PackagedLabelLogEntry;
                   type="number"
                   min="0"
                   step="any"
-                  placeholder="Unknown"
+                  placeholder="Not declared / unavailable"
                   value={draft.servingSize ?? ''}
                   onChange={(event) => {
                     markEdited('servingSize')
@@ -323,7 +323,7 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: PackagedLabelLogEntry;
                     min="0"
                     step="any"
                     value={draft.nutrients[key] ?? ''}
-                    placeholder="Unknown"
+                    placeholder="Not declared / unavailable"
                     onChange={(event) => {
                       markEdited(key)
                       const nutrientValue = numberFromInput(event.target.value)

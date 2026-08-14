@@ -1,6 +1,6 @@
 # API Documentation
 
-The FastAPI backend exposes short-lived packaged-label analysis jobs, local barcode lookup, stateless label validation, and curated unlabeled-food demo endpoints.
+The FastAPI backend exposes short-lived packaged-label analysis jobs, local barcode lookup, stateless label validation, curated unlabeled-food demo endpoints, and evidence-grounded chat streaming. It stores no conversations.
 
 ## General Notes
 
@@ -22,6 +22,30 @@ Returns:
 ```json
 { "status": "ok" }
 ```
+
+### Stream Evidence Chat
+
+`POST /api/v1/chat/stream`
+
+Content type: `application/json`; response type: `text/event-stream`. This uses POST-based SSE so the validated product context is not placed in a URL.
+
+Request constraints:
+
+- `question`: 1–2,000 characters
+- `turns`: at most 10 prior `{ role, content }` messages
+- `product`: optional minimal snapshot of one locally validated packaged-label record
+
+The optional product contains its local log reference, product/serving identity, nullable nutrient values, ingredients, matched sugar-variant names, and explicit glycemic-evidence status. `null` continues to mean **Not declared / unavailable**, never zero.
+
+Events are emitted in this order:
+
+1. `stage` for safety and retrieval status
+2. `sources`, always before answer text, with up to six stable/deduplicated sources
+3. `stage` for generation
+4. zero or more `delta` token events
+5. `done`, or an `error` containing `code`, `message`, and `retryable`
+
+Source snapshots include `id`, `index`, `type`, `relationship`, `strength`, `title`, `publisher`, `domain`, `url`, and a supporting excerpt. Safety refusals, out-of-scope answers, and no-evidence answers are deterministic and do not call the model. Model timeouts and availability failures are retryable. Tavily absence or failure falls back to curated-only retrieval.
 
 ### Create Packaged-Label Analysis
 

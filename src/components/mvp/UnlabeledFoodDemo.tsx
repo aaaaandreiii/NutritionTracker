@@ -49,7 +49,6 @@ export default function UnlabeledFoodDemo({ onLogged }: Props) {
 
   useEffect(() => {
     let cancelled = false
-    setCatalogLoading(true)
     getUnlabeledFoodCatalog('PH')
       .then((payload) => {
         if (cancelled) return

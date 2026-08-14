@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from .db.off_products import LOCAL_OFF_SOURCE_NAME, lookup_local_off_product, lookup_response
+from .chat import chat_event_stream
 from .glycemic import build_glycemic_evidence
 from .pipeline import (
     JOB_TTL_SECONDS,
@@ -30,6 +31,7 @@ from .pipeline import (
 from .schemas import (
     AnalysisResult,
     BarcodeAnalysisRequest,
+    ChatRequest,
     CreateBarcodeAnalysisResponse,
     CreateAnalysisResponse,
     CuratedFoodRecord,
@@ -124,6 +126,15 @@ async def save_upload(upload: UploadFile, kind: str, temp_dir: Path) -> tuple[Pa
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/api/v1/chat/stream")
+async def stream_chat(request: ChatRequest) -> StreamingResponse:
+    return StreamingResponse(
+        chat_event_stream(request),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get(

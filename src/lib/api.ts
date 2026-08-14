@@ -1,6 +1,8 @@
 import type {
   AnalysisResult,
   AnalysisStageEvent,
+  ChatProductContext,
+  ChatStreamEvent,
   CuratedFoodRecord,
   FinalizeCorrections,
   LabelRecordValidation,
@@ -157,6 +159,55 @@ export async function validateUnlabeledFoodRecord(
 
 export async function deleteAnalysis(analysisId: string): Promise<void> {
   await fetchApi(`${API_BASE}/api/v1/analyses/${analysisId}`, { method: 'DELETE', keepalive: true })
+}
+
+export interface StreamChatRequest {
+  question: string
+  turns: Array<{ role: 'user' | 'assistant'; content: string }>
+  product?: ChatProductContext
+}
+
+export async function parseSseStream(
+  stream: ReadableStream<Uint8Array>,
+  onEvent: (event: ChatStreamEvent) => void,
+): Promise<void> {
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    buffer += decoder.decode(value, { stream: !done })
+    const frames = buffer.split(/\r?\n\r?\n/)
+    buffer = frames.pop() ?? ''
+    for (const frame of frames) {
+      const data = frame.split(/\r?\n/)
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).trimStart())
+        .join('\n')
+      if (data) onEvent(JSON.parse(data) as ChatStreamEvent)
+    }
+    if (done) break
+  }
+  const trailing = buffer.trim()
+  if (trailing.startsWith('data:')) {
+    onEvent(JSON.parse(trailing.slice(5).trimStart()) as ChatStreamEvent)
+  }
+}
+
+export async function streamChat(
+  request: StreamChatRequest,
+  onEvent: (event: ChatStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetchApi(`${API_BASE}/api/v1/chat/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+    body: JSON.stringify(request),
+    signal,
+  })
+  if (!response.ok) throw new Error(await responseMessage(response, 'Could not start evidence chat.'))
+  if (!response.body) throw new Error('The chat response did not include a readable stream.')
+  await parseSseStream(response.body, onEvent)
 }
 
 export async function checkBackendHealth(): Promise<BackendHealth> {

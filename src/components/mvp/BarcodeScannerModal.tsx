@@ -1,18 +1,21 @@
-import { Barcode, CheckCircle2, LoaderCircle, X } from 'lucide-react'
+import { Barcode, CheckCircle2, LoaderCircle, RefreshCw, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { IScannerControls } from '@zxing/browser'
 
 interface Props {
   onDetected: (barcode: string) => void
+  onUpload: (file: File) => void
   onClose: () => void
 }
 
 type ScannerState = 'starting' | 'scanning' | 'detected' | 'not-detected' | 'error'
 
-export default function BarcodeScannerModal({ onDetected, onClose }: Props) {
+export default function BarcodeScannerModal({ onDetected, onUpload, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const uploadRef = useRef<HTMLInputElement>(null)
   const [scannerState, setScannerState] = useState<ScannerState>('starting')
   const [message, setMessage] = useState('Starting camera...')
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -60,17 +63,25 @@ export default function BarcodeScannerModal({ onDetected, onClose }: Props) {
       }
     }
 
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     void startScanner()
 
     return () => {
       cancelled = true
       controls?.stop()
+      document.body.style.overflow = previousOverflow
     }
-  }, [onDetected])
+  }, [attempt, onDetected])
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Scan barcode">
       <div className="camera-modal barcode-live-modal">
+        <input ref={uploadRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(event) => {
+          const file = event.target.files?.[0]
+          if (file) { onUpload(file); onClose() }
+          event.target.value = ''
+        }} />
         <div className="modal-header">
           <div><strong>Barcode scanner</strong><small>Align a UPC or EAN code inside the guide.</small></div>
           <button className="icon-button" onClick={onClose} aria-label="Close scanner"><X size={20} /></button>
@@ -84,6 +95,7 @@ export default function BarcodeScannerModal({ onDetected, onClose }: Props) {
           {scannerState === 'detected' ? <CheckCircle2 size={18} /> : scannerState === 'starting' ? <LoaderCircle className="spin" size={18} /> : <Barcode size={18} />}
           <span>{message}</span>
         </div>
+        {scannerState === 'error' && <div className="camera-recovery-actions"><button className="secondary-button" onClick={() => { setScannerState('starting'); setAttempt((value) => value + 1) }}><RefreshCw size={17} /> Retry camera</button><button className="secondary-button" onClick={() => uploadRef.current?.click()}><Upload size={17} /> Upload barcode photo</button></div>}
       </div>
     </div>
   )

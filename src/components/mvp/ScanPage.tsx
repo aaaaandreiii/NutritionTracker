@@ -274,7 +274,7 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
     }
   }
 
-  const useDatabaseMatch = async () => {
+  const selectDatabaseMatch = async () => {
     if (!barcodeLookup?.complete) return
     setSession((previous) => ({
       ...previous,
@@ -318,7 +318,7 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
   }
 
   if (result) {
-    return <EvidenceReview result={result} images={images} onBack={() => void returnToScan()} onLogged={onLogged} />
+    return <EvidenceReview result={result} images={images} onBack={() => void returnToScan()} onLogged={onLogged} onValidated={(validated) => setSession((previous) => ({ ...previous, result: validated }))} />
   }
 
   const heroCopy = scanMode === 'packaged_label'
@@ -351,7 +351,7 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
           onOpenScanner={() => setBarcodeScannerOpen(true)}
           onChooseBarcodeImage={(file) => void chooseBarcodeImage(file)}
           onRemoveBarcodeImage={removeBarcodeImage}
-          onUseDatabaseMatch={() => void useDatabaseMatch()}
+          onUseDatabaseMatch={() => void selectDatabaseMatch()}
           onMarketChange={(nextMarket) => setSession((previous) => ({ ...previous, market: nextMarket }))}
           onBarcodeChange={(nextBarcode) => setSession((previous) => ({
             ...previous,
@@ -471,7 +471,7 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
           onClose={() => setSession((previous) => ({ ...previous, cameraPanel: null }))}
         />
       )}
-      {barcodeScannerOpen && <BarcodeScannerModal onDetected={handleLiveBarcodeDetected} onClose={() => setBarcodeScannerOpen(false)} />}
+      {barcodeScannerOpen && <BarcodeScannerModal onDetected={handleLiveBarcodeDetected} onUpload={(file) => void chooseBarcodeImage(file)} onClose={() => setBarcodeScannerOpen(false)} />}
     </div>
   )
 }
@@ -556,11 +556,26 @@ function BarcodeFirstPanel({
         </div>
       </div>
 
-      <button type="button" className="barcode-camera-tile" onClick={onOpenScanner}>
-        <span className="barcode-tile-icon"><ScanLine size={40} /></span>
-        <span>{stateLabel}</span>
-        <strong>{barcode || 'UPC / EAN'}</strong>
-      </button>
+      {barcodeLookup?.complete && barcodeLookup.product ? (
+        <div className="product-found-summary">
+          <span className="eyebrow"><Check size={14} /> Product found</span>
+          <h2>{barcodeLookup.product.productName ?? barcodeLookup.barcode}</h2>
+          <p>{barcodeLookup.product.brand ?? 'Brand not declared'} · {barcodeLookup.product.servingSize != null ? `${barcodeLookup.product.servingSize} ${barcodeLookup.product.servingUnit ?? ''}`.trim() : 'Serving unavailable'}</p>
+          <div className="found-nutrient-grid">
+            <span><small>Carbohydrate</small><strong>{barcodeLookup.product.nutrients.totalCarbohydrate == null ? 'Not declared' : `${barcodeLookup.product.nutrients.totalCarbohydrate} g`}</strong></span>
+            <span><small>Total sugars</small><strong>{barcodeLookup.product.nutrients.totalSugars == null ? 'Not declared' : `${barcodeLookup.product.nutrients.totalSugars} g`}</strong></span>
+            <span><small>Fiber</small><strong>{barcodeLookup.product.nutrients.fiber == null ? 'Not declared' : `${barcodeLookup.product.nutrients.fiber} g`}</strong></span>
+          </div>
+          {barcodeLookup.qualitativeMarkers?.novaGroup && <div className="nova-context"><strong>NOVA context</strong><span>{barcodeLookup.qualitativeMarkers.novaGroup}</span><small>Processing category from the local Open Food Facts record, not a health score.</small></div>}
+          <div className="product-found-actions"><button className="primary-button" disabled={busy} onClick={onUseDatabaseMatch}>{busy ? <LoaderCircle className="spin" size={16} /> : <Check size={16} />} Use this product</button><button className="text-button" onClick={onRemoveBarcodeImage}>Not this product</button></div>
+        </div>
+      ) : (
+        <button type="button" className="barcode-camera-tile" onClick={onOpenScanner}>
+          <span className="barcode-tile-icon"><ScanLine size={40} /></span>
+          <span>{stateLabel}</span>
+          <strong>{barcode || 'UPC / EAN'}</strong>
+        </button>
+      )}
 
       <div className="barcode-first-controls">
         <label className="select-field"><span>Label market</span><select value={market} onChange={(event) => onMarketChange(event.target.value as Market)}><option value="PH">Philippines</option><option value="US">United States</option></select></label>
@@ -605,7 +620,7 @@ function BarcodeLookupPanel({ lookup, busy, onUse }: { lookup: OffProductLookupR
         ['Fiber', nutrients.fiber],
         ['Protein', nutrients.protein],
         ['Fat', nutrients.fat],
-      ].map(([label, value]) => `${label} ${typeof value === 'number' ? `${value} g` : 'unknown'}`).join(' · ')
+      ].map(([label, value]) => `${label} ${typeof value === 'number' ? `${value} g` : 'Not declared / unavailable'}`).join(' · ')
     : null
   const context = lookup.qualitativeMarkers
   const contextBits = [
@@ -640,7 +655,7 @@ function BarcodeLookupPanel({ lookup, busy, onUse }: { lookup: OffProductLookupR
       {lookup.complete && (
         <button className="secondary-button wide" disabled={busy} onClick={onUse}>
           {busy ? <LoaderCircle className="spin" size={16} /> : <Check size={16} />}
-          Use database match
+          Use this product
         </button>
       )}
     </div>

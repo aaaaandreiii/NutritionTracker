@@ -28,10 +28,12 @@ If a multi-tenant cloud version is developed, it will utilize:
 
 ### Data at Rest
 - **Frontend:** Daily Dozen support state, custom recipes, and Sugar pAI historical records are stored locally on the user's device using `localStorage` and `IndexedDB`. No personal health data is sent to a central database.
+- **Evidence chat:** Thread titles, messages, selected context references, and source snapshots are stored only in browser IndexedDB. The backend receives the active question, at most ten prior turns, and an optional minimal product snapshot; it does not persist them.
 - **Backend:** The FastAPI backend does not persist user data. It utilizes temporary directories (`tempfile.mkdtemp`) to hold uploaded images just long enough for the VLM to process them. Complete barcode database matches can skip image upload entirely.
 - **Local OFF database:** `backend/app/data/off_ph_products.db` is a static generated Open Food Facts product dataset for offline lookup. It is not a user-data store.
 - A background worker (`cleanup_expired_jobs`) guarantees that temporary files are purged when a job expires, and `shutil.rmtree` is used aggressively upon pipeline completion or error.
 - **Curated unlabeled demo:** Catalog entries are static qualitative data. User-selected demo records are saved only in local IndexedDB unless a future sync feature is explicitly added.
+- **Optional external processors:** Ollama processes evidence-grounded prompts. Tavily receives the search question only when configured and curated coverage is insufficient; product context is not sent to Tavily. Deployments must disclose these processors and their hosting arrangements.
 
 ### Data in Transit
 - When deployed, the frontend and backend must communicate over **HTTPS/TLS 1.2+** to ensure that multipart form data (including images of food labels) cannot be intercepted in transit.
@@ -48,3 +50,4 @@ Before exposing the backend beyond a local or controlled research environment:
 - Serve over HTTPS.
 - Decide whether authentication is required.
 - Document VLM and local barcode lookup processors in user-facing disclosure.
+- Apply rate limits to `/api/v1/chat/stream`, keep the Tavily key server-side, and review the authoritative-domain allowlist periodically.

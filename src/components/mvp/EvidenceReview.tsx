@@ -9,6 +9,7 @@ import {
   Save,
   ShieldCheck,
   Tag,
+  X,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { NUTRIENT_KEYS, NUTRIENT_META, correctionsFromResult, makeLogTotals } from '../../domain/nutrition'
@@ -33,6 +34,7 @@ interface Props {
   images: AnalysisImages
   onBack: () => void
   onLogged: (entry: LogEntry) => void | Promise<void>
+  onValidated?: (result: AnalysisResult) => void
 }
 
 function numberFromInput(value: string): number | null {
@@ -83,20 +85,24 @@ function methodStatus(method: MethodDiagnostic | null | undefined): string {
   return bits.join(' · ')
 }
 
-export default function EvidenceReview({ result, images, onBack, onLogged }: Props) {
+export default function EvidenceReview({ result, images, onBack, onLogged, onValidated }: Props) {
   const [corrections, setCorrections] = useState<FinalizeCorrections>(() => correctionsFromResult(result))
   const [edited, setEdited] = useState<Set<string>>(new Set())
   const [confirmed, setConfirmed] = useState<AnalysisResult | null>(null)
+  const [resultsMode, setResultsMode] = useState(result.status === 'confirmed')
   const [meal, setMeal] = useState<MealSlot>('Snack')
   const [retainImages, setRetainImages] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [ingredientsEditorOpen, setIngredientsEditorOpen] = useState(false)
 
   const current = confirmed ?? result
+  const validatedRecord = confirmed ?? (edited.size === 0 && result.status === 'confirmed' ? result : null)
   const requiredComplete = corrections.productName.trim().length > 0 && corrections.consumedServings > 0
   const hasNutrition = NUTRIENT_KEYS.some((key) => corrections.nutrients[key] != null)
   const changed = (key: string) => {
     setConfirmed(null)
+    setResultsMode(false)
     setEdited((previous) => new Set(previous).add(key))
   }
 
@@ -127,7 +133,10 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
     setSaving(true)
     setError(null)
     try {
-      setConfirmed(await finalizeAnalysis(result.analysisId, corrections))
+      const next = await finalizeAnalysis(result.analysisId, corrections)
+      setConfirmed(next)
+      setResultsMode(true)
+      onValidated?.(next)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not validate corrections.')
     } finally {
@@ -136,19 +145,19 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
   }
 
   const log = async () => {
-    if (!confirmed) return
+    if (!validatedRecord) return
     setSaving(true)
     try {
       const entry: LogEntry = {
         id: crypto.randomUUID(),
         kind: 'packaged_label',
-        analysisId: confirmed.analysisId,
+        analysisId: validatedRecord.analysisId,
         loggedAt: new Date().toISOString(),
         meal,
         consumedServings: corrections.consumedServings,
         productName: corrections.productName.trim(),
-        result: confirmed,
-        totals: makeLogTotals(confirmed, corrections.consumedServings),
+        result: validatedRecord,
+        totals: makeLogTotals(validatedRecord, corrections.consumedServings),
         retainedImages: retainImages && capturedImages.length > 0
           ? capturedImages.map((image) => ({ kind: image.kind, blob: image.file, name: image.file.name }))
           : undefined,
@@ -163,13 +172,13 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
   }
 
   return (
-    <div className="page review-page">
+    <div className={`page review-page ${resultsMode ? 'results-page' : ''}`}>
       <button className="back-button" onClick={onBack}><ArrowLeft size={17} /> Retake or replace images</button>
       <div className="review-heading">
         <div>
-          <span className="eyebrow">Review evidence</span>
-          <h1>Confirm what the label actually says.</h1>
-          <p>Blank means unknown—not zero. Correct every field that you can verify in the photographed panel.</p>
+          <span className="eyebrow">{resultsMode ? 'Validated product' : 'Review evidence'}</span>
+          <h1>{resultsMode ? 'Your evidence, in context.' : 'Confirm what the label actually says.'}</h1>
+          <p>{resultsMode ? 'The validated label is now separate from interpretation. Smart Context stays educational and preserves every unavailable value.' : '“Not declared / unavailable” is preserved as null—not zero. Correct every field that you can verify in the photographed panel.'}</p>
         </div>
         <div className={`result-state state-${current.status}`}><FileCheck2 size={18} /> {current.status}</div>
       </div>
@@ -180,6 +189,16 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
           <AlertCircle size={18} />
           <span>{current.retakeReasons.join(' ')}</span>
         </div>
+      )}
+
+      {resultsMode && (
+        <section className="results-product-summary">
+          <div><span className="section-kicker">Product summary</span><h2>{current.product.name.value}</h2><p>{current.serving.size.value == null ? 'Serving not declared / unavailable' : `Per ${current.serving.size.value} ${current.serving.unit ?? current.serving.size.unit ?? ''}`}</p></div>
+          <div className="results-nutrients">
+            {(['totalCarbohydrate', 'totalSugars', 'addedSugars', 'fiber'] as const).map((key) => <div key={key}><span>{NUTRIENT_META[key].label}</span><strong>{current.nutrients[key].value == null ? 'Not declared / unavailable' : `${current.nutrients[key].value} g`}</strong><small>{current.nutrients[key].status}</small></div>)}
+          </div>
+          <button className="secondary-button" onClick={() => setResultsMode(false)}>Edit evidence</button>
+        </section>
       )}
 
       <div className="review-layout">
@@ -207,7 +226,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
                   min="0"
                   step="any"
                   value={corrections.servingSize ?? ''}
-                  placeholder="Unknown"
+                  placeholder="Not declared / unavailable"
                   onChange={(event) => {
                     changed('servingSize')
                     setCorrections((value) => ({ ...value, servingSize: numberFromInput(event.target.value) }))
@@ -244,7 +263,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
                     min="0"
                     step="any"
                     value={corrections.nutrients[key] ?? ''}
-                    placeholder="Unknown"
+                    placeholder="Not declared / unavailable"
                     onChange={(event) => {
                       changed(key)
                       const value = numberFromInput(event.target.value)
@@ -266,6 +285,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
             <label className="field full-field">
               <span>Ingredients, in printed order</span>
               <textarea
+                className="desktop-ingredients-editor"
                 rows={5}
                 value={corrections.rawIngredients}
                 placeholder={fallbackReason ? `No ingredient text accepted: ${fallbackReason}` : 'No ingredient text accepted'}
@@ -274,6 +294,9 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
                   setCorrections((value) => ({ ...value, rawIngredients: event.target.value }))
                 }}
               />
+              <button type="button" className="mobile-field-editor-button" onClick={() => setIngredientsEditorOpen(true)}>
+                <span>{corrections.rawIngredients || 'Not declared / unavailable'}</span><strong>Edit ingredients</strong>
+              </button>
               <StatusPill status={edited.has('ingredients') ? 'User confirmed' : current.rawIngredients.status} />
             </label>
             {!ingredientFieldHasText && !corrections.rawIngredients.trim() && (
@@ -320,8 +343,9 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
             </div>
           </section>
 
-          <section className="card extraction-card">
-            <span className="section-kicker">Vision details</span>
+          <details className="card extraction-card disclosure-card">
+            <summary>Vision details</summary>
+            <div className="disclosure-body">
             <div className="diagnostic-row">
               <strong>Barcode</strong>
               <span>{current.product.barcode.value ? `${current.product.barcode.status}: ${current.product.barcode.value}` : 'No barcode accepted'}</span>
@@ -363,7 +387,8 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
                 </div>
               ))}
             </div>
-          </section>
+            </div>
+          </details>
 
           <section className="card glycemic-card">
             <span className="section-kicker">Glycemic evidence</span>
@@ -392,18 +417,22 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
             )}
           </section>
 
-          <section className="card explainer-card">
-            <span className="section-kicker">Interpretation</span>
+          <details className="card explainer-card disclosure-card">
+            <summary>Interpretation</summary>
+            <div className="disclosure-body">
             <div><strong>What is printed</strong><p>The values above use one serving basis and retain their evidence status.</p></div>
             <div><strong>What may influence response</strong><p>Total carbohydrate, portion, fiber, protein, fat, preparation, and individual response can all matter.</p></div>
             <div><strong>What cannot be determined</strong><p>The label cannot reveal grams of each named sweetener or predict your blood glucose.</p></div>
-          </section>
+            </div>
+          </details>
 
           {limitations.length > 0 && (
-            <section className="card limitations-card">
-              <span className="section-kicker">Limitations</span>
+            <details className="card limitations-card disclosure-card">
+              <summary>Limitations</summary>
+              <div className="disclosure-body">
               <ul>{limitations.map((item) => <li key={item}>{item}</li>)}</ul>
-            </section>
+              </div>
+            </details>
           )}
         </aside>
       </div>
@@ -426,7 +455,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
         {capturedImages.length > 0 && <label className="checkbox-row"><input type="checkbox" checked={retainImages} onChange={(event) => setRetainImages(event.target.checked)} /><span><strong>Keep original images on this device</strong><small>Off by default. Images are otherwise removed from the server after 15 minutes.</small></span></label>}
         {error && <div className="notice error"><AlertCircle size={17} />{error}</div>}
         {!hasNutrition && <div className="notice warning"><AlertCircle size={17} />Enter at least one printed nutrition value before confirming.</div>}
-        {!confirmed ? (
+        {!validatedRecord ? (
           <button className="primary-button wide" disabled={!requiredComplete || !hasNutrition || saving} onClick={validate}>
             {saving ? <LoaderCircle className="spin" size={18} /> : <ShieldCheck size={18} />} Validate corrections
           </button>
@@ -437,6 +466,17 @@ export default function EvidenceReview({ result, images, onBack, onLogged }: Pro
           </div>
         )}
       </section>
+
+      {ingredientsEditorOpen && (
+        <div className="mobile-ingredients-editor" role="dialog" aria-modal="true" aria-label="Edit ingredients">
+          <header><div><span className="section-kicker">Ingredient evidence</span><strong>Ingredients, in printed order</strong></div><button className="icon-button" onClick={() => setIngredientsEditorOpen(false)} aria-label="Close ingredients editor"><X size={20} /></button></header>
+          <textarea autoFocus value={corrections.rawIngredients} placeholder="Not declared / unavailable" onChange={(event) => {
+            changed('ingredients')
+            setCorrections((value) => ({ ...value, rawIngredients: event.target.value }))
+          }} />
+          <button className="primary-button" onClick={() => setIngredientsEditorOpen(false)}>Done editing</button>
+        </div>
+      )}
     </div>
   )
 }

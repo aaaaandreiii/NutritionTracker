@@ -13,7 +13,7 @@ export const NUTRIENT_META: Record<NutrientKey, { label: string; helper: string 
   },
   fiber: { label: 'Dietary fiber', helper: 'As printed for the same serving.' },
   totalSugars: { label: 'Total sugars', helper: 'Includes naturally occurring and added sugars.' },
-  addedSugars: { label: 'Added sugars', helper: 'Leave unknown when the label does not declare it.' },
+  addedSugars: { label: 'Added sugars', helper: 'Keep “Not declared / unavailable” when the label does not declare it.' },
   sugarAlcohols: { label: 'Sugar alcohols', helper: 'Only enter when explicitly declared.' },
   protein: { label: 'Protein', helper: 'As printed for the same serving.' },
   fat: { label: 'Total fat', helper: 'As printed for the same serving.' },

@@ -1,4 +1,6 @@
 import { BookOpen, Database, ExternalLink, FlaskConical, LockKeyhole, ShieldCheck } from 'lucide-react'
+import { useState } from 'react'
+import { deleteAllChatThreads, deleteAllLogs } from '../../lib/db'
 
 const sources = [
   ['ADA: Making Sense of Food Labels', 'https://diabetes.org/food-nutrition/reading-food-labels/making-sense-food-labels'],
@@ -9,6 +11,8 @@ const sources = [
 ]
 
 export default function AboutPage() {
+  const [localNotice, setLocalNotice] = useState('')
+
   return (
     <div className="page about-page">
       <header className="page-heading"><span className="eyebrow"><BookOpen size={14} /> About Sugar pAI V2</span><h1>Trust comes from showing the boundary.</h1><p>Sugar pAI is a packaged-food decision-support and Smart Context research prototype. Daily Dozen tracking remains available as supporting local logging, but the V2 story starts with evidence validation.</p></header>
@@ -35,6 +39,21 @@ export default function AboutPage() {
           <div className="boundary-list"><div><strong>Can support</strong><p>Transcription of printed nutrient values, product database cross-checks, detection of named sugar-related ingredients, deterministic Smart Context, and a curated Filipino-food demo with qualitative tags.</p></div><div><strong>Cannot infer</strong><p>Grams of each named sweetener, a true sourced GI from the label, individual glucose response, medication or insulin decisions, or permission-style food claims.</p></div></div>
         </section>
       </div>
+
+      <section className="card local-data-card">
+        <div><span className="section-kicker">Privacy & local data</span><h2>What this browser remembers</h2><p>Validated products and evidence-chat threads live in IndexedDB on this device. The backend stores no conversation history. Clearing either collection cannot be undone.</p></div>
+        <div className="local-data-actions">
+          <button className="secondary-button" onClick={() => {
+            if (!window.confirm('Delete all locally saved validated product records?')) return
+            void deleteAllLogs().then(() => setLocalNotice('Validated product history cleared.'))
+          }}>Clear product history</button>
+          <button className="secondary-button" onClick={() => {
+            if (!window.confirm('Delete all locally saved evidence-chat threads?')) return
+            void deleteAllChatThreads().then(() => setLocalNotice('Evidence-chat history cleared.'))
+          }}>Clear chat history</button>
+        </div>
+        {localNotice && <div className="notice neutral">{localNotice}</div>}
+      </section>
 
       <section className="card source-card"><span className="section-kicker">Primary references</span><h2>Read the underlying guidance</h2><div className="source-list">{sources.map(([title, url]) => <a key={url} href={url} target="_blank" rel="noreferrer"><span>{title}</span><ExternalLink size={15} /></a>)}</div></section>
       <footer className="research-footer">Internal, noncommercial research prototype · English UI · English/Filipino label-text research · Educational copy requires registered-dietitian review before external testing.</footer>

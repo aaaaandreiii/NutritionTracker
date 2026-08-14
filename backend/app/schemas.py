@@ -281,6 +281,54 @@ class CreateAnalysisResponse(ApiModel):
     expires_in_seconds: int = 900
 
 
+class ChatTurn(ApiModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=12_000)
+
+
+class ChatProductNutrients(ApiModel):
+    total_carbohydrate: float | None = Field(default=None, ge=0)
+    fiber: float | None = Field(default=None, ge=0)
+    total_sugars: float | None = Field(default=None, ge=0)
+    added_sugars: float | None = Field(default=None, ge=0)
+    sugar_alcohols: float | None = Field(default=None, ge=0)
+    protein: float | None = Field(default=None, ge=0)
+    fat: float | None = Field(default=None, ge=0)
+
+
+class ChatProductContext(ApiModel):
+    local_log_id: str = Field(min_length=1, max_length=160)
+    product_name: str = Field(min_length=1, max_length=250)
+    brand: str | None = Field(default=None, max_length=250)
+    market: Literal["PH", "US"]
+    serving_label: str | None = Field(default=None, max_length=120)
+    barcode: str | None = Field(default=None, max_length=32, pattern=r"^[0-9]*$")
+    nutrients: ChatProductNutrients
+    ingredients: str | None = Field(default=None, max_length=10_000)
+    sugar_variants: list[str] = Field(default_factory=list, max_length=80)
+    glycemic_status: Literal["sourced", "heuristic_demo", "unavailable"] | None = None
+    glycemic_reason: str | None = Field(default=None, max_length=2_000)
+
+
+class ChatRequest(ApiModel):
+    question: str = Field(min_length=1, max_length=2_000)
+    turns: list[ChatTurn] = Field(default_factory=list, max_length=10)
+    product: ChatProductContext | None = None
+
+
+class ChatSource(ApiModel):
+    id: str
+    index: int = Field(ge=1, le=6)
+    type: Literal["product", "curated", "web"]
+    relationship: Literal["direct", "supporting", "background"]
+    strength: Literal["strong", "moderate", "weak"]
+    title: str
+    publisher: str
+    domain: str
+    url: str | None = None
+    excerpt: str
+
+
 class OffProductNutrientPreview(ApiModel):
     total_carbohydrate: float | None = None
     fiber: float | None = None

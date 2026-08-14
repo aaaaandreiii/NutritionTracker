@@ -11,6 +11,7 @@ graph TD
         Packaged[Packaged-label scan]
         Unlabeled[Curated unlabeled demo]
         Smart[Smart Context UI]
+        Ask[Evidence chat and citations]
         Daily[Daily Dozen support]
         Storage[(IndexedDB and localStorage)]
         Camera[Device Camera API]
@@ -24,14 +25,18 @@ graph TD
         Pipeline[VLM label pipeline]
         Validator[Deterministic validation]
         Catalog[Curated Filipino-food demo catalog]
+        Retrieval[Product and curated retrieval]
+        Chat[Guarded chat stream]
     end
 
     subgraph External [Optional integrations]
         Ollama[Ollama VLM]
+        Tavily[Optional Tavily search]
     end
 
     Shell --> Packaged
     Shell --> Unlabeled
+    Shell --> Ask
     Shell --> Daily
     Camera --> Packaged
     Camera --> Unlabeled
@@ -53,6 +58,13 @@ graph TD
     Unlabeled --> Smart
     Smart --> Storage
     Daily --> Storage
+    Ask -->|minimal context and 10 turns| API
+    API --> Retrieval
+    Retrieval -.->|when curated coverage is insufficient| Tavily
+    Retrieval --> Chat
+    Chat --> Ollama
+    Chat -->|sources before token deltas| Ask
+    Ask --> Storage
 ```
 
 ## Packaged-Label Data Flow
@@ -85,6 +97,10 @@ graph TD
 Database: `sugar-pai-research`
 
 Store: `logs`
+
+Store: `chatThreads` (schema version 2)
+
+Chat threads contain an automatic or user-edited title, timestamps, an optional minimal validated-product context, messages, and immutable source snapshots. Threads never leave IndexedDB as a durable server record; only the current request, selected context, and up to ten prior turns are sent for transient generation.
 
 Log records are union-shaped:
 
@@ -124,6 +140,8 @@ Daily Dozen support state and custom recipes remain local to the browser.
 - **FastAPI backend:** No durable user database. Analysis jobs and uploads expire after 15 minutes.
 - **Generated local OFF database:** `backend/app/data/off_ph_products.db` is a static SQLite artifact generated from `research/openfoodfacts_export.csv`. It supports offline barcode lookup for `market=PH`; raw CSV is not required at runtime.
 - **Ollama:** Optional VLM provider for packaged-label extraction.
+- **Evidence chat:** Safety and scope rules run before retrieval. Retrieval orders direct product evidence, ranked curated fragments, and optional authoritative-domain Tavily results. Ollama receives only the selected evidence and is instructed to cite it.
+- **Tavily:** Optional live search used only when curated coverage is insufficient. Results outside the FDA, WHO, University of Sydney GI, Diabetes Care, NCBI/PMC, and Open Food Facts domain allowlist are discarded.
 - **Open Food Facts data:** Community data is used as database evidence only. Complete matches can prefill review, and partial matches can act as fallback evidence, but user confirmation remains required before logging.
 - **Curated catalog:** Static qualitative demo data only. It does not contain calories, macros, GI, GL, or FNRI-derived claims.
 
