@@ -492,6 +492,18 @@ export interface SmartContextResponse {
 
 export type MealSlot = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack' | 'Other'
 
+export interface MealPairingComponent {
+  componentId: string
+  type: 'curated_generic_food'
+  foodId: string
+  displayName: string
+  sourceId: string
+  sourceName: string
+  reasonCodes: string[]
+  contextOnly: true
+  nutrientBasis: null
+}
+
 interface LogEntryBase {
   id: string
   kind?: SmartContextRecordKind
@@ -512,6 +524,7 @@ export interface PackagedLabelLogEntry extends LogEntryBase {
   kind?: 'packaged_label'
   result: AnalysisResult
   smartContextSnapshot?: SmartContextResponse
+  mealPairingComponents?: MealPairingComponent[]
   retainedImages?: Array<{
     kind: 'nutrition' | 'ingredients' | 'front'
     blob: Blob

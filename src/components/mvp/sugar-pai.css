@@ -840,9 +840,10 @@
 .sugar-pai-embed .shell-focus-mode .ask-workspace{ width: min(900px, 100%); }
 .sugar-pai-embed .shell-focus-mode .chat-column{ min-height: 100dvh; }
 .sugar-pai-embed .panel-required{ border-left: 3px solid var(--green); }
-.sugar-pai-embed .panel-optional{ border-style: dashed; }
-.sugar-pai-embed .panel-card.has-image{ padding-block: 14px; }
-.sugar-pai-embed .panel-card.has-image .panel-copy > p{ display: none; }
+.sugar-pai-embed .panel-recommended{ border-left: 3px solid #bca456; }
+.sugar-pai-embed .panel-optional{ border-left: 3px solid #bfc5bf; border-style: solid; }
+.sugar-pai-embed .panel-card.has-image{ padding-block: 20px; }
+.sugar-pai-embed .panel-card.has-image .panel-copy > p{ display: block; }
 .sugar-pai-embed .mobile-field-editor-button,
 .sugar-pai-embed .mobile-ingredients-editor{ display: none; }
 .sugar-pai-embed .local-data-card{ margin-top: 20px; padding: 22px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 18px; }
@@ -938,6 +939,710 @@
   .sugar-pai-embed .modal-backdrop{ padding: 0; }
   .sugar-pai-embed .camera-frame{ max-height: none; flex: 1; }
   .sugar-pai-embed .barcode-live-frame{ max-height: none; }
+}
+
+/* Scan desktop polish pass */
+.sugar-pai-embed{
+  --route-max: 1180px;
+  --control-height: 44px;
+  --soft-line: #d7d5cb;
+  --muted: #5f6863;
+}
+.sugar-pai-embed button:focus-visible,
+.sugar-pai-embed a:focus-visible{
+  outline: 3px solid rgba(12,111,79,.18);
+  outline-offset: 2px;
+}
+.sugar-pai-embed .primary-button,
+.sugar-pai-embed .secondary-button{
+  min-height: var(--control-height);
+}
+.sugar-pai-embed .primary-button:disabled{
+  color: #607069;
+  border-color: #cbd8d1;
+  background: #dfe9e3;
+  box-shadow: none;
+  opacity: 1;
+}
+.sugar-pai-embed .secondary-button:disabled,
+.sugar-pai-embed .text-button:disabled{
+  color: #7a827d;
+  border-color: #d8d8d1;
+  background: #f1f0ea;
+  opacity: 1;
+}
+.sugar-pai-embed .segmented-control{
+  gap: 3px;
+  padding: 3px;
+  border-color: #cfd3ca;
+  border-radius: 8px;
+  background: #edeae1;
+}
+.sugar-pai-embed .segmented-control button{
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #59645f;
+  transition: background .16s ease, color .16s ease, box-shadow .16s ease;
+}
+.sugar-pai-embed .segmented-control button.active{
+  color: var(--green-dark);
+  background: var(--paper);
+  box-shadow: 0 1px 6px rgba(40,44,39,.08);
+}
+.sugar-pai-embed .scan-mode-tabs{
+  width: min(430px, 100%);
+  max-width: none;
+  margin: 0 0 26px;
+}
+.sugar-pai-embed .workflow-progress{
+  border-bottom-color: rgba(72,76,69,.14);
+  background: rgba(247,243,235,.88);
+}
+.sugar-pai-embed .workflow-progress li{
+  color: #68716c;
+  font-size: 11px;
+  font-weight: 700;
+}
+.sugar-pai-embed .workflow-progress li > span{
+  width: 22px;
+  height: 22px;
+  color: #68716c;
+  background: #faf8f1;
+}
+.sugar-pai-embed .workflow-progress li.current{
+  color: var(--green-dark);
+}
+.sugar-pai-embed .workflow-progress li.current > span{
+  border-color: var(--green);
+  color: white;
+  background: var(--green);
+}
+.sugar-pai-embed .workflow-progress li.complete{
+  color: #315f4b;
+}
+.sugar-pai-embed .workflow-progress li.complete > span{
+  border-color: #a7cdbb;
+  color: var(--green-dark);
+  background: var(--green-pale);
+}
+.sugar-pai-embed .scan-layout{
+  grid-template-columns: minmax(0,1fr) 332px;
+  gap: 30px;
+  align-items: start;
+}
+.sugar-pai-embed .capture-stack{
+  gap: 16px;
+}
+.sugar-pai-embed .card,
+.sugar-pai-embed .panel-card{
+  border-color: var(--soft-line);
+  box-shadow: 0 6px 22px rgba(48,53,45,.035);
+}
+.sugar-pai-embed .panel-card{
+  align-items: flex-start;
+  padding: 20px;
+  background: rgba(255,253,248,.78);
+  border-style: solid;
+}
+.sugar-pai-embed .panel-card.panel-required{
+  border-left: 3px solid var(--green);
+}
+.sugar-pai-embed .panel-card.panel-recommended{
+  border-left: 3px solid #bca456;
+}
+.sugar-pai-embed .panel-card.panel-optional{
+  border-left: 3px solid #bfc5bf;
+}
+.sugar-pai-embed .panel-card.has-image{
+  padding: 20px;
+  border-color: #a8c9b9;
+  background: #f6fbf8;
+}
+.sugar-pai-embed .panel-card.has-image .panel-copy > p{
+  display: block;
+  margin-bottom: 12px;
+}
+.sugar-pai-embed .panel-title-line h2{
+  font-size: 18px;
+  line-height: 1.2;
+}
+.sugar-pai-embed .panel-copy > p{
+  color: #59645f;
+  font-size: 12.5px;
+}
+.sugar-pai-embed .required-pill,
+.sugar-pai-embed .recommended-pill,
+.sugar-pai-embed .optional-pill{
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 7px;
+  border-radius: 5px;
+  font: 700 9px 'DM Mono', monospace;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.sugar-pai-embed .required-pill{
+  color: #7d382d;
+  background: #f8e1d8;
+}
+.sugar-pai-embed .recommended-pill{
+  color: #66501e;
+  background: #f6edcf;
+}
+.sugar-pai-embed .optional-pill{
+  color: #52605a;
+  background: #eceeea;
+}
+.sugar-pai-embed .panel-actions{
+  gap: 8px;
+}
+.sugar-pai-embed .panel-actions .secondary-button{
+  min-height: 42px;
+  padding-inline: 14px;
+}
+.sugar-pai-embed .image-review{
+  min-height: 86px;
+  border-color: #d8e3dc;
+}
+.sugar-pai-embed .scan-sidebar{
+  top: 84px;
+  gap: 16px;
+}
+.sugar-pai-embed .scan-sidebar-copy{
+  margin: -8px 0 12px;
+  color: #3e4b45;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.sugar-pai-embed .scan-readiness-note{
+  display: grid;
+  grid-template-columns: 18px minmax(0,1fr);
+  gap: 8px;
+  align-items: start;
+  margin-bottom: 12px;
+  padding: 10px 11px;
+  border: 1px solid #d5dfd8;
+  border-radius: 8px;
+  color: #385c4d;
+  background: #f1f7f3;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.sugar-pai-embed .scan-readiness-note svg{
+  margin-top: 1px;
+  color: var(--green);
+}
+.sugar-pai-embed .analysis-card,
+.sugar-pai-embed .pipeline-card{
+  padding: 20px;
+}
+.sugar-pai-embed .analysis-card .technical-details .service-status{
+  grid-template-columns: minmax(0,1fr) 30px;
+  margin-bottom: 8px;
+}
+.sugar-pai-embed .section-heading{
+  margin-bottom: 16px;
+}
+.sugar-pai-embed .section-heading h2{
+  font-size: 20px;
+}
+.sugar-pai-embed .notice{
+  font-size: 11px;
+}
+.sugar-pai-embed .off-lookup-card{
+  gap: 8px;
+  padding: 11px;
+  border-radius: 8px;
+}
+.sugar-pai-embed .off-lookup-complete{
+  border-left-width: 1px;
+  border-color: #bdd8ca;
+  background: #eef7f2;
+}
+.sugar-pai-embed .off-lookup-complete .off-lookup-title > svg{
+  color: var(--green-dark);
+}
+.sugar-pai-embed .off-lookup-title strong{
+  font-size: 12px;
+}
+.sugar-pai-embed .off-lookup-title span,
+.sugar-pai-embed .off-lookup-details span,
+.sugar-pai-embed .off-missing-fields span{
+  color: #65716b;
+  font-size: 10px;
+}
+.sugar-pai-embed .product-found-summary{
+  align-self: start;
+  min-height: 0;
+  padding: 20px;
+  justify-content: flex-start;
+  border-color: #a9cbb9;
+  background: var(--paper);
+}
+.sugar-pai-embed .product-found-summary h2{
+  margin: 9px 0 5px;
+  font-size: 24px;
+  line-height: 1.12;
+}
+.sugar-pai-embed .product-found-summary > p{
+  margin-bottom: 0;
+  color: #59645f;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.sugar-pai-embed .found-nutrient-grid{
+  margin: 14px 0;
+  gap: 7px;
+}
+.sugar-pai-embed .found-nutrient-grid > span{
+  padding: 9px;
+  border: 1px solid #d8e3dc;
+  background: #f4f8f5;
+}
+.sugar-pai-embed .found-nutrient-grid small{
+  color: #65716b;
+  font-size: 9px;
+}
+.sugar-pai-embed .found-nutrient-grid strong{
+  font-size: 12px;
+}
+.sugar-pai-embed .nova-context{
+  padding: 10px 11px;
+  border: 1px solid #d9d7cd;
+  border-left: 0;
+  border-radius: 8px;
+  background: #f7f5ef;
+}
+.sugar-pai-embed .nova-context div{
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #3f4d47;
+}
+.sugar-pai-embed .nova-context strong{
+  font-size: 11px;
+}
+.sugar-pai-embed .nova-context small{
+  color: #65716b;
+  font-size: 10px;
+  line-height: 1.45;
+}
+.sugar-pai-embed .product-found-actions{
+  margin-top: 14px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 901px){
+  .sugar-pai-embed .topbar{
+    padding: var(--safe-top) max(24px, calc((100vw - var(--route-max)) / 2 + 24px)) 0;
+  }
+  .sugar-pai-embed .workflow-progress ol{
+    width: min(calc(var(--route-max) - 48px), calc(100% - 48px));
+    min-height: 46px;
+  }
+  .sugar-pai-embed .page{
+    max-width: var(--route-max);
+    padding: 28px 24px 84px;
+  }
+  .sugar-pai-embed .barcode-first-card{
+    grid-template-columns: minmax(0,1fr) 332px;
+    grid-template-rows: auto auto;
+    align-items: start;
+    gap: 18px 30px;
+    margin: 0 0 22px;
+    padding: 24px;
+    border-color: #b8d8c9;
+    background: #f4fbf7;
+    box-shadow: 0 10px 32px rgba(37,74,57,.055);
+  }
+  .sugar-pai-embed .barcode-first-card.has-database-match{
+    align-items: start;
+    background: #f2faf5;
+  }
+  .sugar-pai-embed .barcode-first-copy h1{
+    margin: 10px 0 10px;
+    font-size: clamp(52px, 4vw, 56px);
+    line-height: 1;
+  }
+  .sugar-pai-embed .barcode-first-copy p{
+    max-width: 520px;
+    color: #4f5d56;
+    font-size: 14.5px;
+    line-height: 1.55;
+  }
+  .sugar-pai-embed .barcode-first-actions{
+    margin-top: 16px;
+  }
+  .sugar-pai-embed .barcode-open-button{
+    min-height: 46px;
+  }
+  .sugar-pai-embed .barcode-first-controls{
+    grid-column: 1;
+    gap: 4px;
+    max-width: 620px;
+  }
+  .sugar-pai-embed .barcode-first-controls .select-field{
+    margin: 8px 0;
+  }
+  .sugar-pai-embed .barcode-camera-tile{
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: start;
+    min-height: 330px;
+    padding: 24px;
+    background: #16261e;
+  }
+  .sugar-pai-embed .barcode-camera-tile::before{
+    width: min(190px, 74%);
+    height: 76px;
+  }
+}
+
+.sugar-pai-embed .meal-workspace-card{
+  display: grid;
+  gap: 14px;
+}
+.sugar-pai-embed .meal-workspace-card .section-heading{
+  margin-bottom: 0;
+}
+.sugar-pai-embed .meal-workspace-intro{
+  margin: -4px 0 0;
+  color: #59645f;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.sugar-pai-embed .meal-search-row{
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 0;
+}
+.sugar-pai-embed .meal-search-input{
+  min-width: 0;
+  min-height: var(--control-height);
+  display: grid;
+  grid-template-columns: 18px minmax(0,1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid #cacbc4;
+  border-radius: 8px;
+  color: #65716b;
+  background: var(--paper);
+}
+.sugar-pai-embed .meal-search-input:focus-within{
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(12,111,79,.09);
+}
+.sugar-pai-embed .meal-search-input input{
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.sugar-pai-embed .meal-search-input input:focus{
+  box-shadow: none;
+}
+.sugar-pai-embed .add-food-button{
+  min-width: 118px;
+}
+.sugar-pai-embed .meal-photo-identify{
+  width: max-content;
+  max-width: 100%;
+}
+.sugar-pai-embed .meal-manual-hint{
+  margin: -4px 0 0;
+  color: #6c756f;
+  font-size: 12px;
+}
+.sugar-pai-embed .quick-add-block{
+  display: grid;
+  gap: 10px;
+  padding-top: 2px;
+}
+.sugar-pai-embed .quick-add-heading{
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sugar-pai-embed .quick-add-heading span{
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+.sugar-pai-embed .quick-add-heading small{
+  color: #65716b;
+  font-size: 11px;
+}
+.sugar-pai-embed .curated-fallback-list{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+.sugar-pai-embed .curated-fallback-list button{
+  width: auto;
+  min-height: 34px;
+  padding: 7px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #cfd8d1;
+  border-radius: 8px;
+  color: var(--green-dark);
+  background: var(--paper);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: left;
+}
+.sugar-pai-embed .curated-fallback-list button:not(:disabled):hover{
+  border-color: #98bca9;
+  background: #f1f8f4;
+}
+.sugar-pai-embed .curated-fallback-list .quick-add-more{
+  color: #42504a;
+  background: #f0eee6;
+}
+.sugar-pai-embed .component-workspace{
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.sugar-pai-embed .component-workspace-heading{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sugar-pai-embed .component-workspace-heading span{
+  color: #65716b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.sugar-pai-embed .component-workspace-heading strong{
+  font-size: 12px;
+}
+.sugar-pai-embed .meal-components-empty{
+  min-height: 86px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 15px;
+  border: 1px dashed #c9d4cc;
+  border-radius: 8px;
+  color: #405047;
+  background: #f6f7f2;
+}
+.sugar-pai-embed .meal-components-empty svg{
+  color: var(--green);
+  flex: 0 0 auto;
+}
+.sugar-pai-embed .meal-components-empty div{
+  display: grid;
+  gap: 3px;
+}
+.sugar-pai-embed .meal-components-empty strong{
+  font-size: 12px;
+}
+.sugar-pai-embed .meal-components-empty span{
+  color: #65716b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.sugar-pai-embed .estimated-component{
+  padding: 15px;
+  border: 1px solid #d4ded7;
+  border-radius: 8px;
+  background: #f7faf6;
+}
+.sugar-pai-embed .component-title{
+  grid-template-columns: 28px minmax(0,1fr) 38px;
+}
+.sugar-pai-embed .component-title > span{
+  border-radius: 8px;
+}
+.sugar-pai-embed .component-remap{
+  margin-bottom: 0;
+}
+.sugar-pai-embed .meal-flow-steps{
+  position: relative;
+  gap: 0;
+  margin-bottom: 14px;
+}
+.sugar-pai-embed .meal-flow-steps span{
+  position: relative;
+  min-height: 28px;
+  padding: 2px 0 9px 28px;
+  color: #68716c;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 800;
+}
+.sugar-pai-embed .meal-flow-steps span::before{
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 15px;
+  height: 15px;
+  border: 1px solid #c5cbc4;
+  border-radius: 50%;
+  background: var(--paper);
+}
+.sugar-pai-embed .meal-flow-steps span:not(:last-child)::after{
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 21px;
+  bottom: -2px;
+  width: 1px;
+  background: #d9d7cd;
+}
+.sugar-pai-embed .meal-flow-steps span.complete,
+.sugar-pai-embed .meal-flow-steps span.current{
+  color: var(--green-dark);
+  background: transparent;
+}
+.sugar-pai-embed .meal-flow-steps span.complete::before{
+  content: '✓';
+  display: grid;
+  place-items: center;
+  border-color: var(--green);
+  color: white;
+  background: var(--green);
+  font-size: 10px;
+  line-height: 1;
+}
+.sugar-pai-embed .meal-flow-steps span.current::before{
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(12,111,79,.10);
+}
+
+@media (max-width: 900px){
+  .sugar-pai-embed .review-page{
+    max-width: none;
+  }
+  .sugar-pai-embed .review-heading h1{
+    font-size: clamp(38px, 12vw, 46px);
+  }
+  .sugar-pai-embed .safety-note{
+    width: auto;
+  }
+  .sugar-pai-embed .review-source-summary,
+  .sugar-pai-embed .context-summary-head,
+  .sugar-pai-embed .review-action-card{
+    grid-template-columns: 1fr;
+  }
+  .sugar-pai-embed .review-source-summary{
+    display: grid;
+    align-items: start;
+  }
+  .sugar-pai-embed .review-source-summary span{
+    flex: initial;
+  }
+  .sugar-pai-embed .product-serving-grid,
+  .sugar-pai-embed .context-metric-grid,
+  .sugar-pai-embed .interpretation-grid{
+    grid-template-columns: 1fr;
+  }
+  .sugar-pai-embed .nutrient-review-row{
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .sugar-pai-embed .field-status-cell{
+    justify-content: flex-start;
+  }
+  .sugar-pai-embed .ingredient-display-panel{
+    grid-template-columns: 1fr;
+  }
+  .sugar-pai-embed .review-actions,
+  .sugar-pai-embed .context-summary-actions{
+    justify-content: stretch;
+    justify-items: stretch;
+  }
+  .sugar-pai-embed .review-actions .primary-button,
+  .sugar-pai-embed .review-actions .secondary-button,
+  .sugar-pai-embed .context-summary-actions .secondary-button{
+    width: 100%;
+  }
+}
+.sugar-pai-embed .component-sidebar-summary{
+  border: 1px solid #d4e3da;
+  background: #f2f8f4;
+}
+.sugar-pai-embed .meal-confirm-fields{
+  transition: opacity .16s ease;
+}
+.sugar-pai-embed .meal-confirm-fields.muted{
+  opacity: .68;
+}
+.sugar-pai-embed .meal-confirm-fields.muted input,
+.sugar-pai-embed .meal-confirm-fields.muted select{
+  background: #f7f6f0;
+}
+
+@media (max-width: 900px){
+  .sugar-pai-embed .scan-layout{
+    grid-template-columns: 1fr;
+  }
+  .sugar-pai-embed .workflow-progress ol{
+    width: min(var(--route-max), calc(100% - 28px));
+  }
+  .sugar-pai-embed .barcode-first-card{
+    align-items: start;
+  }
+  .sugar-pai-embed .product-found-summary{
+    grid-column: auto;
+    grid-row: auto;
+  }
+  .sugar-pai-embed .meal-search-row{
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .sugar-pai-embed .add-food-button,
+  .sugar-pai-embed .meal-photo-identify{
+    width: 100%;
+  }
+  .sugar-pai-embed .curated-fallback-list button{
+    flex: 1 1 130px;
+  }
+}
+
+@media (max-width: 620px){
+  .sugar-pai-embed .scan-mode-tabs{
+    width: 100%;
+    margin-bottom: 18px;
+  }
+  .sugar-pai-embed .segmented-control button{
+    font-size: 11px;
+    padding-inline: 8px;
+  }
+  .sugar-pai-embed .panel-card,
+  .sugar-pai-embed .panel-card.has-image{
+    padding: 16px;
+  }
+  .sugar-pai-embed .component-portion-grid{
+    grid-template-columns: 1fr;
+  }
+  .sugar-pai-embed .component-workspace-heading{
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .sugar-pai-embed .found-nutrient-grid{
+    grid-template-columns: 1fr;
+  }
 }
 
 /* FEEDBACK_UI_2 polish pass */
@@ -1482,6 +2187,706 @@
   font-size: 10px;
 }
 
+/* Review and Context polish */
+.sugar-pai-embed .review-page{
+  max-width: min(1180px, calc(100% - 48px));
+}
+.sugar-pai-embed .review-heading{
+  align-items: start;
+  margin-bottom: 16px;
+}
+.sugar-pai-embed .review-heading h1{
+  margin: 8px 0 10px;
+  font-size: clamp(44px, 4vw, 52px);
+  line-height: 1.02;
+}
+.sugar-pai-embed .review-heading p{
+  max-width: 680px;
+  color: #51605a;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.sugar-pai-embed .safety-note{
+  width: max-content;
+  max-width: 760px;
+  margin: 0 0 22px;
+  padding: 9px 11px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #56625d;
+  background: rgba(255,253,248,.7);
+  border: 1px solid rgba(92,103,97,.16);
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.sugar-pai-embed .safety-note svg{
+  flex: 0 0 auto;
+  color: var(--green);
+  margin-top: 1px;
+}
+.sugar-pai-embed .review-layout{
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 330px);
+  gap: 28px;
+  align-items: start;
+}
+.sugar-pai-embed .review-layout.review-no-rail{
+  display: block;
+}
+.sugar-pai-embed .review-layout.review-no-rail .review-main{
+  width: min(880px, 100%);
+}
+.sugar-pai-embed .review-main{
+  gap: 18px;
+}
+.sugar-pai-embed .review-aside{
+  top: 116px;
+  align-self: start;
+}
+.sugar-pai-embed .review-source-summary{
+  min-height: 54px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #c9ddd0;
+  border-radius: 8px;
+  background: #eef7f2;
+}
+.sugar-pai-embed .review-source-summary strong{
+  min-width: 0;
+  color: var(--green-dark);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.sugar-pai-embed .review-source-summary span{
+  flex: 0 0 auto;
+  color: #596b63;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.sugar-pai-embed .product-serving-card,
+.sugar-pai-embed .nutrition-review-card,
+.sugar-pai-embed .ingredients-review-card,
+.sugar-pai-embed .review-action-card,
+.sugar-pai-embed .context-product-summary,
+.sugar-pai-embed .meal-pairing-card,
+.sugar-pai-embed .interpretation-card,
+.sugar-pai-embed .context-glycemic-card,
+.sugar-pai-embed .sources-limitations-card{
+  padding: 22px;
+  border-radius: 8px;
+  box-shadow: 0 1px 0 rgba(46,56,50,.03);
+}
+.sugar-pai-embed .product-serving-card .section-heading,
+.sugar-pai-embed .nutrition-review-card .section-heading,
+.sugar-pai-embed .ingredients-review-card .section-heading,
+.sugar-pai-embed .meal-pairing-card .section-heading,
+.sugar-pai-embed .interpretation-card .section-heading,
+.sugar-pai-embed .context-glycemic-card .section-heading{
+  margin-bottom: 16px;
+}
+.sugar-pai-embed .product-serving-card h2,
+.sugar-pai-embed .nutrition-review-card h2,
+.sugar-pai-embed .ingredients-review-card h2,
+.sugar-pai-embed .meal-pairing-card h2,
+.sugar-pai-embed .interpretation-card h2,
+.sugar-pai-embed .context-glycemic-card h2{
+  margin: 5px 0 0;
+  font-size: 23px;
+}
+.sugar-pai-embed .section-source{
+  color: #5f6b65;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: right;
+}
+.sugar-pai-embed .label-input-stack{
+  display: grid;
+  gap: 7px;
+}
+.sugar-pai-embed .label-input-stack > span:first-child{
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+.sugar-pai-embed .label-input-stack input,
+.sugar-pai-embed .label-input-stack textarea{
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #c8cec7;
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 13px;
+}
+.sugar-pai-embed .label-input-stack input:focus,
+.sugar-pai-embed .label-input-stack textarea:focus,
+.sugar-pai-embed .nutrient-value-control:focus-within{
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(12,111,79,.12);
+  outline: 0;
+}
+.sugar-pai-embed .product-name-field{
+  margin-bottom: 14px;
+}
+.sugar-pai-embed .product-serving-grid{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 180px);
+  gap: 14px;
+}
+.sugar-pai-embed input[type="number"]::-webkit-outer-spin-button,
+.sugar-pai-embed input[type="number"]::-webkit-inner-spin-button{
+  margin: 0;
+  -webkit-appearance: none;
+}
+.sugar-pai-embed input[type="number"]{
+  -moz-appearance: textfield;
+}
+.sugar-pai-embed .nutrient-review-rows{
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--line);
+}
+.sugar-pai-embed .nutrient-review-row{
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) minmax(132px, 150px) minmax(118px, auto);
+  gap: 12px;
+  align-items: center;
+  padding: 11px 12px;
+  background: var(--paper);
+}
+.sugar-pai-embed .nutrient-review-row.nutrient-totalCarbohydrate{
+  background: #f1f8f4;
+}
+.sugar-pai-embed .nutrient-review-label{
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.sugar-pai-embed .nutrient-review-label label{
+  font-size: 12px;
+  font-weight: 800;
+}
+.sugar-pai-embed .nutrient-review-label small{
+  color: #5f6b65;
+  font-size: 10px;
+  line-height: 1.35;
+}
+.sugar-pai-embed .nutrient-value-control{
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  border: 1px solid #c8cec7;
+  border-radius: 7px;
+  background: var(--paper);
+}
+.sugar-pai-embed .nutrient-value-control input{
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 6px 9px 11px;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  text-align: right;
+  font: 600 13px 'DM Mono', monospace;
+}
+.sugar-pai-embed .nutrient-value-control input::placeholder{
+  color: #8a928d;
+}
+.sugar-pai-embed .nutrient-value-control span{
+  color: #64706a;
+  font-size: 11px;
+  font-weight: 800;
+}
+.sugar-pai-embed .field-status-cell{
+  display: flex;
+  justify-content: flex-end;
+}
+.sugar-pai-embed .status-edited{
+  color: #215d45;
+  background: #d7eee3;
+}
+.sugar-pai-embed .status-from-photo{
+  color: #215d45;
+  background: #e2f2ea;
+}
+.sugar-pai-embed .status-not-declared,
+.sugar-pai-embed .status-unavailable{
+  color: #59615d;
+  background: #efeee8;
+}
+.sugar-pai-embed .status-needs-review{
+  color: #735425;
+  background: #fcf4df;
+}
+.sugar-pai-embed .ingredient-display-panel{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #faf8f1;
+}
+.sugar-pai-embed .ingredient-display-panel p{
+  margin: 0;
+  color: #2e3a34;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.sugar-pai-embed .ingredient-empty-copy{
+  color: #667069 !important;
+}
+.sugar-pai-embed .ingredient-editor-field{
+  grid-template-columns: 1fr;
+  margin-top: 0;
+}
+.sugar-pai-embed .ingredient-editor-field textarea{
+  min-height: 128px;
+  resize: vertical;
+  line-height: 1.55;
+}
+.sugar-pai-embed .consumer-flag-list{
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.sugar-pai-embed .consumer-context-flag{
+  min-width: 0;
+  padding: 12px;
+  display: grid;
+  gap: 5px;
+  border: 1px solid #ded7c8;
+  border-left: 3px solid #a7b9ae;
+  border-radius: 8px;
+  background: #f7f4ec;
+}
+.sugar-pai-embed .consumer-context-flag.flag-sugar_alias,
+.sugar-pai-embed .consumer-context-flag.flag-hfcs,
+.sugar-pai-embed .consumer-context-flag.flag-high_intensity_sweetener{
+  border-left-color: #91b9a4;
+  background: #f2f8f4;
+}
+.sugar-pai-embed .consumer-context-flag strong{
+  font-size: 12px;
+}
+.sugar-pai-embed .consumer-context-flag p{
+  margin: 0;
+  color: #3f4b45;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.sugar-pai-embed .consumer-context-flag small{
+  color: #667069;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.sugar-pai-embed .captured-evidence-rail{
+  position: sticky;
+  top: 116px;
+}
+.sugar-pai-embed .captured-image-row{
+  grid-template-columns: 70px minmax(0, 1fr);
+}
+.sugar-pai-embed .captured-image-button{
+  width: 70px;
+  height: 58px;
+}
+.sugar-pai-embed .captured-image-row small{
+  color: var(--green);
+  font-size: 9px;
+  font-weight: 800;
+}
+.sugar-pai-embed .review-action-card{
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px 20px;
+  align-items: end;
+}
+.sugar-pai-embed .review-action-card h2{
+  margin: 5px 0;
+  font-size: 23px;
+}
+.sugar-pai-embed .review-action-card p{
+  max-width: 560px;
+  margin: 0;
+  color: #5f6b65;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.sugar-pai-embed .review-action-card small{
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--green-dark);
+  font-size: 10px;
+  font-weight: 800;
+}
+.sugar-pai-embed .review-action-card > .notice{
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.sugar-pai-embed .review-actions{
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.sugar-pai-embed .review-actions .primary-button,
+.sugar-pai-embed .review-actions .secondary-button{
+  min-height: 46px;
+}
+.sugar-pai-embed .context-stack{
+  display: grid;
+  gap: 18px;
+}
+.sugar-pai-embed .context-product-summary{
+  display: grid;
+  gap: 18px;
+  background: #f2f8f4;
+  border-color: #b7d2c2;
+}
+.sugar-pai-embed .context-summary-head{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: start;
+}
+.sugar-pai-embed .context-product-summary h2{
+  margin: 5px 0 5px;
+  font-size: 28px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.sugar-pai-embed .context-product-summary p{
+  margin: 0;
+  color: #5f6b65;
+  font-size: 12px;
+}
+.sugar-pai-embed .context-summary-actions{
+  display: grid;
+  justify-items: end;
+  gap: 9px;
+}
+.sugar-pai-embed .context-summary-actions > span{
+  color: var(--green-dark);
+  font-size: 11px;
+  font-weight: 800;
+}
+.sugar-pai-embed .context-metric-grid{
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.sugar-pai-embed .context-metric-grid > div{
+  min-width: 0;
+  padding: 12px;
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(75,93,84,.1);
+  border-radius: 7px;
+  background: var(--paper);
+}
+.sugar-pai-embed .context-metric-grid span{
+  color: #5f6b65;
+  font-size: 10px;
+  font-weight: 800;
+}
+.sugar-pai-embed .context-metric-grid strong{
+  font: 700 17px 'DM Mono', monospace;
+}
+.sugar-pai-embed .meal-pairing-card{
+  display: grid;
+  gap: 14px;
+  background: #faf8f1;
+}
+.sugar-pai-embed .meal-pairing-card .section-heading{
+  align-items: start;
+}
+.sugar-pai-embed .meal-pairing-card .section-heading > svg{
+  color: var(--green);
+}
+.sugar-pai-embed .meal-pairing-card .section-heading p{
+  margin: 5px 0 0;
+  color: #5f6b65;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.sugar-pai-embed .meal-pairing-list{
+  display: grid;
+  gap: 9px;
+}
+.sugar-pai-embed .meal-pairing-item{
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--green);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.sugar-pai-embed .meal-pairing-item > div{
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+.sugar-pai-embed .meal-pairing-title-row{
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: start;
+}
+.sugar-pai-embed .meal-pairing-title-row strong{
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.sugar-pai-embed .meal-pairing-title-row span{
+  flex: 0 0 auto;
+  max-width: 150px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: #4f5f58;
+  background: #edf7f2;
+  font: 600 8px 'DM Mono', monospace;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sugar-pai-embed .meal-pairing-item p{
+  margin: 0;
+  color: #3f4b45;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.sugar-pai-embed .meal-pairing-item small{
+  color: #68726d;
+  font-size: 9px;
+  line-height: 1.35;
+}
+.sugar-pai-embed .meal-pairing-item > button{
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.sugar-pai-embed .pairing-added-button{
+  color: var(--green-dark);
+  background: #edf7f2;
+}
+.sugar-pai-embed .meal-pairing-empty{
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #5f6b65;
+  background: var(--paper);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.sugar-pai-embed .selected-pairing-components{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  padding-top: 2px;
+}
+.sugar-pai-embed .selected-pairing-components > strong{
+  color: #4f5a55;
+  font-size: 10px;
+}
+.sugar-pai-embed .selected-pairing-components span{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  border: 1px solid rgba(12,111,79,.16);
+  border-radius: 999px;
+  color: var(--green-dark);
+  background: #edf7f2;
+  font-size: 10px;
+  font-weight: 800;
+}
+.sugar-pai-embed .selected-pairing-components button{
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: var(--green-dark);
+  background: rgba(255,255,255,.76);
+  cursor: pointer;
+}
+.sugar-pai-embed .meal-pairing-disclosure{
+  margin: 0;
+  color: #667069;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.sugar-pai-embed .interpretation-grid{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.sugar-pai-embed .interpretation-grid > div{
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #faf8f1;
+}
+.sugar-pai-embed .interpretation-grid strong{
+  font-size: 12px;
+}
+.sugar-pai-embed .interpretation-grid p{
+  margin: 5px 0 0;
+  color: #4f5a55;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.sugar-pai-embed .glycemic-empty-state{
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f6f4ee;
+}
+.sugar-pai-embed .glycemic-empty-state > svg{
+  color: var(--green);
+}
+.sugar-pai-embed .glycemic-empty-state strong{
+  font-size: 13px;
+}
+.sugar-pai-embed .glycemic-empty-state p{
+  margin: 4px 0 0;
+  color: #4f5a55;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.sugar-pai-embed .glycemic-empty-state details{
+  margin-top: 9px;
+}
+.sugar-pai-embed .glycemic-empty-state summary{
+  width: max-content;
+  max-width: 100%;
+  color: var(--green-dark);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+.sugar-pai-embed .glycemic-sourced-block{
+  display: grid;
+  gap: 8px;
+}
+.sugar-pai-embed .glycemic-sourced-block p{
+  margin: 0;
+  color: #4f5a55;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.sugar-pai-embed .glycemic-sourced-block a{
+  width: max-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--green);
+  font-size: 11px;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.sugar-pai-embed .sources-limitations-list{
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 18px;
+  color: #4f5a55;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.sugar-pai-embed .sources-evidence-block{
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+.sugar-pai-embed .sources-evidence-block > strong{
+  font-size: 12px;
+}
+.sugar-pai-embed .developer-diagnostics{
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.sugar-pai-embed .developer-diagnostics > summary{
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #6a716d;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+.sugar-pai-embed .developer-diagnostics > summary::-webkit-details-marker{
+  display: none;
+}
+.sugar-pai-embed .developer-diagnostics > summary::after{
+  content: '+';
+  color: var(--green);
+  font-size: 15px;
+}
+.sugar-pai-embed .developer-diagnostics[open] > summary::after{
+  content: '-';
+}
+.sugar-pai-embed .post-context-log-card{
+  margin-top: 18px;
+}
+.sugar-pai-embed .post-context-log-card .log-controls input,
+.sugar-pai-embed .post-context-log-card .log-controls select{
+  min-height: 46px;
+}
+.sugar-pai-embed .card.pairing-card{
+  border-radius: 8px;
+}
+.sugar-pai-embed .pairing-insight{
+  border-radius: 8px;
+}
+.sugar-pai-embed .pairing-ingredients{
+  border-left-color: #9eb1a5;
+  background: #f7f4ec;
+}
+.sugar-pai-embed .action-chip-row span{
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  color: #5f6b65;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+}
+.sugar-pai-embed .action-chip-row span::before{
+  content: '•';
+  margin-right: 5px;
+  color: var(--green);
+}
+
 @media (max-width: 900px) {
   .sugar-pai-embed .results-audit-columns,
   .sugar-pai-embed .empty-chat .chat-layout{
@@ -1509,4 +2914,149 @@
   .sugar-pai-embed .empty-chat .composer-dock{
     width: 100%;
   }
+}
+
+/* Scan route final cascade guard */
+@media (min-width: 901px){
+  .sugar-pai-embed .topbar{
+    padding: var(--safe-top) max(24px, calc((100vw - var(--route-max)) / 2)) 0;
+  }
+  .sugar-pai-embed .workflow-progress ol{
+    width: min(var(--route-max), calc(100% - 48px));
+    min-height: 46px;
+  }
+  .sugar-pai-embed .page{
+    max-width: var(--route-max);
+  }
+  .sugar-pai-embed .scan-hero{
+    min-height: 250px;
+    gap: 52px;
+    margin-bottom: 28px;
+  }
+  .sugar-pai-embed .scan-hero h1{
+    margin: 12px 0 14px;
+    font-size: clamp(52px, 4vw, 56px);
+    line-height: 1.02;
+  }
+  .sugar-pai-embed .scan-hero p{
+    max-width: 570px;
+    font-size: 14.5px;
+    line-height: 1.55;
+  }
+  .sugar-pai-embed .hero-proof{
+    gap: 14px;
+    padding-left: 30px;
+  }
+  .sugar-pai-embed .barcode-first-card{
+    grid-template-columns: minmax(0,1fr) 332px;
+    grid-template-rows: auto auto;
+    align-items: start;
+    gap: 18px 30px;
+  }
+  .sugar-pai-embed .barcode-first-copy h1{
+    font-size: clamp(52px, 4vw, 56px);
+    line-height: 1;
+  }
+  .sugar-pai-embed .barcode-camera-tile{
+    align-self: start;
+    min-height: 330px;
+  }
+}
+.sugar-pai-embed .workflow-progress li{
+  color: #68716c;
+  font-size: 11px;
+}
+.sugar-pai-embed .workflow-progress li.current{
+  color: var(--green-dark);
+}
+.sugar-pai-embed .panel-card,
+.sugar-pai-embed .panel-card.panel-required,
+.sugar-pai-embed .panel-card.panel-recommended,
+.sugar-pai-embed .panel-card.panel-optional{
+  padding: 20px;
+  border-style: solid;
+}
+.sugar-pai-embed .panel-card.has-image{
+  padding: 20px;
+}
+.sugar-pai-embed .panel-card.has-image .panel-copy > p{
+  display: block;
+}
+.sugar-pai-embed .product-found-summary{
+  align-self: start;
+  min-height: 0;
+  padding: 20px;
+  justify-content: flex-start;
+}
+.sugar-pai-embed .product-found-summary h2{
+  font-size: 24px;
+  line-height: 1.12;
+}
+.sugar-pai-embed .nova-context{
+  padding: 10px 11px;
+  border: 1px solid #d9d7cd;
+  border-left: 0;
+  border-radius: 8px;
+  background: #f7f5ef;
+}
+.sugar-pai-embed .nova-context div{
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.sugar-pai-embed .nova-context strong{
+  font-size: 11px;
+}
+.sugar-pai-embed .nova-context small{
+  color: #65716b;
+  font-size: 10px;
+}
+.sugar-pai-embed .meal-flow-steps{
+  gap: 0;
+}
+.sugar-pai-embed .meal-flow-steps span{
+  position: relative;
+  min-height: 28px;
+  padding: 2px 0 9px 28px;
+  color: #68716c;
+  background: transparent;
+  border-radius: 0;
+}
+.sugar-pai-embed .meal-flow-steps span::before{
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 15px;
+  height: 15px;
+  border: 1px solid #c5cbc4;
+  border-radius: 50%;
+  background: var(--paper);
+}
+.sugar-pai-embed .meal-flow-steps span:not(:last-child)::after{
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 21px;
+  bottom: -2px;
+  width: 1px;
+  background: #d9d7cd;
+}
+.sugar-pai-embed .meal-flow-steps span.complete,
+.sugar-pai-embed .meal-flow-steps span.current{
+  color: var(--green-dark);
+  background: transparent;
+}
+.sugar-pai-embed .meal-flow-steps span.complete::before{
+  content: '✓';
+  display: grid;
+  place-items: center;
+  border-color: var(--green);
+  color: white;
+  background: var(--green);
+  font-size: 10px;
+}
+.sugar-pai-embed .meal-flow-steps span.current::before{
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(12,111,79,.10);
 }

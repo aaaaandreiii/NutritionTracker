@@ -29,11 +29,11 @@ export function scanSetupState({
   resultStatus?: AnalysisResult['status'] | null
 }): { label: string; tone: 'neutral' | 'ready' | 'warning' | 'busy' } {
   if (resultStatus) return { label: resultStatus === 'confirmed' ? 'Ready to log' : 'Ready to review', tone: 'ready' }
-  if (analyzing) return { label: 'Analysing', tone: 'busy' }
+  if (analyzing) return { label: 'Analyzing', tone: 'busy' }
   if (fails > 0) return { label: 'Needs attention', tone: 'warning' }
-  if (canAnalyze) return { label: warnings > 0 ? 'Evidence ready' : 'Evidence ready', tone: 'ready' }
-  if (hasEvidence) return { label: 'Evidence ready', tone: warnings > 0 ? 'warning' : 'neutral' }
-  return { label: 'Before evidence', tone: 'neutral' }
+  if (canAnalyze) return { label: warnings > 0 ? 'Ready with notes' : 'Ready to analyze', tone: 'ready' }
+  if (hasEvidence) return { label: 'Evidence added', tone: warnings > 0 ? 'warning' : 'neutral' }
+  return { label: 'Evidence needed', tone: 'neutral' }
 }
 
 export function imageQualitySummary(report?: ImageQualityReport): {
@@ -86,11 +86,49 @@ export function consumerStageStatus(event?: AnalysisStageEvent): string {
 
 export function normalizeIngredientDisplay(value: string | null | undefined): string {
   if (!value) return ''
+  const preservedAcronyms = new Set(['BHA', 'BHT', 'MSG', 'TBHQ'])
   return value
+    .replace(/_([^_]+)_/g, (_, allergen: string) => allergen.toLowerCase())
+    .replace(/\b[A-Z]{2,}\b/g, (word) => preservedAcronyms.has(word) ? word : word.toLowerCase())
     .replace(/\s+/g, ' ')
     .replace(/\s*,\s*/g, ', ')
     .replace(/\s*;\s*/g, '; ')
+    .replace(/\s*\(\s*/g, ' (')
+    .replace(/\s*\)\s*/g, ') ')
+    .replace(/\s*\[\s*/g, ' [')
+    .replace(/\s*\]\s*/g, '] ')
     .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/^[a-z]/, (letter) => letter.toUpperCase())
+}
+
+export function normalizeNameDisplay(value: string | null | undefined, fallback = 'Product'): string {
+  const cleaned = (value || fallback)
+    .replace(/\s+/g, ' ')
+    .replace(/(\d+(?:\.\d+)?)\s*(g|kg|mg|ml|l)\b/gi, (_, amount: string, unit: string) => `${amount} ${unit.toLowerCase()}`)
+    .replace(/\bsky\s*flakes\b/gi, 'SkyFlakes')
+    .trim()
+  if (!cleaned) return fallback
+  if (/[a-z]/.test(cleaned) && /[A-Z]/.test(cleaned.replace(/\b(SkyFlakes)\b/g, ''))) return cleaned
+  return cleaned.replace(/\b([a-z])([a-z'’-]*)/gi, (word) => {
+    if (/^(g|kg|mg|ml|l)$/i.test(word)) return word.toLowerCase()
+    if (/^SkyFlakes$/i.test(word)) return 'SkyFlakes'
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  })
+}
+
+export function formatProductDisplayName(
+  productName: string | null | undefined,
+  servingSize?: number | null,
+  servingUnit?: string | null,
+): string {
+  const base = normalizeNameDisplay(productName)
+  if (servingSize == null) return base
+  const serving = `${servingSize} ${(servingUnit || 'g').trim() || 'g'}`.replace(/\s+/g, ' ').trim()
+  const compactServing = serving.replace(/\s+/g, '')
+  const normalizedBase = base.toLowerCase()
+  if (normalizedBase.includes(serving.toLowerCase()) || normalizedBase.includes(compactServing.toLowerCase())) return base
+  return `${base} ${serving}`
 }
 
 export function sourceLabel(sourceKind: string | null | undefined): string {

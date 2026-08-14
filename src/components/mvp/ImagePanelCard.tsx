@@ -20,9 +20,12 @@ interface Props {
 
 export default function ImagePanelCard(props: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const statusLabel = props.required ? 'Required' : props.recommended ? 'Recommended' : 'Optional'
+  const statusClass = props.required ? 'required-pill' : props.recommended ? 'recommended-pill' : 'optional-pill'
+  const cardClass = props.required ? 'panel-required' : props.recommended ? 'panel-recommended' : 'panel-optional'
 
   return (
-    <section className={`panel-card ${props.file ? 'has-image' : ''} ${props.required ? 'panel-required' : 'panel-optional'}`}>
+    <section className={`panel-card ${props.file ? 'has-image' : ''} ${cardClass}`}>
       <input
         ref={inputRef}
         type="file"
@@ -38,15 +41,14 @@ export default function ImagePanelCard(props: Props) {
       <div className="panel-copy">
         <div className="panel-title-line">
           <h2>{props.title}</h2>
-          {props.required && <span className="required-pill">Required</span>}
-          {props.recommended && <span className="optional-pill">Recommended</span>}
+          <span className={statusClass}>{statusLabel}</span>
         </div>
         <p>{props.description}</p>
 
         {!props.file ? (
           <div className="panel-actions">
-            <button className="secondary-button" onClick={props.onCamera}><Camera size={16} /> Use camera</button>
-            <button className="text-button" onClick={() => inputRef.current?.click()}><Upload size={16} /> Choose image</button>
+            <button type="button" className="secondary-button" onClick={props.onCamera}><Camera size={16} /> Use camera</button>
+            <button type="button" className="secondary-button" onClick={() => inputRef.current?.click()}><Upload size={16} /> Choose image</button>
           </div>
         ) : (
           <div className="image-review">

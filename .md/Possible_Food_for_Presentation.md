@@ -7,3 +7,5 @@
 6. Royal Tru-Orange Carbonated Orange Drink (Fortified with B-Vitamins) – 290 ml: https://world.openfoodfacts.org/product/4801981118571/royal-tru-orange-carbonated-orange-drink-fortified-with-b-vitamins
 7. Clover Chips Cheese – Leslie’s – 145 g: https://world.openfoodfacts.org/product/0480021611004/clover-chips-cheese-leslie-s
 8. sky flakes 25g – SkyFlakes – 25 g: https://world.openfoodfacts.org/product/0750515018402/sky-flakes-25g-skyflakes#panel_nova: 0750515018402
+
+docker system prune

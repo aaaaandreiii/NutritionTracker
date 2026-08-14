@@ -63,6 +63,7 @@ export default function UnlabeledFoodDemo({ onLogged }: Props) {
   const [mealName, setMealName] = useState('Estimated meal')
   const [meal, setMeal] = useState<MealSlot>('Other')
   const [retainImage, setRetainImage] = useState(false)
+  const [quickAddExpanded, setQuickAddExpanded] = useState(false)
   const [busy, setBusy] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -81,6 +82,8 @@ export default function UnlabeledFoodDemo({ onLogged }: Props) {
   const components = useMemo(() => draft?.components ?? [], [draft?.components])
   const validationErrors = useMemo(() => validateComponents(components), [components])
   const canFinalize = Boolean(analysisId && components.length > 0 && validationErrors.length === 0)
+  const visibleQuickAdd = quickAddExpanded ? catalog : catalog.slice(0, 8)
+  const hiddenQuickAddCount = Math.max(catalog.length - visibleQuickAdd.length, 0)
 
   const chooseFoodImage = async (file: File) => {
     setCheckingImage(true)
@@ -292,8 +295,8 @@ export default function UnlabeledFoodDemo({ onLogged }: Props) {
         <div className="capture-stack">
           <ImagePanelCard
             number={1}
-            title="Meal photo"
-            description="Start with a photo of the whole meal, or skip the photo and add foods manually."
+            title="Add a meal photo"
+            description="Photograph the whole meal for optional identification, or add foods manually below."
             recommended
             file={foodImage ?? undefined}
             report={imageReport}
@@ -303,41 +306,79 @@ export default function UnlabeledFoodDemo({ onLogged }: Props) {
             onRemove={() => { setFoodImage(null); setImageReport(undefined) }}
           />
 
-          <section className="card meal-search-card">
-            <div className="section-heading"><div><span className="section-kicker">Add foods manually</span><h2>Meal components</h2></div><Search size={19} /></div>
+          <section className="card meal-search-card meal-workspace-card">
+            <div className="section-heading"><div><span className="section-kicker">Add foods manually</span><h2>Meal components</h2></div></div>
+            <p className="meal-workspace-intro">Add a meal photo first, or add foods manually.</p>
             <div className="meal-search-row">
-              <input value={manualQuery} placeholder="e.g. chicken adobo, white rice" onChange={(event) => setManualQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void addManualFood() }} />
-              <button className="secondary-button" disabled={busy || !manualQuery.trim()} onClick={() => void addManualFood()}><Plus size={16} /> Add food</button>
+              <label className="meal-search-input">
+                <Search size={16} />
+                <input value={manualQuery} placeholder="e.g. chicken adobo, white rice" onChange={(event) => setManualQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void addManualFood() }} />
+              </label>
+              <button type="button" className="secondary-button add-food-button" disabled={busy || !manualQuery.trim()} onClick={() => void addManualFood()}><Plus size={16} /> Add food</button>
             </div>
-            <button className="primary-button wide" disabled={!foodImage || busy} onClick={() => void runAnalysis(foodImage ?? undefined)}>
-              {busy ? <LoaderCircle className="spin" size={18} /> : <ImagePlus size={18} />} Identify foods in photo
-            </button>
+            {foodImage ? (
+              <button type="button" className="primary-button meal-photo-identify" disabled={busy} onClick={() => void runAnalysis(foodImage ?? undefined)}>
+                {busy ? <LoaderCircle className="spin" size={18} /> : <ImagePlus size={18} />} Identify foods in photo
+              </button>
+            ) : (
+              <p className="meal-manual-hint">or add foods manually</p>
+            )}
             {stageLabels.length > 0 && <div className="analysis-stage-list">{stageLabels.map((label) => <span key={label}><CheckCircle2 size={14} /> {label}</span>)}</div>}
-          </section>
 
-          {draft && (
-            <section className="card component-review-card">
-              <div className="section-heading"><div><span className="section-kicker">Identity and portion confirmation</span><h2>{components.length} detected component{components.length === 1 ? '' : 's'}</h2></div><ShieldCheck size={19} /></div>
-              {components.length === 0 && <div className="notice warning"><AlertCircle size={17} /> No components were detected. Search above or use the curated fallback below.</div>}
-              <div className="estimated-component-list">
-                {components.map((component, index) => (
-                  <article className="estimated-component" key={component.componentId}>
-                    <div className="component-title"><span>{index + 1}</span><input aria-label={`Component ${index + 1} name`} value={component.identifiedName} onChange={(event) => updateComponent(component.componentId, { identifiedName: event.target.value })} /><button className="icon-button" aria-label={`Remove ${component.identifiedName}`} onClick={() => setDraft((previous) => previous ? { ...previous, components: previous.components.filter((item) => item.componentId !== component.componentId) } : previous)}><Trash2 size={16} /></button></div>
-                    <div className="component-meta"><span className={`evidence-badge badge-${component.sourcePath}`}>{component.sourcePath === 'vlm' ? 'Estimated identity' : component.sourcePath === 'curated' ? 'Context only' : 'User added'}</span><span>{Math.round(component.confidence * 100)}% {component.confidenceBand} confidence</span></div>
-                    {component.preparationClues.length > 0 && <p>{component.preparationClues.join(' · ')}</p>}
-                    <label className="select-field"><span>Food data match</span><select disabled={component.contextOnly} value={component.selectedFdcId ?? ''} onChange={(event) => updateComponent(component.componentId, { selectedFdcId: Number(event.target.value) || null })}><option value="">Choose a match</option>{component.candidates.map((candidate) => <option value={candidate.fdcId} key={candidate.fdcId}>{candidate.description}{candidate.brandOwner ? ` - ${candidate.brandOwner}` : ''}</option>)}</select></label>
-                    <div className="component-remap"><input aria-label={`Search a different match for ${component.identifiedName}`} value={matchQueries[component.componentId] ?? ''} placeholder="Search a different food-data match" onChange={(event) => setMatchQueries((value) => ({ ...value, [component.componentId]: event.target.value }))} /><button className="text-button" disabled={busy} onClick={() => void searchDifferentMatch(component)}><Search size={14} /> Search</button></div>
-                    <div className="component-portion-grid">
-                      <label><span>Household portion</span><input value={component.householdPortion} onChange={(event) => updateComponent(component.componentId, { householdPortion: event.target.value })} /></label>
-                      <label><span>Minimum g</span><input type="number" min="1" max="5000" value={component.gramRange.minimum} onChange={(event) => updateComponent(component.componentId, { gramRange: { ...component.gramRange, minimum: Number(event.target.value) } })} /></label>
-                      <label><span>Maximum g</span><input type="number" min="1" max="5000" value={component.gramRange.maximum} onChange={(event) => updateComponent(component.componentId, { gramRange: { ...component.gramRange, maximum: Number(event.target.value) } })} /></label>
-                    </div>
-                    <label className="checkbox-row"><input type="checkbox" checked={component.contextOnly} onChange={(event) => updateComponent(component.componentId, { contextOnly: event.target.checked, selectedFdcId: event.target.checked ? null : component.candidates[0]?.fdcId ?? null })} /><span><strong>Context-only component</strong><small>Exclude it from every numeric meal range when no credible food-data match exists.</small></span></label>
-                  </article>
-                ))}
+            {catalog.length > 0 && (
+              <div className="quick-add-block">
+                <div className="quick-add-heading"><span>Quick add</span><small>Common foods become context-only components.</small></div>
+                <div className="curated-fallback-list">
+                  {visibleQuickAdd.map((food) => <button type="button" key={food.foodId} disabled={busy} onClick={() => void addCuratedFallback(food)}><Utensils size={14} /> {food.displayName}</button>)}
+                  {catalog.length > 8 && (
+                    <button type="button" className="quick-add-more" onClick={() => setQuickAddExpanded((expanded) => !expanded)}>
+                      {quickAddExpanded ? 'Show less' : `More${hiddenQuickAddCount ? ` (${hiddenQuickAddCount})` : ''}`}
+                    </button>
+                  )}
+                </div>
+                {catalogLimitations.length > 0 && (
+                  <details className="inline-technical-details">
+                    <summary>Catalog limits</summary>
+                    <ul>{catalogLimitations.map((item) => <li key={item}>{item}</li>)}</ul>
+                  </details>
+                )}
               </div>
-            </section>
-          )}
+            )}
+
+            <div className="component-workspace">
+              <div className="component-workspace-heading">
+                <span>Identity and portions</span>
+                <strong>{components.length ? `${components.length} component${components.length === 1 ? '' : 's'}` : 'No components yet'}</strong>
+              </div>
+              {(!draft || components.length === 0) ? (
+                <div className="meal-components-empty">
+                  <ShieldCheck size={18} />
+                  <div>
+                    <strong>{draft ? 'No components detected' : 'No foods added yet'}</strong>
+                    <span>{draft ? 'Search above or use Quick Add to build the meal.' : 'Use the search field or Quick Add to start the estimate.'}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="estimated-component-list">
+                  {components.map((component, index) => (
+                    <article className="estimated-component" key={component.componentId}>
+                      <div className="component-title"><span>{index + 1}</span><input aria-label={`Component ${index + 1} name`} value={component.identifiedName} onChange={(event) => updateComponent(component.componentId, { identifiedName: event.target.value })} /><button type="button" className="icon-button" aria-label={`Remove ${component.identifiedName}`} onClick={() => setDraft((previous) => previous ? { ...previous, components: previous.components.filter((item) => item.componentId !== component.componentId) } : previous)}><Trash2 size={16} /></button></div>
+                      <div className="component-meta"><span className={`evidence-badge badge-${component.sourcePath}`}>{component.sourcePath === 'vlm' ? 'Estimated identity' : component.sourcePath === 'curated' ? 'Context only' : 'User added'}</span><span>{Math.round(component.confidence * 100)}% {component.confidenceBand} confidence</span></div>
+                      {component.preparationClues.length > 0 && <p>{component.preparationClues.join(' · ')}</p>}
+                      <label className="select-field"><span>Food data match</span><select disabled={component.contextOnly} value={component.selectedFdcId ?? ''} onChange={(event) => updateComponent(component.componentId, { selectedFdcId: Number(event.target.value) || null })}><option value="">Choose a match</option>{component.candidates.map((candidate) => <option value={candidate.fdcId} key={candidate.fdcId}>{candidate.description}{candidate.brandOwner ? ` - ${candidate.brandOwner}` : ''}</option>)}</select></label>
+                      <div className="component-remap"><input aria-label={`Search a different match for ${component.identifiedName}`} value={matchQueries[component.componentId] ?? ''} placeholder="Search a different food-data match" onChange={(event) => setMatchQueries((value) => ({ ...value, [component.componentId]: event.target.value }))} /><button type="button" className="text-button" disabled={busy} onClick={() => void searchDifferentMatch(component)}><Search size={14} /> Search</button></div>
+                      <div className="component-portion-grid">
+                        <label><span>Household portion</span><input value={component.householdPortion} onChange={(event) => updateComponent(component.componentId, { householdPortion: event.target.value })} /></label>
+                        <label><span>Minimum g</span><input type="number" min="1" max="5000" value={component.gramRange.minimum} onChange={(event) => updateComponent(component.componentId, { gramRange: { ...component.gramRange, minimum: Number(event.target.value) } })} /></label>
+                        <label><span>Maximum g</span><input type="number" min="1" max="5000" value={component.gramRange.maximum} onChange={(event) => updateComponent(component.componentId, { gramRange: { ...component.gramRange, maximum: Number(event.target.value) } })} /></label>
+                      </div>
+                      <label className="checkbox-row"><input type="checkbox" checked={component.contextOnly} onChange={(event) => updateComponent(component.componentId, { contextOnly: event.target.checked, selectedFdcId: event.target.checked ? null : component.candidates[0]?.fdcId ?? null })} /><span><strong>Context-only component</strong><small>Exclude it from every numeric meal range when no credible food-data match exists.</small></span></label>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
 
           {record && <EstimatedBreakdown record={record} />}
           {record && smartContext && <SmartContextCards response={smartContext} />}
@@ -347,16 +388,18 @@ export default function UnlabeledFoodDemo({ onLogged }: Props) {
           <section className="card analysis-card">
             <div className="section-heading"><div><span className="section-kicker">Estimated meal</span><h2>Confirm and calculate</h2></div><Database size={19} /></div>
             <div className="meal-flow-steps">
-              <span className={foodImage ? 'complete' : ''}>Start with a photo</span>
-              <span className={components.length > 0 ? 'complete' : ''}>Add foods manually</span>
-              <span className={record ? 'complete' : components.length > 0 ? 'current' : ''}>Meal components</span>
+              <span className={foodImage ? 'complete' : components.length === 0 ? 'current' : ''}>Add a meal photo</span>
+              <span className={components.length > 0 ? 'complete' : foodImage ? 'current' : ''}>Add foods manually</span>
+              <span className={record ? 'complete' : components.length > 0 ? 'current' : ''}>Confirm portions</span>
             </div>
             <div className="component-sidebar-summary">
               <strong>{components.length ? `${components.length} component${components.length === 1 ? '' : 's'}` : 'No components yet'}</strong>
               <span>{validationErrors.length ? `${validationErrors.length} portion or match item${validationErrors.length === 1 ? '' : 's'} need confirmation` : components.length ? 'Identities and portions are ready' : 'Use a photo, manual search, or quick add.'}</span>
             </div>
-            <label className="select-field"><span>Meal name</span><input value={mealName} onChange={(event) => setMealName(event.target.value)} /></label>
-            <label className="select-field"><span>Meal</span><select value={meal} onChange={(event) => setMeal(event.target.value as MealSlot)}>{MEAL_SLOTS.map((slot) => <option key={slot}>{slot}</option>)}</select></label>
+            <div className={`meal-confirm-fields ${components.length > 0 ? 'ready' : 'muted'}`}>
+              <label className="select-field"><span>Meal name</span><input value={mealName} onChange={(event) => setMealName(event.target.value)} /></label>
+              <label className="select-field"><span>Meal</span><select value={meal} onChange={(event) => setMeal(event.target.value as MealSlot)}>{MEAL_SLOTS.map((slot) => <option key={slot}>{slot}</option>)}</select></label>
+            </div>
             {draft?.warnings.map((warning) => <div className="notice warning" key={warning}><AlertCircle size={16} /><span>{warning}</span></div>)}
             {error && <div className="notice error"><AlertCircle size={17} /><span>{error}</span></div>}
             {validationErrors.length > 0 && draft && <ul className="component-errors">{validationErrors.map((item) => <li key={item}>{item}</li>)}</ul>}
@@ -364,16 +407,6 @@ export default function UnlabeledFoodDemo({ onLogged }: Props) {
               <label className="checkbox-row"><input type="checkbox" checked={retainImage} disabled={!foodImage} onChange={(event) => setRetainImage(event.target.checked)} /><span><strong>Keep source photo locally</strong><small>Off by default. The backend copy has already been deleted.</small></span></label>
               <button className="primary-button wide" disabled={saving} onClick={() => void logRecord()}>{saving ? <LoaderCircle className="spin" size={18} /> : <Save size={18} />} Save estimated meal to Today</button>
             </>}
-          </section>
-
-          <section className="card limitations-card">
-            <span className="section-kicker">Quick add</span>
-            <p>Common foods can be added as context-only components.</p>
-            <div className="curated-fallback-list">{catalog.slice(0, 10).map((food) => <button type="button" key={food.foodId} disabled={busy} onClick={() => void addCuratedFallback(food)}><Utensils size={14} /> {food.displayName}</button>)}</div>
-            <details className="inline-technical-details">
-              <summary>Catalog limits</summary>
-              <ul>{catalogLimitations.map((item) => <li key={item}>{item}</li>)}</ul>
-            </details>
           </section>
         </aside>
       </div>

@@ -69,7 +69,15 @@ export default function SugarPAIApp({ triggerToast, onLogMeal }: Props) {
   }
 
   const workflowStep = scanWorkflowStep(scanSession)
-  const workflowActive = workflowStep > 0
+  const workflowActive = Boolean(
+    workflowStep > 0
+    || scanSession.barcode
+    || scanSession.barcodeImage
+    || scanSession.barcodeLookup
+    || Object.keys(scanSession.images).length
+    || scanSession.analyzing
+    || scanSession.result,
+  )
 
   const handleWorkflowStep = (step: number) => {
     if (step <= 1 && scanSession.result) {

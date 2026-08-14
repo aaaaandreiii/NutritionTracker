@@ -263,6 +263,8 @@ def test_unlabeled_food_catalog_lists_curated_ph_demo_foods():
     payload = response.json()
     assert payload["market"] == "PH"
     assert any(food["foodId"] == "ph_kanin_white_rice" for food in payload["foods"])
+    assert any(food["foodId"] == "ph_boiled_egg" for food in payload["foods"])
+    assert any(food["foodId"] == "ph_ginisang_monggo" for food in payload["foods"])
     assert any("qualitative demo" in item for item in payload["limitations"])
     assert all("gi" not in food and "gl" not in food for food in payload["foods"])
 

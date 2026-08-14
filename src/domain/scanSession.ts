@@ -61,6 +61,7 @@ export function createInitialScanSession(): ScanSessionState {
 export function scanWorkflowStep(session: ScanSessionState): number {
   if (session.result?.status === 'confirmed') return 3
   if (session.result) return 2
-  if (session.analyzing || session.barcode || Object.keys(session.images).length > 0) return 1
+  if (session.barcodeLookup?.complete && !Object.keys(session.images).length) return 0
+  if (session.analyzing || session.barcode || session.barcodeImage || Object.keys(session.images).length > 0) return 1
   return 0
 }

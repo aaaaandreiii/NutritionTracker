@@ -1,7 +1,9 @@
 import type {
   AnalysisResult,
+  CuratedFoodCandidate,
   CuratedFoodRecord,
   GlycemicEvidence,
+  MealPairingComponent,
   MealSlot,
   NutrientKey,
   SmartContextFlag,
@@ -42,6 +44,41 @@ export interface PairingInsight {
   evidenceLabels: string[]
   actionChips?: string[]
   sourceIds?: PairingSourceId[]
+}
+
+export type PairingReasonCode =
+  | 'ADD_FIBER_SOURCE'
+  | 'ADD_PROTEIN_SOURCE'
+  | 'ADD_MINIMALLY_PROCESSED_COMPONENT'
+  | 'ADD_NON_STARCHY_VEGETABLE'
+  | 'MEAL_CONTEXT_COMPLEMENT'
+
+export type CompanionFoodCategory =
+  | 'vegetable'
+  | 'legume'
+  | 'egg'
+  | 'soy'
+  | 'fish'
+  | 'yogurt'
+  | 'nut_seed'
+
+export interface CompanionFoodSource {
+  sourceId: 'sugar-pai-curated-ph-food-catalog'
+  name: 'Sugar pAI curated PH food catalog'
+  url: null
+  datasetVersion: 'curated-unlabeled-demo-v1'
+}
+
+export interface PairingSuggestion {
+  foodId: string
+  displayName: string
+  category: CompanionFoodCategory
+  label: string
+  reasonCodes: PairingReasonCode[]
+  reason: string
+  evidenceLabels: string[]
+  source: CompanionFoodSource
+  evidenceStrength: 'high' | 'moderate'
 }
 
 export interface PairingContext {
@@ -92,6 +129,81 @@ const LOW_PROTEIN_G = 7
 const LOW_FAT_G = 5
 const HIGH_TOTAL_SUGAR_G = 10
 const HIGH_ADDED_SUGAR_G = 5
+
+const COMPANION_SOURCE: CompanionFoodSource = {
+  sourceId: 'sugar-pai-curated-ph-food-catalog',
+  name: 'Sugar pAI curated PH food catalog',
+  url: null,
+  datasetVersion: 'curated-unlabeled-demo-v1',
+}
+
+interface CompanionFoodMeta {
+  category: CompanionFoodCategory
+  diversityKey: string
+  baseScore: number
+  supportedReasons: PairingReasonCode[]
+}
+
+const TRUSTED_COMPANION_FOODS: Record<string, CompanionFoodMeta> = {
+  ph_gulay_side: {
+    category: 'vegetable',
+    diversityKey: 'vegetable',
+    baseScore: 72,
+    supportedReasons: ['ADD_FIBER_SOURCE', 'ADD_NON_STARCHY_VEGETABLE', 'ADD_MINIMALLY_PROCESSED_COMPONENT'],
+  },
+  ph_ginisang_monggo: {
+    category: 'legume',
+    diversityKey: 'legume',
+    baseScore: 70,
+    supportedReasons: ['ADD_FIBER_SOURCE', 'ADD_PROTEIN_SOURCE', 'ADD_MINIMALLY_PROCESSED_COMPONENT'],
+  },
+  ph_boiled_egg: {
+    category: 'egg',
+    diversityKey: 'egg',
+    baseScore: 68,
+    supportedReasons: ['ADD_PROTEIN_SOURCE', 'ADD_MINIMALLY_PROCESSED_COMPONENT'],
+  },
+  ph_tokwa: {
+    category: 'soy',
+    diversityKey: 'soy',
+    baseScore: 62,
+    supportedReasons: ['ADD_PROTEIN_SOURCE', 'ADD_MINIMALLY_PROCESSED_COMPONENT'],
+  },
+  ph_grilled_fish: {
+    category: 'fish',
+    diversityKey: 'fish',
+    baseScore: 60,
+    supportedReasons: ['ADD_PROTEIN_SOURCE', 'ADD_MINIMALLY_PROCESSED_COMPONENT'],
+  },
+  ph_plain_yogurt: {
+    category: 'yogurt',
+    diversityKey: 'yogurt',
+    baseScore: 56,
+    supportedReasons: ['ADD_PROTEIN_SOURCE', 'MEAL_CONTEXT_COMPLEMENT'],
+  },
+  ph_unsweetened_peanut_butter: {
+    category: 'nut_seed',
+    diversityKey: 'nut-seed',
+    baseScore: 52,
+    supportedReasons: ['ADD_PROTEIN_SOURCE', 'MEAL_CONTEXT_COMPLEMENT'],
+  },
+  ph_chia_ground_flax: {
+    category: 'nut_seed',
+    diversityKey: 'nut-seed',
+    baseScore: 50,
+    supportedReasons: ['ADD_FIBER_SOURCE', 'MEAL_CONTEXT_COMPLEMENT'],
+  },
+}
+
+type PairingProductKind = 'crackers' | 'bread' | 'sweet_snack' | 'sweet_beverage' | 'protein_food' | 'other'
+
+interface PairingNeed {
+  reasonCode: PairingReasonCode
+  evidenceLabels: string[]
+  strength: 'high' | 'moderate'
+  score: number
+  state: 'known' | 'unknown' | 'context'
+}
 
 const INGREDIENT_MARKERS: IngredientMarker[] = [
   {
@@ -335,6 +447,59 @@ export function buildPairingInsights(context: SmartContextInput | PairingContext
     : buildPackagedLabelInsights(input)
 }
 
+export function buildMealPairingSuggestions(
+  context: SmartContextInput | PairingContext,
+  catalog: CuratedFoodCandidate[],
+  limit = 3,
+): PairingSuggestion[] {
+  const input = isPairingContext(context) ? smartContextFromAnalysis(context) : context
+  if (
+    input.kind !== 'packaged_label'
+    || (input.nutrients.totalCarbohydrate == null && input.nutrients.totalSugars == null && input.nutrients.addedSugars == null)
+  ) {
+    return []
+  }
+
+  const productKind = classifyPairingProductKind(input)
+  const needs = pairingNeeds(input, productKind)
+  if (needs.length === 0) return []
+
+  const productText = normalizeForPairing(`${input.displayName} ${input.rawIngredients}`)
+  const ranked = catalog
+    .map((food) => candidateSuggestion(food, productText, productKind, needs))
+    .filter((suggestion): suggestion is PairingSuggestion & { score: number; diversityKey: string } => suggestion != null)
+    .sort((left, right) => right.score - left.score || left.displayName.localeCompare(right.displayName))
+
+  const selected: PairingSuggestion[] = []
+  const seenDiversity = new Set<string>()
+  const seenFoodIds = new Set<string>()
+  for (const suggestion of ranked) {
+    if (seenFoodIds.has(suggestion.foodId) || seenDiversity.has(suggestion.diversityKey)) continue
+    selected.push(stripInternalSuggestionFields(suggestion))
+    seenFoodIds.add(suggestion.foodId)
+    seenDiversity.add(suggestion.diversityKey)
+    if (selected.length >= limit) break
+  }
+  return selected
+}
+
+export function createPairingMealComponent(
+  suggestion: PairingSuggestion,
+  componentId = randomComponentId(),
+): MealPairingComponent {
+  return {
+    componentId,
+    type: 'curated_generic_food',
+    foodId: suggestion.foodId,
+    displayName: suggestion.displayName,
+    sourceId: suggestion.source.sourceId,
+    sourceName: suggestion.source.name,
+    reasonCodes: suggestion.reasonCodes,
+    contextOnly: true,
+    nutrientBasis: null,
+  }
+}
+
 function buildCuratedDemoInsights(input: SmartContextInput): PairingInsight[] {
   const tags = input.qualitativeTags.map((tag) => tag.toLowerCase())
   const tagText = tags.join(' ')
@@ -495,9 +660,9 @@ function buildPackagedLabelInsights(input: SmartContextInput): PairingInsight[] 
       id: 'ingredient-sugar-variants',
       priority: 50,
       category: 'ingredients',
-      title: 'Sugar names are present',
-      body: `Ingredient order flags ${formatVariants(input.sugarVariants)}. Use the rank as presence context only; the label does not disclose grams of each sweetener.`,
-      evidenceLabels: input.sugarVariants.slice(0, 4).map((variant) => `#${variant.ingredientRank} ${variant.canonicalName}`),
+      title: 'Sugar detected',
+      body: `The ingredient list includes ${formatVariants(input.sugarVariants)}. Ingredient order confirms presence, not grams from each sweetener.`,
+      evidenceLabels: input.sugarVariants.slice(0, 4).map((variant) => `#${variant.ingredientRank} ${variant.rawSpan}`),
       actionChips: ['Review rank', 'Check total sugars', 'Keep grams unknown'],
     })
   }
@@ -510,8 +675,8 @@ function buildPackagedLabelInsights(input: SmartContextInput): PairingInsight[] 
       id: 'ingredient-processing-markers',
       priority: 55,
       category: 'ingredients',
-      title: 'Ingredient names are context only',
-      body: `The ingredient list includes ${joinHuman(processingMarkers.slice(0, 4))}. The order shows presence, not grams of each ingredient or product GI.`,
+      title: "Ingredient amounts aren't available",
+      body: `The label confirms ${joinHuman(processingMarkers.slice(0, 4))} in the ingredient list, but ingredient order does not tell us grams or product-specific glycemic impact.`,
       evidenceLabels: processingMarkers.slice(0, 4),
       actionChips: ['Review ingredient order', 'Check total carbohydrate', 'Keep grams unknown'],
     })
@@ -549,6 +714,252 @@ function buildPackagedLabelInsights(input: SmartContextInput): PairingInsight[] 
   }
 
   return insights.sort(sortInsights)
+}
+
+function pairingNeeds(input: SmartContextInput, productKind: PairingProductKind): PairingNeed[] {
+  const nutrients = input.nutrients
+  const highSugar = isAtLeast(nutrients.totalSugars, HIGH_TOTAL_SUGAR_G) || isAtLeast(nutrients.addedSugars, HIGH_ADDED_SUGAR_G)
+  const carbContext = isAtLeast(nutrients.totalCarbohydrate, CARB_PAIRING_MIN_G)
+  const higherCarbContext = isAtLeast(nutrients.totalCarbohydrate, 20)
+  const processingContext = hasProcessingContext(input)
+  const evidenceBase = compactLabels([
+    gramsLabel('Carbs', nutrients.totalCarbohydrate),
+    gramsLabel('Fiber', nutrients.fiber),
+    gramsLabel('Protein', nutrients.protein),
+    gramsLabel('Total sugars', nutrients.totalSugars),
+    gramsLabel('Added sugars', nutrients.addedSugars),
+    productKind === 'other' ? null : `Product context: ${productKind.replace('_', ' ')}`,
+  ])
+  const needs: PairingNeed[] = []
+
+  if (carbContext && nutrients.fiber == null) {
+    needs.push({
+      reasonCode: 'ADD_FIBER_SOURCE',
+      evidenceLabels: compactLabels([
+        gramsLabel('Carbs', nutrients.totalCarbohydrate),
+        'Fiber not reported',
+        productKind === 'other' ? null : `Product context: ${productKind.replace('_', ' ')}`,
+      ]),
+      strength: 'moderate',
+      score: 24,
+      state: 'unknown',
+    })
+  } else if (carbContext && nutrients.fiber != null && nutrients.fiber < LOW_FIBER_G) {
+    needs.push({
+      reasonCode: 'ADD_FIBER_SOURCE',
+      evidenceLabels: compactLabels([
+        gramsLabel('Carbs', nutrients.totalCarbohydrate),
+        gramsLabel('Fiber', nutrients.fiber),
+        productKind === 'other' ? null : `Product context: ${productKind.replace('_', ' ')}`,
+      ]),
+      strength: 'high',
+      score: 34,
+      state: 'known',
+    })
+  }
+
+  const proteinAlreadySubstantial = nutrients.protein != null && nutrients.protein >= 10
+  const proteinContext = (higherCarbContext || highSugar || productKind === 'crackers' || productKind === 'bread' || productKind === 'sweet_snack' || productKind === 'sweet_beverage')
+    && (nutrients.totalCarbohydrate != null || nutrients.totalSugars != null || nutrients.addedSugars != null)
+  if (proteinContext && !proteinAlreadySubstantial && nutrients.protein == null) {
+    needs.push({
+      reasonCode: 'ADD_PROTEIN_SOURCE',
+      evidenceLabels: compactLabels([
+        higherCarbContext ? gramsLabel('Carbs', nutrients.totalCarbohydrate) : null,
+        highSugar ? sugarEvidenceLabel(nutrients) : null,
+        'Protein not reported',
+        productKind === 'other' ? null : `Product context: ${productKind.replace('_', ' ')}`,
+      ]),
+      strength: 'moderate',
+      score: 20,
+      state: 'unknown',
+    })
+  } else if (proteinContext && nutrients.protein != null && nutrients.protein < LOW_PROTEIN_G) {
+    needs.push({
+      reasonCode: 'ADD_PROTEIN_SOURCE',
+      evidenceLabels: compactLabels([
+        higherCarbContext ? gramsLabel('Carbs', nutrients.totalCarbohydrate) : null,
+        highSugar ? sugarEvidenceLabel(nutrients) : null,
+        gramsLabel('Protein', nutrients.protein),
+        productKind === 'other' ? null : `Product context: ${productKind.replace('_', ' ')}`,
+      ]),
+      strength: 'high',
+      score: 30,
+      state: 'known',
+    })
+  }
+
+  if (processingContext && needs.length > 0) {
+    needs.push({
+      reasonCode: 'ADD_MINIMALLY_PROCESSED_COMPONENT',
+      evidenceLabels: evidenceBase.slice(0, 5),
+      strength: 'moderate',
+      score: 8,
+      state: 'context',
+    })
+  }
+
+  if ((productKind === 'crackers' || productKind === 'bread' || productKind === 'sweet_snack') && needs.length > 0) {
+    needs.push({
+      reasonCode: 'MEAL_CONTEXT_COMPLEMENT',
+      evidenceLabels: evidenceBase.slice(0, 5),
+      strength: 'moderate',
+      score: 6,
+      state: 'context',
+    })
+  }
+
+  return dedupeNeeds(needs)
+}
+
+function candidateSuggestion(
+  food: CuratedFoodCandidate,
+  productText: string,
+  productKind: PairingProductKind,
+  needs: PairingNeed[],
+): (PairingSuggestion & { score: number; diversityKey: string }) | null {
+  const meta = TRUSTED_COMPANION_FOODS[food.foodId]
+  if (!meta || food.market !== 'PH') return null
+  if (food.confidence != null && food.confidence < 0.6) return null
+  if (isSameProductFamily(productText, food)) return null
+
+  const reasonCodes = meta.supportedReasons.filter((reason) => needs.some((need) => need.reasonCode === reason))
+  if (meta.category === 'vegetable' && reasonCodes.includes('ADD_FIBER_SOURCE') && !reasonCodes.includes('ADD_NON_STARCHY_VEGETABLE')) {
+    reasonCodes.push('ADD_NON_STARCHY_VEGETABLE')
+  }
+  if (reasonCodes.length === 0) return null
+
+  const matchedNeeds = needs.filter((need) => reasonCodes.includes(need.reasonCode))
+  const score = meta.baseScore
+    + matchedNeeds.reduce((total, need) => total + need.score, 0)
+    + productKindBonus(productKind, meta.category)
+  const evidenceStrength = matchedNeeds.some((need) => need.strength === 'high') ? 'high' : 'moderate'
+  if (evidenceStrength !== 'high' && matchedNeeds.every((need) => need.state === 'context')) return null
+
+  return {
+    foodId: food.foodId,
+    displayName: food.displayName,
+    category: meta.category,
+    label: suggestionLabel(reasonCodes),
+    reasonCodes,
+    reason: suggestionReason(meta.category, productKind, reasonCodes, matchedNeeds),
+    evidenceLabels: Array.from(new Set(matchedNeeds.flatMap((need) => need.evidenceLabels))).slice(0, 5),
+    source: COMPANION_SOURCE,
+    evidenceStrength,
+    score,
+    diversityKey: meta.diversityKey,
+  }
+}
+
+function stripInternalSuggestionFields(
+  suggestion: PairingSuggestion & { score: number; diversityKey: string },
+): PairingSuggestion {
+  return {
+    foodId: suggestion.foodId,
+    displayName: suggestion.displayName,
+    category: suggestion.category,
+    label: suggestion.label,
+    reasonCodes: suggestion.reasonCodes,
+    reason: suggestion.reason,
+    evidenceLabels: suggestion.evidenceLabels,
+    source: suggestion.source,
+    evidenceStrength: suggestion.evidenceStrength,
+  }
+}
+
+function suggestionLabel(reasonCodes: PairingReasonCode[]): string {
+  if (reasonCodes.includes('ADD_FIBER_SOURCE') && reasonCodes.includes('ADD_PROTEIN_SOURCE')) return 'Fiber + protein pairing'
+  if (reasonCodes.includes('ADD_NON_STARCHY_VEGETABLE')) return 'Vegetable pairing'
+  if (reasonCodes.includes('ADD_FIBER_SOURCE')) return 'Fiber pairing'
+  if (reasonCodes.includes('ADD_PROTEIN_SOURCE')) return 'Protein pairing'
+  return 'Meal pairing'
+}
+
+function suggestionReason(
+  category: CompanionFoodCategory,
+  productKind: PairingProductKind,
+  reasonCodes: PairingReasonCode[],
+  needs: PairingNeed[],
+): string {
+  const hasUnknownFiber = needs.some((need) => need.reasonCode === 'ADD_FIBER_SOURCE' && need.state === 'unknown')
+  const hasUnknownProtein = needs.some((need) => need.reasonCode === 'ADD_PROTEIN_SOURCE' && need.state === 'unknown')
+  if (category === 'legume' && reasonCodes.includes('ADD_FIBER_SOURCE') && reasonCodes.includes('ADD_PROTEIN_SOURCE')) {
+    return hasUnknownFiber || hasUnknownProtein
+      ? 'Adds legumes as a separate fiber- and protein-containing meal component while unknown product values stay unknown.'
+      : 'Adds fiber and protein as another meal component.'
+  }
+  if (category === 'vegetable') {
+    return hasUnknownFiber
+      ? 'Adds a separate vegetable component when fiber was not reported for the packaged food.'
+      : 'Adds a separate vegetable and fiber-containing component.'
+  }
+  if (reasonCodes.includes('ADD_PROTEIN_SOURCE')) {
+    const context = productKind === 'crackers' || productKind === 'sweet_snack'
+      ? 'alongside this snack'
+      : productKind === 'bread'
+        ? 'with the bread'
+        : 'to the meal'
+    return hasUnknownProtein
+      ? `Adds a separate protein-containing food ${context}; protein from the product label remains unknown.`
+      : `Adds a separate protein source ${context}.`
+  }
+  if (reasonCodes.includes('ADD_FIBER_SOURCE')) {
+    return hasUnknownFiber
+      ? 'Adds a separate fiber-containing food while the packaged product fiber value remains unknown.'
+      : 'Adds a separate fiber-containing component.'
+  }
+  return 'Adds another meal component without changing the packaged food values.'
+}
+
+function productKindBonus(productKind: PairingProductKind, category: CompanionFoodCategory): number {
+  const bonuses: Record<PairingProductKind, Partial<Record<CompanionFoodCategory, number>>> = {
+    crackers: { egg: 20, vegetable: 16, legume: 15, fish: 10, soy: 8 },
+    bread: { egg: 20, nut_seed: 15, vegetable: 12, fish: 10, soy: 8, yogurt: 6 },
+    sweet_snack: { yogurt: 18, nut_seed: 14, egg: 10, legume: 8, vegetable: 5 },
+    sweet_beverage: { egg: 14, soy: 12, legume: 10, vegetable: 8, yogurt: 8 },
+    protein_food: { vegetable: 10, legume: 6 },
+    other: { vegetable: 8, legume: 8, egg: 6 },
+  }
+  return bonuses[productKind][category] ?? 0
+}
+
+function classifyPairingProductKind(input: SmartContextInput): PairingProductKind {
+  const text = normalizeForPairing(`${input.displayName} ${input.rawIngredients}`)
+  if (/\b(?:cracker|crackers|saltine|skyflakes|biscuit|biscuits)\b/.test(text)) return 'crackers'
+  if (/\b(?:bread|loaf|pandesal|pan de sal|bun|roll)\b/.test(text)) return 'bread'
+  if (/\b(?:drink|juice|soda|soft drink|beverage|tea|coffee|chocolate drink|milk tea)\b/.test(text)) return 'sweet_beverage'
+  if (/\b(?:cookie|cookies|cake|chocolate|candy|wafer|dessert|sweet snack|bar)\b/.test(text)) return 'sweet_snack'
+  if (/\b(?:tuna|sardine|sardines|fish|chicken|egg|itlog|protein)\b/.test(text)) return 'protein_food'
+  return 'other'
+}
+
+function hasProcessingContext(input: SmartContextInput): boolean {
+  return input.contextFlags.some((flag) => flag.category === 'processing_marker')
+    || input.limitations.some((item) => /\bNOVA\b.*\b(?:4|ultra[-\s]?processed)\b/i.test(item))
+}
+
+function sugarEvidenceLabel(nutrients: PortionNutrients): string | null {
+  if (isAtLeast(nutrients.addedSugars, HIGH_ADDED_SUGAR_G)) return gramsLabel('Added sugars', nutrients.addedSugars)
+  if (isAtLeast(nutrients.totalSugars, HIGH_TOTAL_SUGAR_G)) return gramsLabel('Total sugars', nutrients.totalSugars)
+  return null
+}
+
+function dedupeNeeds(needs: PairingNeed[]): PairingNeed[] {
+  const byCode = new Map<PairingReasonCode, PairingNeed>()
+  for (const need of needs) {
+    const current = byCode.get(need.reasonCode)
+    if (!current || need.score > current.score || need.strength === 'high' && current.strength !== 'high') {
+      byCode.set(need.reasonCode, need)
+    }
+  }
+  return Array.from(byCode.values())
+}
+
+function isSameProductFamily(productText: string, food: CuratedFoodCandidate): boolean {
+  const candidateTerms = [food.displayName, ...food.aliases]
+    .map(normalizeForPairing)
+    .filter((term) => term.length >= 3)
+  return candidateTerms.some((term) => new RegExp(`\\b${escapeRegExp(term)}\\b`).test(productText))
 }
 
 function isPairingContext(context: SmartContextInput | PairingContext): context is PairingContext {
@@ -692,7 +1103,7 @@ function formatNumber(value: number): string {
 function formatVariants(variants: SugarVariant[]): string {
   const named = variants
     .slice(0, 3)
-    .map((variant) => `${variant.canonicalName} at #${variant.ingredientRank}`)
+    .map((variant) => `${variant.rawSpan} at #${variant.ingredientRank}`)
   return variants.length > named.length ? `${joinHuman(named)}, plus ${variants.length - named.length} more` : joinHuman(named)
 }
 
@@ -700,6 +1111,19 @@ function joinHuman(items: string[]): string {
   if (items.length <= 1) return items[0] ?? ''
   if (items.length === 2) return `${items[0]} and ${items[1]}`
   return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`
+}
+
+function normalizeForPairing(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function randomComponentId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
+  return `pairing-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 function sortInsights(left: PairingInsight, right: PairingInsight): number {

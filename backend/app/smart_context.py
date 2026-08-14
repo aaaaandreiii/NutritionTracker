@@ -197,22 +197,35 @@ def deterministic_cards(request: SmartContextResolveRequest) -> tuple[list[Smart
     higher_context = _entire_at_least(carb, 30) or high_sugar
 
     if carb_context and (fiber is None or _entire_below(fiber, 3)):
+        fiber_body = (
+            "Fiber is not available for the confirmed portion. A clearly separate fiber-rich side can be logged as meal context while the product fiber value stays unknown."
+            if fiber is None
+            else "The confirmed carbohydrate context applies, and the fiber value is below the rule threshold. Add a clearly separate fiber-rich side and keep the product fiber value visible."
+        )
         cards.append(SmartContextCard(
             id="fiber-anchor",
             rule_id="fiber-anchor",
             title="Add a fiber anchor",
-            body="The full carbohydrate range supports meal context, while fiber is low or unknown. Add a clearly separate fiber-rich side and keep the missing or low fiber value visible.",
+            body=fiber_body,
             evidence_labels=[_range_label("Carbs", carb), _range_label("Fiber", fiber)],
             actions=_pairings_for(request, purpose="fiber")[:3],
             source_ids=["sydney-gi-overview"],
         ))
 
     if _entire_at_least(carb, 20) and (protein is None or _entire_below(protein, 7)) and (fat is None or _entire_below(fat, 5)):
+        if protein is None and fat is None:
+            protein_fat_body = "Protein and fat are not available from the confirmed data. Use a familiar protein food or fat-containing food as separate meal context if useful."
+        elif protein is None:
+            protein_fat_body = "Protein is not available from the confirmed data, while fat is below the rule threshold. Use a familiar protein food as separate meal context if useful."
+        elif fat is None:
+            protein_fat_body = "Fat is not available from the confirmed data, while protein is below the rule threshold. Use a familiar protein or fat-containing food as separate meal context if useful."
+        else:
+            protein_fat_body = "Across the confirmed range, protein and fat are both below the rule thresholds. Use a familiar protein food or fat-containing food as separate meal context."
         cards.append(SmartContextCard(
             id="protein-fat-context",
             rule_id="protein-fat-context",
             title="Build the rest of the meal",
-            body="Across the confirmed range, the available data is carbohydrate-led and low or unknown in both protein and fat. Use a familiar protein food or fat-containing food as separate meal context.",
+            body=protein_fat_body,
             evidence_labels=[_range_label("Carbs", carb), _range_label("Protein", protein), _range_label("Fat", fat)],
             actions=_pairings_for(request, purpose="protein_fat")[:3],
         ))

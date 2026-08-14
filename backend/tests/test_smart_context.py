@@ -50,6 +50,34 @@ def test_estimated_rule_triggers_only_when_entire_range_supports_condition():
     assert any(item in " ".join(protein_fat_card.actions).casefold() for item in ("itlog", "tokwa", "chicken", "beans"))
 
 
+def test_packaged_fiber_unknown_copy_does_not_call_it_low():
+    request = SmartContextResolveRequest.model_validate({
+        "kind": "packaged_label",
+        "displayName": "Crackers",
+        "market": "PH",
+        "meal": "Snack",
+        "nutrients": {
+            "totalCarbohydrate": {"value": 18, "range": None, "evidenceType": "observed", "sourceId": "label"},
+            "fiber": {"value": None, "range": None, "evidenceType": "unavailable", "sourceId": None},
+            "totalSugars": {"value": 2, "range": None, "evidenceType": "observed", "sourceId": "label"},
+            "addedSugars": {"value": None, "range": None, "evidenceType": "unavailable", "sourceId": None},
+            "sugarAlcohols": {"value": None, "range": None, "evidenceType": "unavailable", "sourceId": None},
+            "protein": {"value": 3, "range": None, "evidenceType": "observed", "sourceId": "label"},
+            "fat": {"value": 2, "range": None, "evidenceType": "observed", "sourceId": "label"},
+        },
+        "contextFlags": [],
+        "qualitativeTags": [],
+        "limitations": [],
+        "excludedComponentCount": 0,
+    })
+
+    cards, _ = deterministic_cards(request)
+    fiber_card = next(card for card in cards if card.rule_id == "fiber-anchor")
+
+    assert "not available" in fiber_card.body
+    assert "low or unknown" not in fiber_card.body
+
+
 def test_smart_context_cache_reports_cache_hit():
     clear_smart_context_cache()
     request = request_with_ranges(totalCarbohydrate=nutrient_range(5, 8))

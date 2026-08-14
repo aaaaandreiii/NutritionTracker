@@ -1,8 +1,8 @@
-import { AlertCircle, ArrowRight, Barcode, Camera, Check, Database, LoaderCircle, RefreshCw, RotateCcw, ScanLine, Server, Upload, Utensils, X } from 'lucide-react'
+import { AlertCircle, ArrowRight, Barcode, Camera, Check, Database, Info, LoaderCircle, RefreshCw, RotateCcw, ScanLine, Upload, Utensils, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { type AnalysisPanelKind, type PanelKind, type ScanServiceStatus, type ScanSessionState } from '../../domain/scanSession'
-import type { ImageQualityReport, LogEntry, Market, OffProductLookupResponse, SmartContextRecordKind } from '../../domain/types'
+import type { ImageQualityReport, LogEntry, Market, OffProductLookupResponse, OffProductPreview, SmartContextRecordKind } from '../../domain/types'
 import { API_BASE_LABEL, checkBackendHealth, createAnalysis, createBarcodeAnalysis, deleteAnalysis, lookupOffProduct, streamAnalysis, type AnalysisImages, type BackendHealth } from '../../lib/api'
 import { decodeBarcode } from '../../lib/barcode'
 import { inspectImage } from '../../lib/imageQuality'
@@ -140,6 +140,28 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
     warnings: qualitySummary.warnings,
     resultStatus: result?.status,
   })
+  const hasNutritionPhoto = Boolean(images.nutrition)
+  const sidebarTitle = analyzing
+    ? 'Analyzing label'
+    : qualitySummary.fails > 0
+      ? 'Photo needs attention'
+      : canAnalyze
+        ? 'Ready to analyze'
+        : hasNutritionPhoto
+          ? 'Nutrition photo added'
+          : 'Ready for evidence'
+  const sidebarCopy = analyzing
+    ? 'Reading the label evidence and preparing review fields.'
+    : qualitySummary.fails > 0
+      ? 'Replace the flagged photo before continuing.'
+      : canAnalyze
+        ? 'Your Nutrition Facts photo is readable enough to continue.'
+        : hasNutritionPhoto
+          ? 'Wait for the photo quality check to finish before analyzing.'
+          : 'Add a readable Nutrition Facts photo to continue.'
+  const sidebarNext = !images.ingredients
+    ? 'Adding the ingredients panel improves sugar-source analysis.'
+    : 'All supporting panels added. Review the analysis before saving.'
 
   const chooseImage = async (kind: AnalysisPanelKind, file: File) => {
     setSession((previous) => ({
@@ -288,6 +310,7 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
         }
       })
       setSession((previous) => ({ ...previous, result: analysis }))
+      window.scrollTo({ top: 0, behavior: 'auto' })
     } catch (caught) {
       setSession((previous) => ({
         ...previous,
@@ -342,7 +365,16 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
   }
 
   if (result) {
-    return <EvidenceReview result={result} images={images} onBack={() => void returnToScan()} onLogged={onLogged} onValidated={(validated) => setSession((previous) => ({ ...previous, result: validated }))} />
+    return (
+      <EvidenceReview
+        result={result}
+        images={images}
+        onBack={() => void returnToScan()}
+        onLogged={onLogged}
+        onValidated={(validated) => setSession((previous) => ({ ...previous, result: validated }))}
+        onReviewing={(reviewing) => setSession((previous) => ({ ...previous, result: reviewing }))}
+      />
+    )
   }
 
   const heroCopy = scanMode === 'packaged_label'
@@ -445,35 +477,36 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
 
         <aside className="scan-sidebar">
           <section className="card analysis-card">
-            <div className="section-heading">
-              <div><span className="section-kicker">Scan state</span><h2>{setupState.label}</h2></div>
+            <div className="section-heading scan-sidebar-heading">
+              <div><span className="section-kicker">Next step</span><h2>{sidebarTitle}</h2></div>
               <span className={`scan-state-pill state-${setupState.tone}`}>{setupState.label}</span>
             </div>
+            <p className="scan-sidebar-copy">{sidebarCopy}</p>
+            <div className="scan-readiness-note"><Info size={16} /><span>{sidebarNext}</span></div>
             {qualitySummary.fails > 0 && (
               <div className="notice error"><AlertCircle size={17} /><span>{qualitySummary.blockingDetails[0] ?? 'Retake or replace the photo before analysis.'}</span></div>
             )}
             {qualitySummary.fails === 0 && qualitySummary.warnings > 0 && (
               <div className="notice warning"><AlertCircle size={17} /><span>{qualitySummary.warningDetails[0] ?? 'One photo may need careful review after analysis.'}</span></div>
             )}
-            <div className={`service-status service-${serviceStatus.state}`}>
-              <Server size={17} />
-              <div>
-                <strong>Analysis service</strong>
-                <small>{serviceStatus.message}</small>
-              </div>
-              <button type="button" onClick={() => void refreshServiceStatus()} aria-label="Check analysis service">
-                {serviceStatus.state === 'checking' ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}
-              </button>
-            </div>
-            {!images.ingredients && <div className="notice warning"><AlertCircle size={17} /><span>No ingredients image: sugar-variant analysis will be unavailable unless you transcribe it during review.</span></div>}
+            {serviceStatus.state === 'offline' && <div className="notice error"><AlertCircle size={17} /><span>{serviceStatus.message}</span></div>}
             {error && <div className="notice error"><AlertCircle size={17} /><span>{error}</span></div>}
             <button className="primary-button wide" disabled={!canAnalyze} onClick={() => void analyze()}>
               {analyzing ? <LoaderCircle className="spin" size={18} /> : <ScanLine size={18} />}
-              {analyzing ? 'Analysing label...' : 'Analyse label'}
+              {analyzing ? 'Analyzing label...' : 'Analyze label'}
               {!analyzing && <ArrowRight size={17} />}
             </button>
             {!images.nutrition && <small className="button-helper">Add a readable Nutrition Facts panel to continue.</small>}
             <TechnicalDetails>
+              <div className={`service-status service-${serviceStatus.state}`}>
+                <div>
+                  <strong>Analysis service</strong>
+                  <small>{serviceStatus.message}</small>
+                </div>
+                <button type="button" onClick={() => void refreshServiceStatus()} aria-label="Check analysis service">
+                  {serviceStatus.state === 'checking' ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}
+                </button>
+              </div>
               <div className="diagnostic-row"><strong>Service endpoint</strong><span>{API_BASE_LABEL}</span></div>
               <div className="diagnostic-row"><strong>Service state</strong><span>{serviceStatus.state}</span></div>
               {serviceStatus.detail && <div className="diagnostic-row"><strong>Last response</strong><span>{serviceStatus.detail}</span></div>}
@@ -521,7 +554,7 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
 function statusFromHealth(health: BackendHealth): ScanServiceStatus {
   return {
     state: health.ok ? 'online' : 'offline',
-    message: health.ok ? 'Ready to analyse labels.' : 'Analysis service unavailable. Check the local service and retry.',
+    message: health.ok ? 'Ready to analyze labels.' : 'Analysis service unavailable. Check the local service and retry.',
     detail: health.message,
     checkedAt: new Date().toISOString(),
   }
@@ -561,6 +594,12 @@ function BarcodeFirstPanel({
   onBarcodeChange: (barcode: string) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const product = barcodeLookup?.product
+  const productDisplayName = formatOffProductDisplayName(product, barcodeLookup?.barcode ?? barcode)
+  const productMeta = [
+    product?.brand ? formatNameText(product.brand) : null,
+    product?.barcode ? `Barcode ${product.barcode}` : null,
+  ].filter(Boolean).join(' · ')
   const stateLabel = barcodeLookupLoading
     ? 'Checking database'
     : barcodeLookup?.complete
@@ -602,14 +641,19 @@ function BarcodeFirstPanel({
       {barcodeLookup?.complete && barcodeLookup.product ? (
         <div className="product-found-summary">
           <span className="eyebrow"><Check size={14} /> Product found</span>
-          <h2>{barcodeLookup.product.productName ?? barcodeLookup.barcode}</h2>
-          <p>{barcodeLookup.product.brand ?? 'Brand not declared'} · {barcodeLookup.product.servingSize != null ? `${barcodeLookup.product.servingSize} ${barcodeLookup.product.servingUnit ?? ''}`.trim() : 'Serving unavailable'}</p>
+          <h2>{productDisplayName}</h2>
+          <p>{productMeta || 'Brand and serving details unavailable'}</p>
           <div className="found-nutrient-grid">
             <span><small>Carbohydrate</small><strong>{barcodeLookup.product.nutrients.totalCarbohydrate == null ? 'Not declared' : `${barcodeLookup.product.nutrients.totalCarbohydrate} g`}</strong></span>
             <span><small>Total sugars</small><strong>{barcodeLookup.product.nutrients.totalSugars == null ? 'Not declared' : `${barcodeLookup.product.nutrients.totalSugars} g`}</strong></span>
             <span><small>Fiber</small><strong>{barcodeLookup.product.nutrients.fiber == null ? 'Not declared' : `${barcodeLookup.product.nutrients.fiber} g`}</strong></span>
           </div>
-          {barcodeLookup.qualitativeMarkers?.novaGroup && <div className="nova-context"><strong>NOVA context</strong><span>{barcodeLookup.qualitativeMarkers.novaGroup}</span><small>Processing category from the local Open Food Facts record, not a health score.</small></div>}
+          {barcodeLookup.qualitativeMarkers?.novaGroup && (
+            <div className="nova-context">
+              <div><Info size={14} /><strong>{formatNovaGroup(barcodeLookup.qualitativeMarkers.novaGroup)}</strong></div>
+              <small>Processing category from the local Open Food Facts record. NOVA is context, not a health score.</small>
+            </div>
+          )}
           <div className="product-found-actions"><button className="primary-button" disabled={busy} onClick={onUseDatabaseMatch}>{busy ? <LoaderCircle className="spin" size={16} /> : <Check size={16} />} Use this product</button><button className="text-button" onClick={onRemoveBarcodeImage}>Not this product</button></div>
         </div>
       ) : (
@@ -642,14 +686,14 @@ function BarcodeFirstPanel({
         {barcodeMessage && <div className={`notice ${warningMessage ? 'warning' : 'neutral'}`}><Barcode size={17} /><span>{barcodeMessage}</span></div>}
         {barcodeLookupLoading && <div className="notice neutral"><LoaderCircle className="spin" size={17} /><span>Checking the local Open Food Facts database...</span></div>}
         {barcodeLookup && !barcodeLookupLoading && (
-          <BarcodeLookupPanel lookup={barcodeLookup} busy={busy} onUse={onUseDatabaseMatch} />
+          <BarcodeLookupPanel lookup={barcodeLookup} productDisplayName={productDisplayName} />
         )}
       </div>
     </section>
   )
 }
 
-function BarcodeLookupPanel({ lookup, busy, onUse }: { lookup: OffProductLookupResponse; busy: boolean; onUse: () => void }) {
+function BarcodeLookupPanel({ lookup, productDisplayName }: { lookup: OffProductLookupResponse; productDisplayName: string }) {
   const product = lookup.product
   const nutrients = product?.nutrients
   const nutrientSummary = nutrients
@@ -671,16 +715,16 @@ function BarcodeLookupPanel({ lookup, busy, onUse }: { lookup: OffProductLookupR
   return (
     <div className={`off-lookup-card off-lookup-${lookup.complete ? 'complete' : lookup.status}`}>
       <div className="off-lookup-title">
-        <Database size={17} />
+        {lookup.complete ? <Check size={17} /> : <Database size={17} />}
         <div>
-          <strong>{product?.productName ?? lookup.barcode}</strong>
+          <strong>{lookup.complete ? `${productDisplayName} found` : product?.productName ? formatNameText(product.productName) : lookup.barcode}</strong>
           <span>{lookup.message}</span>
         </div>
       </div>
-      {product && (
+      {product && !lookup.complete && (
         <div className="off-lookup-details">
-          <span>{product.brand ?? 'Brand unknown'}</span>
-          <span>{product.servingSize != null ? `${product.servingSize} ${product.servingUnit ?? ''}`.trim() : 'Serving unknown'}</span>
+          <span>{product.brand ? formatNameText(product.brand) : 'Brand unknown'}</span>
+          <span>{formatServingLabel(product) ?? 'Serving unknown'}</span>
           {nutrientSummary && <span>{nutrientSummary}</span>}
           {contextBits.length > 0 && <span>{contextBits.join(' · ')}</span>}
         </div>
@@ -691,12 +735,45 @@ function BarcodeLookupPanel({ lookup, busy, onUse }: { lookup: OffProductLookupR
           <span>{lookup.missingFields.join(', ')}</span>
         </div>
       )}
-      {lookup.complete && (
-        <button className="secondary-button wide" disabled={busy} onClick={onUse}>
-          {busy ? <LoaderCircle className="spin" size={16} /> : <Check size={16} />}
-          Use this product
-        </button>
-      )}
     </div>
   )
+}
+
+function formatOffProductDisplayName(product: OffProductPreview | null | undefined, fallback: string): string {
+  const base = formatNameText(product?.productName || fallback || 'Product')
+  const serving = formatServingLabel(product)
+  if (!serving) return base
+  const compactServing = serving.replace(/\s+/g, '')
+  const normalizedBase = base.toLowerCase()
+  if (normalizedBase.includes(serving.toLowerCase()) || normalizedBase.includes(compactServing.toLowerCase())) {
+    return base
+  }
+  return `${base} ${serving}`
+}
+
+function formatServingLabel(product: OffProductPreview | null | undefined): string | null {
+  if (product?.servingSize == null) return null
+  const unit = product.servingUnit?.trim() || 'g'
+  return `${product.servingSize} ${unit}`.replace(/\s+/g, ' ').trim()
+}
+
+function formatNameText(value: string): string {
+  const cleaned = value
+    .replace(/\s+/g, ' ')
+    .replace(/(\d+(?:\.\d+)?)\s*(g|kg|mg|ml|l)\b/gi, (_, amount: string, unit: string) => `${amount} ${unit.toLowerCase()}`)
+    .replace(/\bsky\s*flakes\b/gi, 'SkyFlakes')
+    .trim()
+  if (/[a-z]/.test(cleaned) && /[A-Z]/.test(cleaned.replace(/\b(SkyFlakes)\b/g, ''))) return cleaned
+  return cleaned.replace(/\b([a-z])([a-z'’-]*)/gi, (word) => {
+    if (/^(g|kg|mg|ml|l)$/i.test(word)) return word.toLowerCase()
+    if (/^SkyFlakes$/i.test(word)) return 'SkyFlakes'
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  })
+}
+
+function formatNovaGroup(value: string): string {
+  const cleaned = value.replace(/\s+/g, ' ').trim()
+  const match = cleaned.match(/^(\d)\s*-\s*(.+)$/)
+  if (!match) return `NOVA · ${cleaned}`
+  return `NOVA ${match[1]} · ${formatNameText(match[2])}`
 }

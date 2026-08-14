@@ -2,40 +2,53 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
-  FileCheck2,
+  ExternalLink,
   Info,
   LoaderCircle,
   Save,
   ShieldCheck,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react'
 import { NUTRIENT_KEYS, NUTRIENT_META, correctionsFromResult, makeLogTotals } from '../../domain/nutrition'
 import {
   buildIngredientContextFlags,
+  buildMealPairingSuggestions,
   buildPairingInsights,
+  createPairingMealComponent,
   deterministicSmartContextSnapshot,
   smartContextRequestFromAnalysis,
   smartContextResponseToInsights,
   type PairingInsight,
+  type PairingSuggestion,
 } from '../../domain/pairing'
 import type {
   AnalysisResult,
+  CuratedFoodCandidate,
   FinalizeCorrections,
+  GlycemicEvidence,
   LogEntry,
+  MealPairingComponent,
   MealSlot,
   MethodDiagnostic,
+  NutrientKey,
   PanelDiagnostic,
   SmartContextFlag,
   SmartContextResponse,
 } from '../../domain/types'
-import { finalizeAnalysis, resolveSmartContext } from '../../lib/api'
+import { finalizeAnalysis, getUnlabeledFoodCatalog, resolveSmartContext } from '../../lib/api'
 import { saveLog } from '../../lib/db'
 import type { AnalysisImages } from '../../lib/api'
 import ImagePreviewButton from './ImagePreviewButton'
+import MealPairingIdeas from './MealPairingIdeas'
 import PairingIdeas from './PairingIdeas'
-import { GlycemicEvidenceBlock, TechnicalDetails } from './uiHelpers'
-import { formatSmartContextMode, normalizeIngredientDisplay, reviewStatusLabel, sourceLabel } from './uiDisplay'
+import {
+  formatProductDisplayName,
+  formatSmartContextMode,
+  normalizeIngredientDisplay,
+  normalizeNameDisplay,
+  sourceLabel,
+} from './uiDisplay'
 
 interface Props {
   result: AnalysisResult
@@ -43,7 +56,14 @@ interface Props {
   onBack: () => void
   onLogged: (entry: LogEntry) => void | Promise<void>
   onValidated?: (result: AnalysisResult) => void
+  onReviewing?: (result: AnalysisResult) => void
 }
+
+type CapturedImage = { kind: 'nutrition' | 'ingredients' | 'front'; label: string; file: File }
+
+const MEAL_SLOTS: MealSlot[] = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Other']
+const SUMMARY_NUTRIENTS = ['totalCarbohydrate', 'totalSugars', 'addedSugars', 'fiber'] as const satisfies readonly NutrientKey[]
+const PERMANENT_HELPER_NUTRIENTS = new Set<NutrientKey>(['totalCarbohydrate', 'addedSugars'])
 
 function numberFromInput(value: string): number | null {
   if (value.trim() === '') return null
@@ -61,8 +81,123 @@ function statusLabel(status: string | undefined): string {
   return status[0].toUpperCase() + status.slice(1)
 }
 
-function flagCategoryLabel(flag: SmartContextFlag): string {
-  return flag.category.replaceAll('_', ' ')
+function sourceSummary(sourceKind: string | null | undefined): string {
+  if (sourceKind === 'database') return 'Database match'
+  if (sourceKind === 'label') return 'From photo'
+  if (sourceKind === 'user') return 'Edited by you'
+  if (sourceKind === 'calculated') return 'Calculated'
+  return 'Unavailable'
+}
+
+function fieldBadge({
+  edited,
+  status,
+  sourceKind,
+  value,
+  missingLabel = 'Unavailable',
+}: {
+  edited: boolean
+  status?: string
+  sourceKind?: string | null
+  value?: unknown
+  missingLabel?: string
+}): string | null {
+  if (edited) return 'Edited'
+  if (value == null || status === 'Unavailable') return missingLabel
+  if (status === 'Conflict') return 'Needs review'
+  if (sourceKind === 'label') return 'From photo'
+  if (sourceKind === 'user') return 'Edited'
+  return null
+}
+
+function nutrientBadge(
+  key: NutrientKey,
+  current: AnalysisResult,
+  corrections: FinalizeCorrections,
+  edited: Set<string>,
+): string | null {
+  const field = current.nutrients[key]
+  return fieldBadge({
+    edited: edited.has(key),
+    status: field.status,
+    sourceKind: field.sourceKind,
+    value: corrections.nutrients[key],
+    missingLabel: 'Not declared',
+  })
+}
+
+function formatNutrientValue(value: number | null): string {
+  return value == null ? 'Not declared' : `${value} g`
+}
+
+function servingUnit(result: AnalysisResult, corrections: FinalizeCorrections): string {
+  return corrections.servingUnit.trim() || result.serving.unit || result.serving.size.unit || 'g'
+}
+
+function servingSummary(result: AnalysisResult, corrections: FinalizeCorrections): string {
+  if (corrections.servingSize == null) return 'Serving not declared'
+  return `Per ${corrections.servingSize} ${servingUnit(result, corrections)}`
+}
+
+function displayProduct(result: AnalysisResult, corrections: FinalizeCorrections): string {
+  return formatProductDisplayName(
+    corrections.productName || result.product.name.value,
+    corrections.servingSize ?? result.serving.size.value,
+    servingUnit(result, corrections),
+  )
+}
+
+function statusForRank(rank: number): string {
+  const lastTwo = rank % 100
+  if (lastTwo >= 11 && lastTwo <= 13) return `${rank}th`
+  switch (rank % 10) {
+    case 1: return `${rank}st`
+    case 2: return `${rank}nd`
+    case 3: return `${rank}rd`
+    default: return `${rank}th`
+  }
+}
+
+function flagRank(flag: SmartContextFlag): string | null {
+  const match = flag.evidenceLabels.join(' ').match(/#(\d+)/)
+  return match ? statusForRank(Number(match[1])) : null
+}
+
+function flagPackageTerm(flag: SmartContextFlag): string {
+  const ranked = flag.evidenceLabels.find((label) => /^#\d+\s+/.test(label))
+  if (ranked) return normalizeNameDisplay(ranked.replace(/^#\d+\s+/, ''), flag.label)
+  return normalizeNameDisplay(flag.label)
+}
+
+function consumerFlagCopy(flag: SmartContextFlag): { title: string; body: string; meta: string | null } {
+  const term = flagPackageTerm(flag)
+  const rank = flagRank(flag)
+  if (flag.category === 'sugar_alias' || flag.category === 'hfcs' || flag.category === 'high_intensity_sweetener') {
+    return {
+      title: /sugar|sucrose|fructose|syrup|sweetener/i.test(term) ? 'Sugar detected' : `${term} detected`,
+      body: `${term} appears${rank ? ` ${rank}` : ''} in the ingredient list. Ingredient order confirms presence but does not reveal how many grams come from that ingredient.`,
+      meta: flag.label.toLowerCase() !== term.toLowerCase() ? `Mapped for context as ${normalizeNameDisplay(flag.label)}.` : null,
+    }
+  }
+  if (flag.category === 'starch' || flag.category === 'maltodextrin') {
+    return {
+      title: `${term} detected`,
+      body: `${term} is present in the ingredient list. Use this as context alongside the confirmed carbohydrate value, not as a product-specific glycemic estimate.`,
+      meta: rank ? `Ingredient order: ${rank}.` : null,
+    }
+  }
+  if (flag.category === 'polyol') {
+    return {
+      title: `${term} detected`,
+      body: `${term} appears in the ingredient list. Only use sugar-alcohol grams when the Nutrition Facts panel declares them.`,
+      meta: rank ? `Ingredient order: ${rank}.` : null,
+    }
+  }
+  return {
+    title: normalizeNameDisplay(flag.label),
+    body: 'This is ingredient-list context only. It is not a food rating and does not provide ingredient quantities.',
+    meta: flag.evidenceLabels.length ? flag.evidenceLabels.join(' · ') : null,
+  }
 }
 
 function panelSummary(panel: PanelDiagnostic | null | undefined): string {
@@ -80,7 +215,7 @@ function methodStatus(method: MethodDiagnostic | null | undefined): string {
   return bits.join(' · ')
 }
 
-export default function EvidenceReview({ result, images, onBack, onLogged, onValidated }: Props) {
+export default function EvidenceReview({ result, images, onBack, onLogged, onValidated, onReviewing }: Props) {
   const [corrections, setCorrections] = useState<FinalizeCorrections>(() => correctionsFromResult(result))
   const [edited, setEdited] = useState<Set<string>>(new Set())
   const [confirmed, setConfirmed] = useState<AnalysisResult | null>(null)
@@ -89,28 +224,65 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
   const [retainImages, setRetainImages] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [ingredientsEditing, setIngredientsEditing] = useState(false)
   const [ingredientsEditorOpen, setIngredientsEditorOpen] = useState(false)
   const [smartContextSnapshot, setSmartContextSnapshot] = useState<SmartContextResponse | null>(null)
   const [resolvedPairingInsights, setResolvedPairingInsights] = useState<PairingInsight[] | null>(null)
+  const [companionCatalog, setCompanionCatalog] = useState<CuratedFoodCandidate[]>([])
+  const [companionCatalogReady, setCompanionCatalogReady] = useState(false)
+  const [companionCatalogWarning, setCompanionCatalogWarning] = useState<string | null>(null)
+  const [mealPairingComponents, setMealPairingComponents] = useState<MealPairingComponent[]>([])
 
   const current = confirmed ?? result
   const validatedRecord = confirmed ?? (edited.size === 0 && result.status === 'confirmed' ? result : null)
-  const requiredComplete = corrections.productName.trim().length > 0 && corrections.consumedServings > 0
+  const canConfirmLabel = corrections.productName.trim().length > 0
   const hasNutrition = NUTRIENT_KEYS.some((key) => corrections.nutrients[key] != null)
-  const changed = (key: string) => {
-    setConfirmed(null)
-    setResultsMode(false)
-    setResolvedPairingInsights(null)
-    setSmartContextSnapshot(null)
-    setEdited((previous) => new Set(previous).add(key))
-  }
-
-  const limitations = useMemo(() => Array.from(new Set(current.limitations)), [current.limitations])
+  const editedCount = edited.size
   const diagnostics = current.diagnostics
   const fallbackReason = diagnostics?.fallbackReason
   const ingredientFieldHasText = Boolean(current.rawIngredients.value?.trim())
   const ingredientTextAccepted = ['label', 'database'].includes(current.rawIngredients.sourceKind) && ingredientFieldHasText
   const ingredientFlags = useMemo(() => buildIngredientContextFlags(current), [current])
+  const limitations = useMemo(() => Array.from(new Set(current.limitations)), [current.limitations])
+  const displayName = displayProduct(current, corrections)
+  const productNameForInput = edited.has('productName')
+    ? corrections.productName
+    : normalizeNameDisplay(corrections.productName || current.product.name.value, '')
+  const ingredientsForDisplay = normalizeIngredientDisplay(corrections.rawIngredients || current.rawIngredients.value)
+
+  const changed = (key: string) => {
+    setConfirmed(null)
+    setResultsMode(false)
+    setResolvedPairingInsights(null)
+    setSmartContextSnapshot(null)
+    setMealPairingComponents([])
+    setEdited((previous) => new Set(previous).add(key))
+  }
+
+  const startReviewing = () => {
+    const reviewingResult = current.status === 'confirmed' ? { ...current, status: 'ready' as const } : current
+    setConfirmed(null)
+    setResultsMode(false)
+    setResolvedPairingInsights(null)
+    setSmartContextSnapshot(null)
+    setMealPairingComponents([])
+    onReviewing?.(reviewingResult)
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }
+
+  const updateLogServings = (value: string) => {
+    const parsed = Number(value)
+    setCorrections((previous) => ({ ...previous, consumedServings: Number.isFinite(parsed) ? parsed : 0 }))
+    setResolvedPairingInsights(null)
+    setSmartContextSnapshot(null)
+  }
+
+  const updateMeal = (value: MealSlot) => {
+    setMeal(value)
+    setResolvedPairingInsights(null)
+    setSmartContextSnapshot(null)
+  }
+
   const pairingInsights = useMemo(
     () => current.status === 'confirmed'
       ? buildPairingInsights({
@@ -123,6 +295,34 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
     [corrections.consumedServings, corrections.productName, current, meal],
   )
   const visiblePairingInsights = resolvedPairingInsights ?? pairingInsights
+  const mealPairingSuggestions = useMemo(
+    () => current.status === 'confirmed'
+      ? buildMealPairingSuggestions({
+        result: current,
+        consumedServings: corrections.consumedServings,
+        meal,
+        productName: corrections.productName,
+      }, companionCatalog)
+      : [],
+    [companionCatalog, corrections.consumedServings, corrections.productName, current, meal],
+  )
+
+  useEffect(() => {
+    if (current.status !== 'confirmed' || companionCatalogReady) return
+    let active = true
+    void getUnlabeledFoodCatalog('PH').then((payload) => {
+      if (!active) return
+      setCompanionCatalog(payload.foods)
+      setCompanionCatalogReady(true)
+      setCompanionCatalogWarning(null)
+    }).catch(() => {
+      if (!active) return
+      setCompanionCatalog([])
+      setCompanionCatalogReady(true)
+      setCompanionCatalogWarning('No specific pairings suggested. The trusted companion-food catalog is unavailable.')
+    })
+    return () => { active = false }
+  }, [companionCatalogReady, current.status])
 
   useEffect(() => {
     if (current.status !== 'confirmed') return
@@ -140,31 +340,47 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
     }).catch(() => undefined)
     return () => { active = false }
   }, [corrections.consumedServings, corrections.productName, current, meal])
+
+  const addMealPairing = (suggestion: PairingSuggestion) => {
+    setMealPairingComponents((previous) => {
+      if (previous.some((component) => component.foodId === suggestion.foodId)) return previous
+      return [...previous, createPairingMealComponent(suggestion)].slice(0, 3)
+    })
+  }
+
+  const removeMealPairing = (componentId: string) => {
+    setMealPairingComponents((previous) => previous.filter((component) => component.componentId !== componentId))
+  }
+
   const capturedImages = [
-    { kind: 'nutrition' as const, label: 'Nutrition', file: images.nutrition },
+    { kind: 'nutrition' as const, label: 'Nutrition Facts', file: images.nutrition },
     { kind: 'ingredients' as const, label: 'Ingredients', file: images.ingredients },
-    { kind: 'front' as const, label: 'Front', file: images.front },
-  ].filter((item): item is { kind: 'nutrition' | 'ingredients' | 'front'; label: string; file: File } => Boolean(item.file))
+    { kind: 'front' as const, label: 'Front label', file: images.front },
+  ].filter((item): item is CapturedImage => Boolean(item.file))
+  const hasCapturedEvidence = capturedImages.length > 0
 
   const validate = async () => {
+    if (!canConfirmLabel || !hasNutrition) return
     setSaving(true)
     setError(null)
     setResolvedPairingInsights(null)
     setSmartContextSnapshot(null)
+    setMealPairingComponents([])
     try {
       const next = await finalizeAnalysis(result.analysisId, corrections)
       setConfirmed(next)
       setResultsMode(true)
       onValidated?.(next)
+      window.scrollTo({ top: 0, behavior: 'auto' })
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not validate corrections.')
+      setError(caught instanceof Error ? caught.message : 'Could not confirm label values.')
     } finally {
       setSaving(false)
     }
   }
 
   const log = async () => {
-    if (!validatedRecord) return
+    if (!validatedRecord || corrections.consumedServings <= 0) return
     setSaving(true)
     try {
       const entry: LogEntry = {
@@ -174,9 +390,10 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
         loggedAt: new Date().toISOString(),
         meal,
         consumedServings: corrections.consumedServings,
-        productName: corrections.productName.trim(),
+        productName: displayName,
         result: validatedRecord,
         smartContextSnapshot: smartContextSnapshot ?? deterministicSmartContextSnapshot(pairingInsights),
+        mealPairingComponents: mealPairingComponents.length ? mealPairingComponents : undefined,
         totals: makeLogTotals(validatedRecord, corrections.consumedServings),
         retainedImages: retainImages && capturedImages.length > 0
           ? capturedImages.map((image) => ({ kind: image.kind, blob: image.file, name: image.file.name }))
@@ -193,301 +410,261 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
 
   return (
     <div className={`page review-page ${resultsMode ? 'results-page' : ''}`}>
-      <button className="back-button" onClick={onBack}><ArrowLeft size={17} /> Retake or replace images</button>
+      <button className="back-button" onClick={onBack}><ArrowLeft size={17} /> Back to evidence</button>
       <div className="review-heading">
         <div>
           <span className="eyebrow">{resultsMode ? 'Validated product' : 'Review evidence'}</span>
           <h1>{resultsMode ? 'Your evidence, in context.' : 'Confirm the label'}</h1>
-          <p>{resultsMode ? 'Smart Context uses only the label values you confirmed.' : 'Not declared / unavailable stays blank, not zero. Correct each field you can verify from the photographed panel.'}</p>
+          <p>{resultsMode ? 'Context is based on the package values you confirmed.' : 'Check the values below against the package. Leave anything not declared as unavailable rather than entering zero.'}</p>
         </div>
-        <div className={`result-state state-${current.status}`}><FileCheck2 size={18} /> {reviewStatusLabel(current.status)}</div>
       </div>
 
-      <div className="notice neutral"><Info size={18} /><span>This tool explains package labels for adult research use. It does not predict glucose or provide medical advice.</span></div>
-      {current.retakeRecommended && current.retakeReasons.length > 0 && (
+      <div className="safety-note"><Info size={16} /><span>Sugar pAI explains package labels for adult research use. It does not predict glucose or provide medical advice.</span></div>
+      {current.retakeRecommended && current.retakeReasons.length > 0 && !resultsMode && (
         <div className="notice warning retake-notice">
           <AlertCircle size={18} />
           <span>{current.retakeReasons.join(' ')}</span>
         </div>
       )}
 
-      {resultsMode && (
-        <section className="results-product-summary">
-          <div>
-            <span className="section-kicker">Product summary</span>
-            <h2>{current.product.name.value}</h2>
-            <p>{current.serving.size.value == null ? 'Serving not declared / unavailable' : `Per ${current.serving.size.value} ${current.serving.unit ?? current.serving.size.unit ?? ''}`}</p>
-            <small className="section-source">Source: {sourceLabel(current.product.name.sourceKind)}</small>
-          </div>
-          <div className="results-nutrients">
-            {(['totalCarbohydrate', 'totalSugars', 'addedSugars', 'fiber'] as const).map((key) => {
-              const field = current.nutrients[key]
-              const showStatus = field.status === 'Unavailable' || field.status === 'Conflict' || field.status === 'User confirmed' || field.sourceKind === 'database'
-              return <div key={key}><span>{NUTRIENT_META[key].label}</span><strong>{field.value == null ? 'Not declared / unavailable' : `${field.value} g`}</strong>{showStatus && <small>{field.status}</small>}</div>
-            })}
-          </div>
-          <button className="secondary-button" onClick={() => setResultsMode(false)}>Edit evidence</button>
-        </section>
-      )}
+      {!resultsMode ? (
+        <>
+          <div className={`review-layout ${hasCapturedEvidence ? 'has-evidence-rail' : 'review-no-rail'}`}>
+            <div className="review-main">
+              <section className="review-source-summary" aria-label="Review source summary">
+                <strong>{displayName}</strong>
+                <span>{sourceSummary(current.product.name.sourceKind)} · {servingSummary(current, corrections)}</span>
+              </section>
 
-      {resultsMode && current.status === 'confirmed' && <PairingIdeas insights={visiblePairingInsights} />}
-
-      <div className="review-layout">
-        {!resultsMode && (
-        <div className="review-main">
-          <section className="card form-card">
-            <div className="section-heading"><div><span className="section-kicker">Product & serving</span><h2>Serving basis</h2></div></div>
-            <label className="field full-field">
-              <span>Product name</span>
-              <input
-                value={corrections.productName}
-                placeholder="Enter the name printed on the package"
-                onChange={(event) => {
-                  changed('productName')
-                  setCorrections((value) => ({ ...value, productName: event.target.value }))
-                }}
+              <ProductServingCard
+                current={current}
+                corrections={corrections}
+                edited={edited}
+                productNameForInput={productNameForInput}
+                onChange={changed}
+                setCorrections={setCorrections}
               />
-              <StatusPill status={edited.has('productName') ? 'User confirmed' : current.product.name.status} />
-            </label>
-            <div className="two-fields">
-              <label className="field">
-                <span>Serving size</span>
-                <input
-                  inputMode="decimal"
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={corrections.servingSize ?? ''}
-                  placeholder="Not declared / unavailable"
-                  onChange={(event) => {
-                    changed('servingSize')
-                    setCorrections((value) => ({ ...value, servingSize: numberFromInput(event.target.value) }))
-                  }}
-                />
-                <StatusPill status={edited.has('servingSize') ? 'User confirmed' : current.serving.size.status} />
-              </label>
-              <label className="field">
-                <span>Serving unit</span>
-                <input
-                  value={corrections.servingUnit}
-                  placeholder="g, mL, piece"
-                  onChange={(event) => {
-                    changed('servingUnit')
-                    setCorrections((value) => ({ ...value, servingUnit: event.target.value }))
-                  }}
-                />
-              </label>
-            </div>
-          </section>
 
-          <section className="card form-card">
-            <div className="section-heading">
-              <div><span className="section-kicker">Per labeled serving</span><h2>Carbohydrate-first review</h2></div>
-              <span className="unit-label">grams</span>
-            </div>
-            <div className="nutrient-fields">
-              {NUTRIENT_KEYS.map((key) => (
-                <label className={`field nutrient-field nutrient-${key}`} key={key}>
-                  <span>{NUTRIENT_META[key].label}</span>
-                  <input
-                    inputMode="decimal"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={corrections.nutrients[key] ?? ''}
-                    placeholder="Not declared / unavailable"
-                    onChange={(event) => {
-                      changed(key)
-                      const value = numberFromInput(event.target.value)
-                      setCorrections((previous) => ({
-                        ...previous,
-                        nutrients: { ...previous.nutrients, [key]: value },
-                      }))
-                    }}
-                  />
-                  <small>{NUTRIENT_META[key].helper}</small>
-                  <StatusPill status={edited.has(key) ? 'User confirmed' : current.nutrients[key].status} />
-                </label>
-              ))}
-            </div>
-          </section>
-
-          <section className="card form-card">
-            <div className="section-heading"><div><span className="section-kicker">Ingredient order</span><h2>Ingredient context flags</h2></div></div>
-            <label className="field full-field">
-              <span>Ingredients, in printed order</span>
-              <textarea
-                className="desktop-ingredients-editor"
-                rows={5}
-                value={corrections.rawIngredients}
-                placeholder={fallbackReason ? `No ingredient text accepted: ${fallbackReason}` : 'No ingredient text accepted'}
-                onChange={(event) => {
-                  changed('ingredients')
-                  setCorrections((value) => ({ ...value, rawIngredients: event.target.value }))
-                }}
+              <NutritionReviewCard
+                current={current}
+                corrections={corrections}
+                edited={edited}
+                onChange={changed}
+                setCorrections={setCorrections}
               />
-              <button type="button" className="mobile-field-editor-button" onClick={() => setIngredientsEditorOpen(true)}>
-                <span>{normalizeIngredientDisplay(corrections.rawIngredients) || 'Not declared / unavailable'}</span><strong>Edit ingredients</strong>
-              </button>
-              <StatusPill status={edited.has('ingredients') ? 'User confirmed' : current.rawIngredients.status} />
-            </label>
-            {!ingredientFieldHasText && !corrections.rawIngredients.trim() && (
-              <p className="empty-inline">No ingredient text accepted{fallbackReason ? `: ${fallbackReason}` : '. Confirm by typing it from the panel if readable.'}</p>
+
+              <section className="card form-card ingredients-review-card">
+                <div className="section-heading">
+                  <div><span className="section-kicker">Ingredients</span><h2>Ingredient list</h2></div>
+                  <StatusBadge label={fieldBadge({
+                    edited: edited.has('ingredients'),
+                    status: current.rawIngredients.status,
+                    sourceKind: current.rawIngredients.sourceKind,
+                    value: current.rawIngredients.value,
+                  })} />
+                </div>
+
+                {!ingredientsEditing ? (
+                  <div className="ingredient-display-panel">
+                    {ingredientsForDisplay ? <p>{ingredientsForDisplay}</p> : (
+                      <p className="ingredient-empty-copy">No ingredient text was available. Add it from the package if the panel is readable.</p>
+                    )}
+                    <button
+                      type="button"
+                      className="secondary-button ingredient-edit-button"
+                      onClick={() => {
+                        setIngredientsEditing(true)
+                        if (window.innerWidth <= 900) setIngredientsEditorOpen(true)
+                      }}
+                    >
+                      Edit
+                    </button>
+                  </div>
+                ) : (
+                  <label className="field full-field ingredient-editor-field">
+                    <span>Ingredients, in printed order</span>
+                    <textarea
+                      className="desktop-ingredients-editor"
+                      rows={5}
+                      value={edited.has('ingredients') ? corrections.rawIngredients : ingredientsForDisplay}
+                      placeholder={fallbackReason ? `No ingredient text accepted: ${fallbackReason}` : 'No ingredient text accepted'}
+                      onChange={(event) => {
+                        changed('ingredients')
+                        setCorrections((value) => ({ ...value, rawIngredients: event.target.value }))
+                      }}
+                    />
+                    <button type="button" className="mobile-field-editor-button" onClick={() => setIngredientsEditorOpen(true)}>
+                      <span>{ingredientsForDisplay || 'Not declared / unavailable'}</span><strong>Edit ingredients</strong>
+                    </button>
+                  </label>
+                )}
+
+                {edited.has('ingredients') ? (
+                  <p className="empty-inline">Ingredient context will refresh after you confirm these label values.</p>
+                ) : ingredientFlags.length > 0 ? (
+                  <div className="consumer-flag-list">
+                    {ingredientFlags.map((flag) => {
+                      const copy = consumerFlagCopy(flag)
+                      return (
+                        <div className={`consumer-context-flag flag-${flag.category}`} key={flag.id}>
+                          <strong>{copy.title}</strong>
+                          <p>{copy.body}</p>
+                          {copy.meta && <small>{copy.meta}</small>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="empty-inline">No sugar-source ingredient context is available from the accepted ingredient text.</p>
+                )}
+              </section>
+            </div>
+
+            {hasCapturedEvidence && (
+              <aside className="review-aside">
+                <section className="card captured-images-card captured-evidence-rail">
+                  <span className="section-kicker">Captured evidence</span>
+                  <CapturedEvidenceList images={capturedImages} />
+                </section>
+              </aside>
             )}
-            {ingredientFlags.length > 0 ? (
-              <div className="context-flag-list">
-                {ingredientFlags.map((flag) => (
-                  <div className={`context-flag flag-${flag.category}`} key={flag.id}>
-                    <strong>{flag.label}</strong>
-                    <span>{flagCategoryLabel(flag)}</span>
-                    <p>{flag.detail}</p>
-                    <small>{flag.evidenceLabels.join(' · ')}</small>
+          </div>
+
+          <section className="card review-action-card">
+            <div>
+              <span className="section-kicker">Confirmation</span>
+              <h2>Confirm label values</h2>
+              <p>Smart Context starts after the package values are confirmed. Logging details come later.</p>
+              {editedCount > 0 && <small>{editedCount} value{editedCount === 1 ? '' : 's'} edited</small>}
+            </div>
+            {error && <div className="notice error"><AlertCircle size={17} />{error}</div>}
+            {!hasNutrition && <div className="notice warning"><AlertCircle size={17} />Enter at least one printed nutrition value before confirming.</div>}
+            <div className="review-actions">
+              <button type="button" className="secondary-button" onClick={onBack}><ArrowLeft size={16} /> Back to evidence</button>
+              <button className="primary-button" disabled={!canConfirmLabel || !hasNutrition || saving} onClick={validate}>
+                {saving ? <LoaderCircle className="spin" size={18} /> : <ShieldCheck size={18} />} Confirm label values
+              </button>
+            </div>
+          </section>
+        </>
+      ) : (
+        <>
+          <div className="context-stack">
+            <section className="card context-product-summary">
+              <div className="context-summary-head">
+                <div>
+                  <span className="section-kicker">Product summary</span>
+                  <h2>{displayName}</h2>
+                  <p>{servingSummary(current, corrections)}</p>
+                </div>
+                <div className="context-summary-actions">
+                  <span>Values confirmed by you</span>
+                  <button className="secondary-button" onClick={startReviewing}>Edit evidence</button>
+                </div>
+              </div>
+              <div className="context-metric-grid">
+                {SUMMARY_NUTRIENTS.map((key) => (
+                  <div key={key}>
+                    <span>{NUTRIENT_META[key].label}</span>
+                    <strong>{formatNutrientValue(current.nutrients[key].value)}</strong>
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="empty-inline">No ingredient context flags are accepted yet. Confirm the ingredient text to run the versioned taxonomy.</p>
+            </section>
+
+            {current.status === 'confirmed' && <PairingIdeas insights={visiblePairingInsights} />}
+
+            {current.status === 'confirmed' && (
+              <MealPairingIdeas
+                suggestions={mealPairingSuggestions}
+                selectedComponents={mealPairingComponents}
+                catalogReady={companionCatalogReady}
+                catalogWarning={companionCatalogWarning}
+                onAddSuggestion={addMealPairing}
+                onRemoveComponent={removeMealPairing}
+              />
             )}
-          </section>
-        </div>
-        )}
 
-        <aside className={`review-aside ${resultsMode ? 'results-audit-columns' : ''}`}>
-          {!resultsMode ? (
-            <>
-              <section className="card captured-images-card">
-                <span className="section-kicker">Captured evidence</span>
-                <div className="captured-image-list">
-                  {capturedImages.length > 0 ? capturedImages.map((image) => (
-                    <div className="captured-image-row" key={image.label}>
-                      <ImagePreviewButton file={image.file} label={`${image.label} panel`} className="captured-image-button" />
-                      <div><strong>{image.label}</strong><span>{image.file.name}</span></div>
-                    </div>
-                  )) : <p className="empty-inline">No captured panels were needed for this database match.</p>}
-                </div>
-              </section>
-              <div className="notice neutral derived-context-note"><Info size={17} /><span>Derived context becomes available after validation.</span></div>
-            </>
-          ) : (
-            <>
-              <div className="context-column">
-                <section className="card glycemic-card">
-                  <span className="section-kicker">Glycemic evidence</span>
-                  <GlycemicEvidenceBlock glycemic={current.glycemic} />
-                </section>
+            <section className="card interpretation-card">
+              <div className="section-heading">
+                <div><span className="section-kicker">Interpretation</span><h2>What the label can tell us</h2></div>
+              </div>
+              <div className="interpretation-grid">
+                <div><strong>What the label tells us</strong><p>The values above use one serving basis and keep declared zero separate from values that were not declared.</p></div>
+                <div><strong>What may influence response</strong><p>Total carbohydrate, portion, fiber, protein, fat, preparation, meal order, and individual response can all matter.</p></div>
+                <div><strong>What the label cannot determine</strong><p>The label cannot reveal grams of each named sweetener or predict your blood glucose response.</p></div>
+              </div>
+            </section>
 
-                <details className="card captured-images-card disclosure-card" open>
-                  <summary>Evidence used</summary>
-                  <div className="disclosure-body">
-                    <div className="captured-image-list">
-                      {capturedImages.length > 0 ? capturedImages.map((image) => (
-                        <div className="captured-image-row" key={image.label}>
-                          <ImagePreviewButton file={image.file} label={`${image.label} panel`} className="captured-image-button" />
-                          <div><strong>{image.label}</strong><span>{image.file.name}</span></div>
-                        </div>
-                      )) : <p className="empty-inline">No captured panels were needed for this database match.</p>}
-                    </div>
-                    {capturedImages.length > 0 && (
-                      <label className="checkbox-row image-retention-row">
-                        <input type="checkbox" checked={retainImages} onChange={(event) => setRetainImages(event.target.checked)} />
-                        <span><strong>Keep original images on this device</strong><small>Off by default. Images are otherwise removed from the server after 15 minutes.</small></span>
-                      </label>
-                    )}
-                  </div>
-                </details>
+            <section className="card glycemic-card context-glycemic-card">
+              <div className="section-heading">
+                <div><span className="section-kicker">Glycemic evidence</span><h2>Product-specific data</h2></div>
+              </div>
+              <GlycemicEvidenceSummary glycemic={current.glycemic} />
+            </section>
 
-                {limitations.length > 0 && (
-                  <details className="card limitations-card disclosure-card">
-                    <summary>Limitations</summary>
-                    <div className="disclosure-body">
-                      <ul>{limitations.map((item) => <li key={item}>{item}</li>)}</ul>
+            <details className="card sources-limitations-card disclosure-card">
+              <summary>Sources & limitations</summary>
+              <div className="disclosure-body">
+                <ul className="sources-limitations-list">
+                  <li>Product information came from {sourceLabel(current.product.name.sourceKind)}.</li>
+                  <li>Nutrition values were confirmed by you before Smart Context was shown.</li>
+                  <li>Ingredients were {ingredientTextAccepted || current.rawIngredients.sourceKind === 'user' ? 'confirmed for context' : 'not available'}.</li>
+                  <li>Ingredient order cannot reveal ingredient quantities.</li>
+                  <li>{current.glycemic.status === 'sourced' ? 'A tested glycemic-index source was available for comparison.' : 'No tested product-specific glycemic study was available.'}</li>
+                  <li>Sugar pAI does not predict individual glucose response.</li>
+                  {limitations.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+                {hasCapturedEvidence ? (
+                  <>
+                    <div className="sources-evidence-block">
+                      <strong>Captured panels</strong>
+                      <CapturedEvidenceList images={capturedImages} />
                     </div>
-                  </details>
+                    <label className="checkbox-row image-retention-row">
+                      <input type="checkbox" checked={retainImages} onChange={(event) => setRetainImages(event.target.checked)} />
+                      <span><strong>Keep original images on this device</strong><small>Off by default. Images are otherwise removed from the server after 15 minutes.</small></span>
+                    </label>
+                  </>
+                ) : (
+                  <p className="empty-inline">No captured photos were used for this database match.</p>
+                )}
+                {import.meta.env.DEV && (
+                  <DeveloperDiagnostics
+                    current={current}
+                    diagnostics={diagnostics}
+                    ingredientTextAccepted={ingredientTextAccepted}
+                    smartContextSnapshot={smartContextSnapshot}
+                    fallbackReason={fallbackReason}
+                  />
                 )}
               </div>
-
-              <div className="context-column">
-                <details className="card explainer-card disclosure-card">
-                  <summary>Interpretation</summary>
-                  <div className="disclosure-body">
-                    <div><strong>What is printed</strong><p>The values above use one serving basis and retain their evidence status.</p></div>
-                    <div><strong>What may influence response</strong><p>Total carbohydrate, portion, fiber, protein, fat, preparation, and individual response can all matter.</p></div>
-                    <div><strong>What cannot be determined</strong><p>The label cannot reveal grams of each named sweetener or predict your blood glucose.</p></div>
-                  </div>
-                </details>
-
-                <TechnicalDetails>
-                  <div className="diagnostic-row"><strong>Barcode</strong><span>{current.product.barcode.value ? `${current.product.barcode.status}: ${current.product.barcode.value}` : 'No barcode accepted'}</span></div>
-                  <div className="diagnostic-row"><strong>Label extraction</strong><span>{statusLabel(diagnostics?.extractionStatus)}</span></div>
-                  <div className="diagnostic-row"><strong>Ingredient read</strong><span>{ingredientTextAccepted ? `Accepted as ${current.rawIngredients.status}` : current.rawIngredients.sourceKind === 'user' ? 'User confirmed manually' : 'No ingredient text accepted'}</span></div>
-                  <div className="diagnostic-row"><strong>Ingredients raw</strong><span>{current.rawIngredients.value || 'Unavailable'}</span></div>
-                  <div className="diagnostic-row"><strong>Smart Context</strong><span>{formatSmartContextMode(smartContextSnapshot)}</span></div>
-                  {smartContextSnapshot && <div className="diagnostic-row"><strong>Rule version</strong><span>{smartContextSnapshot.provenance.ruleVersion}</span></div>}
-                  {smartContextSnapshot?.provenance.model && <div className="diagnostic-row"><strong>Writer model</strong><span>{smartContextSnapshot.provenance.model}</span></div>}
-                  <div className="diagnostic-row"><strong>Vision model</strong><span>{diagnostics?.visionModel ?? 'Unavailable'}</span></div>
-                  <div className="method-diagnostics">
-                    {[
-                      ['Vision extraction', diagnostics?.vlm] as const,
-                    ].map(([label, method]) => (
-                      <div key={label} className={`method-diagnostic method-${method?.status ?? 'skipped'}`}>
-                        <div><strong>{label}</strong><span>{methodStatus(method)}</span></div>
-                        {method?.imagePanels.length ? <small>Panels: {method.imagePanels.join(', ')}</small> : null}
-                        {method?.failureReason && <small className="candidate-warning">{method.failureReason}</small>}
-                        {method?.validationFailures.map((failure) => <small className="candidate-warning" key={failure}>{failure}</small>)}
-                      </div>
-                    ))}
-                  </div>
-                  {fallbackReason && <div className="diagnostic-fallback"><AlertCircle size={16} /><span>{fallbackReason}</span></div>}
-                  <div className="panel-diagnostic-list">
-                    {[
-                      ['Nutrition', diagnostics?.panels.nutrition] as const,
-                      ['Ingredients', diagnostics?.panels.ingredients] as const,
-                      ['Front', diagnostics?.panels.front] as const,
-                    ].map(([label, panel]) => (
-                      <div key={label} className={`panel-diagnostic panel-diagnostic-${panel?.status ?? 'skipped'}`}>
-                        <div><strong>{label}</strong><span>{panelSummary(panel)}</span></div>
-                        {panel?.warnings.map((warning) => <small key={warning}>{warning}</small>)}
-                      </div>
-                    ))}
-                  </div>
-                </TechnicalDetails>
-              </div>
-            </>
-          )}
-        </aside>
-      </div>
-
-      <section className="card log-card">
-        <div>
-          <span className="section-kicker">{validatedRecord ? 'Log this portion' : 'Validation'}</span>
-          <h2>{validatedRecord ? 'Log this portion' : 'Validate label values'}</h2>
-          <p>{validatedRecord ? 'Your label values remain per serving; Today totals use the multiplier below.' : 'Confirm the printed values first. Smart Context and logging unlock after validation.'}</p>
-        </div>
-        <div className="log-controls">
-          <label className="compact-field"><span>Servings consumed</span><input type="number" min="0.1" step="0.1" value={corrections.consumedServings} onChange={(event) => {
-            changed('consumedServings')
-            setCorrections((value) => ({ ...value, consumedServings: Number(event.target.value) }))
-          }} /></label>
-          <label className="compact-field"><span>Meal</span><select value={meal} onChange={(event) => { setMeal(event.target.value as MealSlot); setResolvedPairingInsights(null); setSmartContextSnapshot(null) }}>{['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Other'].map((slot) => <option key={slot}>{slot}</option>)}</select></label>
-        </div>
-        {error && <div className="notice error"><AlertCircle size={17} />{error}</div>}
-        {!hasNutrition && <div className="notice warning"><AlertCircle size={17} />Enter at least one printed nutrition value before confirming.</div>}
-        {!validatedRecord ? (
-          <button className="primary-button wide" disabled={!requiredComplete || !hasNutrition || saving} onClick={validate}>
-            {saving ? <LoaderCircle className="spin" size={18} /> : <ShieldCheck size={18} />} Validate corrections
-          </button>
-        ) : (
-          <div className="confirmed-actions">
-            <div><CheckCircle2 size={21} /><span><strong>Deterministic checks passed</strong><small>Manual corrections are marked “User confirmed.”</small></span></div>
-            <button className="primary-button" disabled={saving} onClick={log}>{saving ? <LoaderCircle className="spin" size={18} /> : <Save size={18} />} Save to Today</button>
+            </details>
           </div>
-        )}
-      </section>
+
+          <section className="card log-card post-context-log-card">
+            <div>
+              <span className="section-kicker">Log</span>
+              <h2>Log this portion</h2>
+              <p>Your label values remain per serving. Today totals use the multiplier below.</p>
+            </div>
+            <div className="log-controls">
+              <label className="compact-field"><span>Servings consumed</span><input type="number" min="0.1" step="0.1" value={corrections.consumedServings} onChange={(event) => updateLogServings(event.target.value)} /></label>
+              <label className="compact-field"><span>Meal</span><select value={meal} onChange={(event) => updateMeal(event.target.value as MealSlot)}>{MEAL_SLOTS.map((slot) => <option key={slot}>{slot}</option>)}</select></label>
+            </div>
+            {error && <div className="notice error"><AlertCircle size={17} />{error}</div>}
+            <div className="confirmed-actions">
+              <div><CheckCircle2 size={21} /><span><strong>Ready to log</strong><small>Context is based on confirmed label values.</small></span></div>
+              <button className="primary-button" disabled={saving || corrections.consumedServings <= 0} onClick={log}>{saving ? <LoaderCircle className="spin" size={18} /> : <Save size={18} />} Save to Today</button>
+            </div>
+          </section>
+        </>
+      )}
 
       {ingredientsEditorOpen && (
         <div className="mobile-ingredients-editor" role="dialog" aria-modal="true" aria-label="Edit ingredients">
           <header><div><span className="section-kicker">Ingredient evidence</span><strong>Ingredients, in printed order</strong></div><button className="icon-button" onClick={() => setIngredientsEditorOpen(false)} aria-label="Close ingredients editor"><X size={20} /></button></header>
-          <textarea autoFocus value={corrections.rawIngredients} placeholder="Not declared / unavailable" onChange={(event) => {
+          <textarea autoFocus value={edited.has('ingredients') ? corrections.rawIngredients : ingredientsForDisplay} placeholder="Not declared / unavailable" onChange={(event) => {
             changed('ingredients')
             setCorrections((value) => ({ ...value, rawIngredients: event.target.value }))
           }} />
@@ -495,5 +672,246 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
         </div>
       )}
     </div>
+  )
+}
+
+function StatusBadge({ label }: { label: string | null }) {
+  return label ? <StatusPill status={label} /> : null
+}
+
+function ProductServingCard({
+  current,
+  corrections,
+  edited,
+  productNameForInput,
+  onChange,
+  setCorrections,
+}: {
+  current: AnalysisResult
+  corrections: FinalizeCorrections
+  edited: Set<string>
+  productNameForInput: string
+  onChange: (key: string) => void
+  setCorrections: Dispatch<SetStateAction<FinalizeCorrections>>
+}) {
+  return (
+    <section className="card form-card product-serving-card">
+      <div className="section-heading">
+        <div>
+          <span className="section-kicker">Product & serving</span>
+          <h2>Serving basis</h2>
+        </div>
+        <span className="section-source">Source: {sourceSummary(current.product.name.sourceKind)}</span>
+      </div>
+      <label className="label-input-stack product-name-field">
+        <span>Product name</span>
+        <input
+          value={productNameForInput}
+          placeholder="Enter the name printed on the package"
+          onChange={(event) => {
+            onChange('productName')
+            setCorrections((value) => ({ ...value, productName: event.target.value }))
+          }}
+        />
+        <StatusBadge label={fieldBadge({
+          edited: edited.has('productName'),
+          status: current.product.name.status,
+          sourceKind: current.product.name.sourceKind,
+          value: current.product.name.value,
+        })} />
+      </label>
+      <div className="product-serving-grid">
+        <label className="label-input-stack">
+          <span>Serving size</span>
+          <input
+            inputMode="decimal"
+            type="number"
+            min="0"
+            step="any"
+            value={corrections.servingSize ?? ''}
+            placeholder="Unavailable"
+            onChange={(event) => {
+              onChange('servingSize')
+              setCorrections((value) => ({ ...value, servingSize: numberFromInput(event.target.value) }))
+            }}
+          />
+          <StatusBadge label={fieldBadge({
+            edited: edited.has('servingSize'),
+            status: current.serving.size.status,
+            sourceKind: current.serving.size.sourceKind,
+            value: corrections.servingSize,
+          })} />
+        </label>
+        <label className="label-input-stack">
+          <span>Unit</span>
+          <input
+            value={corrections.servingUnit}
+            placeholder="g, mL, piece"
+            onChange={(event) => {
+              onChange('servingUnit')
+              setCorrections((value) => ({ ...value, servingUnit: event.target.value }))
+            }}
+          />
+        </label>
+      </div>
+    </section>
+  )
+}
+
+function NutritionReviewCard({
+  current,
+  corrections,
+  edited,
+  onChange,
+  setCorrections,
+}: {
+  current: AnalysisResult
+  corrections: FinalizeCorrections
+  edited: Set<string>
+  onChange: (key: string) => void
+  setCorrections: Dispatch<SetStateAction<FinalizeCorrections>>
+}) {
+  return (
+    <section className="card form-card nutrition-review-card">
+      <div className="section-heading">
+        <div>
+          <span className="section-kicker">Per labeled serving</span>
+          <h2>Nutrition per serving</h2>
+        </div>
+        <span className="section-source">Source: {sourceSummary(current.nutrients.totalCarbohydrate.sourceKind)}</span>
+      </div>
+      <div className="nutrient-review-rows" role="group" aria-label="Nutrition values per serving">
+        {NUTRIENT_KEYS.map((key) => {
+          const badge = nutrientBadge(key, current, corrections, edited)
+          return (
+            <div className={`nutrient-review-row nutrient-${key}`} key={key}>
+              <div className="nutrient-review-label">
+                <label htmlFor={`review-${key}`}>{NUTRIENT_META[key].label}</label>
+                {PERMANENT_HELPER_NUTRIENTS.has(key) && <small>{NUTRIENT_META[key].helper}</small>}
+              </div>
+              <div className="nutrient-value-control">
+                <input
+                  id={`review-${key}`}
+                  aria-label={`${NUTRIENT_META[key].label} grams`}
+                  inputMode="decimal"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={corrections.nutrients[key] ?? ''}
+                  placeholder="--"
+                  onChange={(event) => {
+                    onChange(key)
+                    const value = numberFromInput(event.target.value)
+                    setCorrections((previous) => ({
+                      ...previous,
+                      nutrients: { ...previous.nutrients, [key]: value },
+                    }))
+                  }}
+                />
+                <span>g</span>
+              </div>
+              <div className="field-status-cell">
+                <StatusBadge label={badge} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function CapturedEvidenceList({ images }: { images: CapturedImage[] }) {
+  return (
+    <div className="captured-image-list">
+      {images.map((image) => (
+        <div className="captured-image-row" key={image.label}>
+          <ImagePreviewButton file={image.file} label={`${image.label} panel`} className="captured-image-button" />
+          <div><strong>{image.label}</strong><span>{image.file.name}</span><small>Uploaded</small></div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function GlycemicEvidenceSummary({ glycemic }: { glycemic: GlycemicEvidence }) {
+  if (glycemic.status === 'sourced') {
+    return (
+      <div className="glycemic-sourced-block">
+        <div className="gi-value"><strong>{glycemic.gi}</strong><span>Sourced GI</span></div>
+        {glycemic.testedFoodMatchDescription && <p>{glycemic.testedFoodMatchDescription}</p>}
+        {glycemic.gl != null && <p><strong>GL {glycemic.gl}</strong> for the confirmed consumed portion.</p>}
+        {glycemic.citation && <a href={glycemic.citation.url} target="_blank" rel="noreferrer">{glycemic.citation.title}<ExternalLink size={13} /></a>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="glycemic-empty-state">
+      <Info size={19} />
+      <div>
+        <strong>No tested glycemic-index data found for this product.</strong>
+        <p>Sugar pAI will not estimate a product-specific GI from its ingredient list.</p>
+        <details>
+          <summary>How missing glycemic evidence is handled</summary>
+          <p>Ingredient names and sugar grams can provide context, but they are not a substitute for tested product-specific glycemic evidence.</p>
+        </details>
+      </div>
+    </div>
+  )
+}
+
+function DeveloperDiagnostics({
+  current,
+  diagnostics,
+  ingredientTextAccepted,
+  smartContextSnapshot,
+  fallbackReason,
+}: {
+  current: AnalysisResult
+  diagnostics: AnalysisResult['diagnostics']
+  ingredientTextAccepted: boolean
+  smartContextSnapshot: SmartContextResponse | null
+  fallbackReason: string | null | undefined
+}) {
+  return (
+    <details className="developer-diagnostics">
+      <summary>Development diagnostics</summary>
+      <div className="technical-details-body">
+        <div className="diagnostic-row"><strong>Barcode</strong><span>{current.product.barcode.value ? `${current.product.barcode.status}: ${current.product.barcode.value}` : 'No barcode accepted'}</span></div>
+        <div className="diagnostic-row"><strong>Label extraction</strong><span>{statusLabel(diagnostics?.extractionStatus)}</span></div>
+        <div className="diagnostic-row"><strong>Ingredient read</strong><span>{ingredientTextAccepted ? `Accepted as ${current.rawIngredients.status}` : current.rawIngredients.sourceKind === 'user' ? 'User confirmed manually' : 'No ingredient text accepted'}</span></div>
+        <div className="diagnostic-row"><strong>Ingredients raw</strong><span>{current.rawIngredients.value || 'Unavailable'}</span></div>
+        <div className="diagnostic-row"><strong>Smart Context</strong><span>{formatSmartContextMode(smartContextSnapshot)}</span></div>
+        {smartContextSnapshot && <div className="diagnostic-row"><strong>Rule version</strong><span>{smartContextSnapshot.provenance.ruleVersion}</span></div>}
+        {smartContextSnapshot?.provenance.model && <div className="diagnostic-row"><strong>Writer model</strong><span>{smartContextSnapshot.provenance.model}</span></div>}
+        <div className="diagnostic-row"><strong>Vision model</strong><span>{diagnostics?.visionModel ?? 'Unavailable'}</span></div>
+        <div className="method-diagnostics">
+          {[
+            ['Vision extraction', diagnostics?.vlm] as const,
+          ].map(([label, method]) => (
+            <div key={label} className={`method-diagnostic method-${method?.status ?? 'skipped'}`}>
+              <div><strong>{label}</strong><span>{methodStatus(method)}</span></div>
+              {method?.imagePanels.length ? <small>Panels: {method.imagePanels.join(', ')}</small> : null}
+              {method?.failureReason && <small className="candidate-warning">{method.failureReason}</small>}
+              {method?.validationFailures.map((failure) => <small className="candidate-warning" key={failure}>{failure}</small>)}
+            </div>
+          ))}
+        </div>
+        {fallbackReason && <div className="diagnostic-fallback"><AlertCircle size={16} /><span>{fallbackReason}</span></div>}
+        <div className="panel-diagnostic-list">
+          {[
+            ['Nutrition', diagnostics?.panels.nutrition] as const,
+            ['Ingredients', diagnostics?.panels.ingredients] as const,
+            ['Front', diagnostics?.panels.front] as const,
+          ].map(([label, panel]) => (
+            <div key={label} className={`panel-diagnostic panel-diagnostic-${panel?.status ?? 'skipped'}`}>
+              <div><strong>{label}</strong><span>{panelSummary(panel)}</span></div>
+              {panel?.warnings.map((warning) => <small key={warning}>{warning}</small>)}
+            </div>
+          ))}
+        </div>
+      </div>
+    </details>
   )
 }
