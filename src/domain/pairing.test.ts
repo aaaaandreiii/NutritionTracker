@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  PAIRING_SOURCES,
   buildIngredientContextFlags,
   buildMealPairingSuggestions,
   buildPairingInsights,
+  buildSnackPairingIdeas,
   createPairingMealComponent,
   smartContextFromCuratedRecord,
 } from './pairing'
@@ -493,6 +495,146 @@ describe('pairing insights', () => {
     const copy = suggestions.map((suggestion) => `${suggestion.label} ${suggestion.reason} ${suggestion.evidenceLabels.join(' ')}`).join(' ')
 
     expect(copy).not.toMatch(/prevents?|blood sugar|glucose|spike|lower|stabil/i)
+  })
+
+  it('shows controlled snack pairings for SkyFlakes-style crackers without changing scanned product nutrients', () => {
+    const scanned = result({
+      productName: 'SkyFlakes 25 g',
+      nutrientOverrides: {
+        totalCarbohydrate: 17,
+        fiber: 1,
+        totalSugars: 2,
+        addedSugars: 0,
+        sugarAlcohols: null,
+        protein: 3,
+        fat: 5,
+      },
+      rawIngredients: 'Wheat flour, vegetable oil, sugar, salt',
+    })
+    const before = structuredClone(scanned.nutrients)
+    const pairing = buildSnackPairingIdeas({ result: scanned, meal: 'Snack' })
+
+    expect(pairing.productKindLabel).toBe('cracker snack')
+    expect(pairing.ideas.map((idea) => idea.id)).toEqual([
+      'peanut-butter',
+      'plain-yogurt',
+      'cheese',
+      'whole-fruit',
+    ])
+    expect(scanned.nutrients).toEqual(before)
+  })
+
+  it('does not recommend the selected food as its own snack pairing', () => {
+    const cases = [
+      ['Plain yogurt', 'plain-yogurt'],
+      ['Peanut Butter Creamy', 'peanut-butter'],
+      ['Eden Cheese', 'cheese'],
+      ['Fresh mango fruit cup', 'whole-fruit'],
+    ] as const
+
+    for (const [productName, blockedId] of cases) {
+      const pairing = buildSnackPairingIdeas({
+        result: result({
+          productName,
+          nutrientOverrides: {
+            totalCarbohydrate: 18,
+            fiber: 1,
+            protein: 3,
+          },
+          rawIngredients: productName,
+        }),
+      })
+
+      expect(pairing.ideas.map((idea) => idea.id)).not.toContain(blockedId)
+    }
+  })
+
+  it('does not invent snack pairings for unknown product categories', () => {
+    const pairing = buildSnackPairingIdeas({
+      result: result({
+        productName: 'Sparse database product',
+        nutrientOverrides: {
+          totalCarbohydrate: null,
+          fiber: null,
+          totalSugars: null,
+          addedSugars: null,
+          protein: null,
+          fat: null,
+        },
+        rawIngredients: '',
+      }),
+    })
+
+    expect(pairing.ideas).toEqual([])
+    expect(pairing.evidence).toEqual([])
+  })
+
+  it('still renders snack pairings for cracker context with missing nutrient fields', () => {
+    const pairing = buildSnackPairingIdeas({
+      result: result({
+        productName: 'Plain crackers',
+        nutrientOverrides: {
+          totalCarbohydrate: null,
+          fiber: null,
+          totalSugars: null,
+          addedSugars: null,
+          sugarAlcohols: null,
+          protein: null,
+          fat: null,
+        },
+        rawIngredients: 'Wheat flour, salt',
+      }),
+    })
+
+    expect(pairing.ideas.map((idea) => idea.id)).toEqual([
+      'peanut-butter',
+      'plain-yogurt',
+      'cheese',
+      'whole-fruit',
+    ])
+  })
+
+  it('resolves snack-pairing evidence IDs and separates product evidence from supporting evidence', () => {
+    const pairing = buildSnackPairingIdeas({
+      result: result({
+        productName: 'SkyFlakes Crackers',
+        nutrientOverrides: {
+          totalCarbohydrate: 17,
+          fiber: 1,
+          protein: 3,
+        },
+      }),
+    })
+    const ideaEvidenceIds = pairing.ideas.flatMap((idea) => idea.evidenceIds)
+    const supporting = pairing.evidence.filter((record) => record.relationship === 'supporting')
+
+    expect(ideaEvidenceIds.every((sourceId) => sourceId in PAIRING_SOURCES)).toBe(true)
+    expect(pairing.evidence.find((record) => record.relationship === 'product')?.strength).toBe('strong')
+    expect(supporting.length).toBeGreaterThan(0)
+    expect(supporting.every((record) => record.strength === 'moderate')).toBe(true)
+    expect(supporting.flatMap((record) => record.sourceIds).every((sourceId) => sourceId in PAIRING_SOURCES)).toBe(true)
+  })
+
+  it('keeps snack-pairing copy free of unsupported glucose-response claims', () => {
+    const pairing = buildSnackPairingIdeas({
+      result: result({
+        productName: 'Sweet biscuit snack',
+        nutrientOverrides: {
+          totalCarbohydrate: 28,
+          fiber: 1,
+          protein: 2,
+          totalSugars: 16,
+          addedSugars: null,
+        },
+      }),
+    })
+    const copy = [
+      ...pairing.ideas.flatMap((idea) => [idea.label, idea.tag, idea.rationale]),
+      ...pairing.evidence.flatMap((record) => [record.title, record.summary]),
+    ].join(' ')
+
+    expect(copy).not.toMatch(/prevents?|blood sugar|glucose|spike|lower|stabil|offsets?|neutralizes?|diabetes-friendly|safe for diabetes/i)
+    expect(copy).not.toMatch(/healthy recommendations|healthy foods|healthier foods|good choices/i)
   })
 
   it('creates qualitative Smart Context for curated unlabeled demo records without numeric GI or GL', () => {

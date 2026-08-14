@@ -39,11 +39,58 @@ function analysisResult(status: 'ready' | 'confirmed') {
   }
 }
 
+function skyflakesAnalysisResult(
+  status: 'ready' | 'confirmed',
+  overrides: { productName?: string; rawIngredients?: string; nutrients?: Record<string, number | null> } = {},
+) {
+  const fieldStatus = status === 'confirmed' ? 'User confirmed' : 'Database match'
+  const nutrientValues = {
+    totalCarbohydrate: 17,
+    fiber: 1,
+    totalSugars: 2,
+    addedSugars: 0,
+    sugarAlcohols: null,
+    protein: 3,
+    fat: 5,
+    ...overrides.nutrients,
+  }
+  return {
+    analysisId: 'skyflakes-e2e', status, market: 'PH',
+    product: { name: value(overrides.productName ?? 'SkyFlakes', fieldStatus), brand: value('M.Y. San'), barcode: value('4800016110000') },
+    serving: { size: value(25, fieldStatus), unit: 'g', householdMeasure: null, servingsPerContainer: value<number>(null) },
+    nutrients: {
+      totalCarbohydrate: value(nutrientValues.totalCarbohydrate, fieldStatus),
+      fiber: value(nutrientValues.fiber, fieldStatus),
+      totalSugars: value(nutrientValues.totalSugars, fieldStatus),
+      addedSugars: value(nutrientValues.addedSugars, fieldStatus),
+      sugarAlcohols: value(nutrientValues.sugarAlcohols, fieldStatus),
+      protein: value(nutrientValues.protein, fieldStatus),
+      fat: value(nutrientValues.fat, fieldStatus),
+    },
+    rawIngredients: value(overrides.rawIngredients ?? 'Wheat flour, vegetable oil, sugar, salt', fieldStatus),
+    sugarVariants: [{ rawSpan: 'Sugar', canonicalName: 'Sucrose', category: 'added sugar', ingredientRank: 3, evidence: null }],
+    glycemic: { status: 'unavailable', testedFoodMatchDescription: null, matchLevel: null, gi: null, availableCarbohydrateGrams: null, gl: null, glBand: null, citation: null, licensing: null, reason: 'No sourced tested-product evidence is available.' },
+    qualityChecks: [], validationChecks: [{ code: 'sugars', status: 'pass', message: 'Sugar arithmetic is plausible.' }],
+    limitations: ['This tool does not predict individual glucose response.'],
+    diagnostics: { visionModel: null, extractionStatus: 'skipped', fallbackReason: null, panels: {}, vlm: null },
+    retakeRecommended: false, retakeReasons: [],
+    provenance: { pipelineVersion: 'e2e', completedAt: '2026-08-14T00:00:00Z', externalProcessors: ['Open Food Facts local database'] },
+  }
+}
+
 const lookupPayload = {
   barcode: '4800361403764', market: 'PH', status: 'found', complete: true, missingFields: [],
   product: { barcode: '4800361403764', productName: 'Nescafe Original', brand: 'Nestlé', servingSize: 20, servingUnit: 'g', servingBasis: 'per database serving', nutrients: { totalCarbohydrate: 14, fiber: 0.34, totalSugars: 9.7, addedSugars: null, sugarAlcohols: null, protein: 0.27, fat: 3.4 } },
   ingredients: 'Sugar, coffee creamer', qualitativeMarkers: { novaGroup: '4 - Ultra processed food and drink products', novaGroupsTags: 'en:4-ultra-processed-food-and-drink-products', nutriscoreGrade: null, nutriscoreScore: null, allergens: 'Milk', allergensTags: 'en:milk', traces: null, tracesTags: null, categories: null, labels: null },
   sourceUrl: 'https://world.openfoodfacts.org/product/4800361403764', sourceKind: 'local_open_food_facts', message: 'A complete local Open Food Facts record is available for review.',
+}
+
+const skyflakesLookupPayload = {
+  barcode: '4800016110000', market: 'PH', status: 'found', complete: true, missingFields: [],
+  product: { barcode: '4800016110000', productName: 'SkyFlakes', brand: 'M.Y. San', servingSize: 25, servingUnit: 'g', servingBasis: 'per database serving', nutrients: { totalCarbohydrate: 17, fiber: 1, totalSugars: 2, addedSugars: 0, sugarAlcohols: null, protein: 3, fat: 5 } },
+  ingredients: 'Wheat flour, vegetable oil, sugar, salt',
+  qualitativeMarkers: { novaGroup: null, novaGroupsTags: null, nutriscoreGrade: null, nutriscoreScore: null, allergens: null, allergensTags: null, traces: null, tracesTags: null, categories: 'Crackers', labels: null },
+  sourceUrl: 'https://world.openfoodfacts.org/product/4800016110000', sourceKind: 'local_open_food_facts', message: 'A complete local Open Food Facts record is available for review.',
 }
 
 const usdaCandidate = {
@@ -180,6 +227,60 @@ test('moves from barcode match through dense review into validated results mode'
   await expect(page.locator('.context-product-summary')).toContainText('Not declared')
   await expect(page.getByRole('button', { name: 'Save to Today' })).toBeVisible()
   await page.screenshot({ path: 'test-results/screenshots/results-desktop.png', fullPage: true })
+})
+
+test('shows controlled snack pairings with expandable evidence and updates after edit', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 900 })
+  await page.route('**/health', (route) => route.fulfill({ json: { status: 'ok' } }))
+  await page.route('**/api/v1/off-products/**', (route) => route.fulfill({ json: skyflakesLookupPayload }))
+  await page.route('**/api/v1/analyses/barcode', (route) => route.fulfill({ json: { analysisId: 'skyflakes-e2e', expiresInSeconds: 900, result: skyflakesAnalysisResult('ready') } }))
+  await page.route('**/api/v1/analyses/skyflakes-e2e/finalize', async (route) => {
+    const body = route.request().postDataJSON() as { productName?: string; rawIngredients?: string; nutrients?: Record<string, number | null> }
+    await route.fulfill({ json: skyflakesAnalysisResult('confirmed', {
+      productName: body.productName || 'SkyFlakes',
+      rawIngredients: body.rawIngredients,
+      nutrients: body.nutrients,
+    }) })
+  })
+  await page.route('**/api/v1/smart-context/resolve', (route) => route.fulfill({ json: {
+    triggeredRuleIds: ['protein-fat-context'], evidenceSourceIds: [], sources: [], generationMode: 'deterministic', warnings: [],
+    cards: [{ id: 'protein-fat-context', ruleId: 'protein-fat-context', title: 'Build the rest of the snack', body: 'Use separate context foods without changing the product values.', evidenceLabels: ['Carbs 17 g', 'Protein 3 g'], actions: ['Review context'], sourceIds: [] }],
+    provenance: { ruleVersion: 'v1', evidenceVersion: 'v1', pairingVersion: 'v1', writerVersion: 'v1', model: null, cacheHit: false, fallbackReason: null },
+  } }))
+
+  await page.goto('/#/sugar-pai/scan')
+  await page.getByPlaceholder('UPC / EAN digits').fill('4800016110000')
+  await page.getByRole('button', { name: 'Use this product' }).first().click()
+  await page.getByRole('button', { name: 'Confirm label values' }).click()
+
+  const section = page.locator('.snack-pairing-card')
+  await expect(section.getByRole('heading', { name: 'A few ideas to have alongside it' })).toBeVisible()
+  await expect(section).toContainText('Peanut butter')
+  await expect(section).toContainText('Plain yogurt')
+  await expect(section).toContainText('Cheese')
+  await expect(section).toContainText('Whole fruit')
+  await expect(section).toContainText('They do not change the nutrition values of SkyFlakes 25 g')
+  await expect(section).not.toContainText(/prevents?|glucose spikes|stabilizes glucose|diabetes-friendly|safe for diabetes/i)
+
+  const desktopColumns = await section.locator('.snack-pairing-grid').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length)
+  expect(desktopColumns).toBeGreaterThanOrEqual(2)
+  await section.getByRole('button', { name: 'Why these suggestions?' }).click()
+  await expect(section.locator('#snack-pairing-evidence')).toContainText('Product evidence · Strong')
+  await expect(section.locator('#snack-pairing-evidence')).toContainText('Supporting evidence · Moderate')
+  await expect(section.locator('#snack-pairing-evidence').getByRole('link', { name: /American Heart Association snack examples/ })).toBeVisible()
+
+  await page.setViewportSize({ width: 375, height: 812 })
+  const mobileColumns = await section.locator('.snack-pairing-grid').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length)
+  expect(mobileColumns).toBe(1)
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(overflow).toBeLessThanOrEqual(1)
+
+  await page.setViewportSize({ width: 1024, height: 900 })
+  await page.getByRole('button', { name: 'Edit evidence' }).click()
+  await page.getByLabel('Product name').fill('Plain yogurt')
+  await page.getByRole('button', { name: 'Confirm label values' }).click()
+  await expect(page.getByRole('heading', { name: 'Your evidence, in context.' })).toBeVisible()
+  await expect(page.locator('.snack-pairing-card')).toHaveCount(0)
 })
 
 test('manual estimated meal flows through confirmation, Smart Context, Today, and History', async ({ page }) => {

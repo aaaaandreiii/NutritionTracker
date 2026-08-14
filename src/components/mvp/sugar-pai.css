@@ -2274,6 +2274,7 @@
 .sugar-pai-embed .review-action-card,
 .sugar-pai-embed .context-product-summary,
 .sugar-pai-embed .meal-pairing-card,
+.sugar-pai-embed .snack-pairing-card,
 .sugar-pai-embed .interpretation-card,
 .sugar-pai-embed .context-glycemic-card,
 .sugar-pai-embed .processing-context-card,
@@ -2288,6 +2289,7 @@
 .sugar-pai-embed .nutrition-review-card .section-heading,
 .sugar-pai-embed .ingredients-review-card .section-heading,
 .sugar-pai-embed .meal-pairing-card .section-heading,
+.sugar-pai-embed .snack-pairing-card .section-heading,
 .sugar-pai-embed .interpretation-card .section-heading,
 .sugar-pai-embed .context-glycemic-card .section-heading,
 .sugar-pai-embed .processing-context-card .section-heading,
@@ -2299,6 +2301,7 @@
 .sugar-pai-embed .nutrition-review-card h2,
 .sugar-pai-embed .ingredients-review-card h2,
 .sugar-pai-embed .meal-pairing-card h2,
+.sugar-pai-embed .snack-pairing-card h2,
 .sugar-pai-embed .interpretation-card h2,
 .sugar-pai-embed .context-glycemic-card h2,
 .sugar-pai-embed .processing-context-card h2,
@@ -2748,6 +2751,161 @@
   font-size: 10px;
   line-height: 1.5;
 }
+.sugar-pai-embed .snack-pairing-card{
+  display: grid;
+  gap: 14px;
+  background: #faf8f1;
+}
+.sugar-pai-embed .snack-pairing-card .section-heading{
+  align-items: start;
+}
+.sugar-pai-embed .snack-pairing-card .section-heading > svg{
+  color: var(--green);
+}
+.sugar-pai-embed .snack-pairing-card .section-heading p{
+  max-width: 640px;
+  margin: 5px 0 0;
+  color: #5f6b65;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.sugar-pai-embed .snack-pairing-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+.sugar-pai-embed .snack-pairing-item{
+  min-width: 0;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-left: 3px solid #91b9a4;
+  border-radius: 8px;
+  background: var(--paper);
+}
+.sugar-pai-embed .snack-pairing-title-row{
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 10px;
+}
+.sugar-pai-embed .snack-pairing-title-row h3{
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.sugar-pai-embed .snack-pairing-title-row span{
+  flex: 0 0 auto;
+  max-width: 150px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: #4f5f58;
+  background: #edf7f2;
+  font: 600 8px 'DM Mono', monospace;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sugar-pai-embed .snack-pairing-item p{
+  margin: 0;
+  color: #3f4b45;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.sugar-pai-embed .snack-pairing-evidence-toggle{
+  width: max-content;
+  max-width: 100%;
+  min-height: 34px;
+  padding: 0;
+  justify-content: flex-start;
+}
+.sugar-pai-embed .snack-pairing-evidence-panel{
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.sugar-pai-embed .snack-pairing-context-row{
+  display: grid;
+  gap: 6px;
+  padding: 11px;
+  border-radius: 7px;
+  background: #edf7f2;
+}
+.sugar-pai-embed .snack-pairing-context-row strong,
+.sugar-pai-embed .snack-pairing-evidence-list strong{
+  font-size: 12px;
+  line-height: 1.3;
+}
+.sugar-pai-embed .snack-pairing-context-row p,
+.sugar-pai-embed .snack-pairing-evidence-list p{
+  margin: 0;
+  color: #4f5a55;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.sugar-pai-embed .snack-pairing-context-row span,
+.sugar-pai-embed .snack-pairing-evidence-list article > div:first-child span{
+  width: max-content;
+  max-width: 100%;
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: #4f5f58;
+  background: rgba(255,255,255,.76);
+  font: 600 8px 'DM Mono', monospace;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.sugar-pai-embed .snack-pairing-evidence-list{
+  display: grid;
+  gap: 8px;
+}
+.sugar-pai-embed .snack-pairing-evidence-list article{
+  display: grid;
+  gap: 7px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #faf8f1;
+}
+.sugar-pai-embed .snack-pairing-evidence-list article > div:first-child{
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sugar-pai-embed .snack-pairing-source-links{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+}
+.sugar-pai-embed .snack-pairing-source-links a{
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--green);
+  font-size: 10px;
+  line-height: 1.35;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.sugar-pai-embed .snack-pairing-source-links a:hover{
+  color: var(--green-dark);
+  text-decoration: underline;
+}
+.sugar-pai-embed .snack-pairing-note{
+  margin: 0;
+  color: #667069;
+  font-size: 10px;
+  line-height: 1.5;
+}
 .sugar-pai-embed .interpretation-grid{
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3002,6 +3160,9 @@
 @media (max-width: 900px) {
   .sugar-pai-embed .results-audit-columns,
   .sugar-pai-embed .empty-chat .chat-layout{
+    grid-template-columns: 1fr;
+  }
+  .sugar-pai-embed .snack-pairing-grid{
     grid-template-columns: 1fr;
   }
   .sugar-pai-embed .history-drawer{

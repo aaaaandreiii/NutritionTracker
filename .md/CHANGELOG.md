@@ -2,7 +2,7 @@
 
 All notable changes to the project are documented here.
 
-## [Unreleased] - Evidence-Aware Estimated Meals
+## [Unreleased] - Evidence-Aware Estimated Meals and Context Pairings
 
 ### Added
 - `estimated_unlabeled_meal` records with nested confirmed components, USDA source snapshots, portion/nutrient ranges, unknown/excluded counts, limitations, and provenance.
@@ -11,8 +11,10 @@ All notable changes to the project are documented here.
 - Server-only USDA FoodData Central search/details integration with five-candidate limits, nutrient mapping, caching, timeouts, and missing-key fallback.
 - Estimated-meal job endpoints, SSE stages, component finalization, and explicit cleanup.
 - Backend Smart Context resolver with range-aware deterministic rules, Philippine pairing examples, evidence/source snapshots, optional grounded writing, validation, caching, and fallback provenance.
+- Packaged-label Context `Pair with this snack` section for eligible confirmed snacks, using controlled client-side rules and structured supporting evidence.
+- Snack-pairing source metadata for peanut butter, plain yogurt, cheese, and whole fruit, including separate product/supporting evidence labels.
 - Estimated-meal Today/History displays, fixed-plus-range aggregation, nested JSON/CSV export fields, read-only detail drawer, and explicit local meal-photo retention.
-- Automated coverage for USDA calculations, strict meal schema, partial meals, Smart Context boundaries/safety/cache, manual estimated meals, multi-item photo editing, and mobile overflow.
+- Automated coverage for USDA calculations, strict meal schema, partial meals, Smart Context boundaries/safety/cache, controlled snack pairings, manual estimated meals, multi-item photo editing, and mobile overflow.
 
 ### Changed
 - Replaced the current filename-based unlabeled UI with photo/search → component confirmation → estimated breakdown → Smart Context → local save.
@@ -21,11 +23,14 @@ All notable changes to the project are documented here.
 - Saved packaged and estimated logs retain final Smart Context card/source/version snapshots for reproducible History.
 - Today combines exact values as fixed ranges and estimated values as min–max ranges; unknown and partial totals remain explicit.
 - Playwright runs serially to make route mocks and full-page responsive screenshots deterministic.
+- Packaged-label Context now separates Smart Context, ingredient/processing context, snack companion ideas, external metadata, and sources/limitations in the main content flow.
 
 ### Guardrails
 - Only USDA per-100-g data and user-confirmed gram endpoints originate estimated nutrient ranges.
 - Missing nutrients remain unknown; context-only components never contribute numeric totals.
 - Estimated meals never receive numeric GI/GL or personal glucose predictions.
+- Snack companion ideas never add to, impute, offset, or recalculate the scanned product's nutrients, ingredients, NOVA, or Nutri-Score.
+- Snack companion ideas are not LLM-generated on page load and do not claim glucose outcomes or product-specific clinical validation.
 - Backend meal images are deleted on finalize/delete/expiry; browser retention remains opt-in.
 - Writer/model/search failure cannot suppress deterministic Smart Context.
 

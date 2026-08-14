@@ -91,6 +91,60 @@ CURATED_FRAGMENTS = (
         keywords=("open food facts", "database", "barcode", "product record", "nova", "nutri-score", "source"),
         strength="moderate",
     ),
+    CuratedFragment(
+        id="aha-snack-examples",
+        title="American Heart Association snack examples",
+        publisher="American Heart Association",
+        url="https://www.heart.org/en/healthy-living/healthy-eating/add-color/healthy-snacking",
+        excerpt="Snack education examples include peanut butter, cheese, yogurt with fruit, whole fruit, crackers, and checking the Nutrition Facts label for packaged snacks.",
+        keywords=("snack", "snacks", "pair", "pairing", "peanut butter", "cheese", "yogurt", "fruit", "cracker", "crackers"),
+        strength="moderate",
+    ),
+    CuratedFragment(
+        id="myplate-protein-foods",
+        title="MyPlate Protein Foods group",
+        publisher="USDA MyPlate",
+        url="https://www.myplate.gov/eat-healthy/protein-foods",
+        excerpt="MyPlate describes nuts, seeds, nut butters, beans, eggs, seafood, meats, and soy products as protein-food examples.",
+        keywords=("protein", "protein foods", "peanut butter", "nut butter", "nuts", "seeds", "snack pairing"),
+        strength="moderate",
+    ),
+    CuratedFragment(
+        id="myplate-dairy",
+        title="MyPlate Dairy group",
+        publisher="USDA MyPlate",
+        url="https://www.myplate.gov/eat-healthy/dairy",
+        excerpt="MyPlate includes milk, yogurt, cheese, lactose-free dairy, and fortified soy milk or yogurt in the Dairy group.",
+        keywords=("dairy", "yogurt", "cheese", "plain yogurt", "snack pairing"),
+        strength="moderate",
+    ),
+    CuratedFragment(
+        id="myplate-fruits",
+        title="MyPlate Fruits group",
+        publisher="USDA MyPlate",
+        url="https://www.myplate.gov/eat-healthy/fruits",
+        excerpt="MyPlate emphasizes whole fruit forms and describes fruit as a food-group component that can be eaten as part of meals or snacks.",
+        keywords=("fruit", "whole fruit", "fiber", "snack", "snack pairing"),
+        strength="moderate",
+    ),
+    CuratedFragment(
+        id="high-protein-yogurt-satiety-2014",
+        title="High-protein yogurt snack satiety study",
+        publisher="Nutrition Journal",
+        url="https://pubmed.ncbi.nlm.nih.gov/25266206/",
+        excerpt="A small randomized crossover study compared a higher-protein yogurt snack with other snack types and reported appetite and eating-initiation outcomes in healthy women.",
+        keywords=("satiety", "appetite", "yogurt", "high protein", "protein snack", "snack composition"),
+        strength="moderate",
+    ),
+    CuratedFragment(
+        id="snack-food-satiety-review-2016",
+        title="Snack foods and satiety review",
+        publisher="Advances in Nutrition",
+        url="https://pmc.ncbi.nlm.nih.gov/articles/PMC5015032/",
+        excerpt="A narrative review discusses how snack composition, including protein-containing and fiber-containing foods, can relate to satiety.",
+        keywords=("satiety", "snack food", "snack foods", "protein", "fiber", "nuts", "yogurt", "fruit"),
+        strength="moderate",
+    ),
 )
 
 ALLOWED_WEB_DOMAINS = (
@@ -101,6 +155,8 @@ ALLOWED_WEB_DOMAINS = (
     "ncbi.nlm.nih.gov",
     "pmc.ncbi.nlm.nih.gov",
     "openfoodfacts.org",
+    "heart.org",
+    "myplate.gov",
 )
 
 

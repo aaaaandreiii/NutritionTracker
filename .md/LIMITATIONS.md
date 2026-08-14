@@ -30,6 +30,12 @@ FoodData Central requires a server-only key and network access. With no key, est
 
 The catalog contains allowed food names, aliases, portion labels, qualitative tags, and limitations only. It does not provide authoritative calories, macros, GI, GL, or FNRI-derived claims. Legacy filename-alias identification remains an API compatibility route but is no longer the current estimated-meal UI identification method.
 
+### Context Snack Pairings Are Controlled V1 Guidance
+
+The `Pair with this snack` section uses a small deterministic configuration, not personalization, allergy filtering, dynamic web search, or LLM-generated recommendations. V1 supports a limited set of companion ideas for conservative snack-like packaged products: peanut butter, plain yogurt, cheese, and whole fruit.
+
+Eligibility currently uses product name and ingredient text rather than a complete product taxonomy. Unknown categories omit the section. General supporting sources do not prove that a pairing was studied with the exact scanned product, and the feature never changes scanned-product nutrients, ingredients, NOVA, or Nutri-Score.
+
 ### Local-Only History
 
 Sugar pAI history, range/source snapshots, retained opt-in photos, and Smart Context snapshots are stored in browser IndexedDB. Clearing browser data removes them. Multi-device sync and server recovery are not implemented. Estimated records are read-only; changes require delete and recreate.
@@ -49,7 +55,7 @@ The backend uses in-memory analysis jobs and temporary files for user data. The 
 - Add live-service contract tests against a controlled USDA sandbox/key and pinned Ollama model; current automated tests mock external network/model behavior.
 - Add barcode-camera end-to-end tests with mocked camera permissions and ZXing decode results.
 - Automate OFF export refresh and schema-drift checks.
-- Add governance and review/version tooling for Filipino-food aliases, pairing examples, rule thresholds, evidence bundles, and source deprecation.
+- Add governance and review/version tooling for Filipino-food aliases, Smart Context pairings, Context snack-pairing options, rule thresholds, evidence bundles, and source deprecation.
 - Add durable distributed job/cache storage before any multi-worker backend deployment.
 - Add performance/load budgets for a 12-component meal when USDA details must be fetched for every component.
 - Improve accessibility and mobile QA for History drawers and dense Smart Context cards.
@@ -62,4 +68,5 @@ The backend uses in-memory analysis jobs and temporary files for user data. The 
 - Numeric GI/GL for curated foods or estimated unlabeled meals.
 - Authoritative Filipino nutrition values without a permitted dataset.
 - Allergy filtering or recipe-level hidden-ingredient inference.
+- Personalized or AI-generated snack recommendation catalogs.
 - Clinical personalization or long-term backend user storage.

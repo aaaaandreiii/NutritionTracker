@@ -2976,3 +2976,1834 @@ At completion, report:
 
 # Task 4: NOVA Group and Nutri-Score
 
+Continue working on the existing Sugar pAI web application.
+
+Route:
+
+`/sugar-pai/scan`
+
+This task specifically concerns the **Context stage that appears after Review/label confirmation**.
+
+I want to add two pieces of product metadata:
+
+1. **NOVA processing group**
+2. **Nutri-Score**
+
+These metrics have different roles and must NOT be presented as equivalent scores.
+
+The goal is to add them in a way that fits the existing Sugar pAI evidence hierarchy, visual system, and diabetes-focused safety principles without turning the page into a generic food-rating dashboard.
+
+Do not redesign the route from scratch.
+
+Preserve the UI/UX improvements already made to:
+
+* Identify
+* Evidence
+* Review
+* Context
+* product summary
+* Smart Context
+* progressive disclosure
+* source provenance
+* technical/debug separation
+
+---
+
+# FIRST: INSPECT THE CURRENT IMPLEMENTATION
+
+Before changing code:
+
+1. Locate the Context-stage components in `/sugar-pai/scan`.
+2. Locate the product data model populated from the Open Food Facts/local product database.
+3. Determine whether NOVA and Nutri-Score already exist in the data model.
+4. Look for fields equivalent to:
+
+   * `nova_group`
+   * `nova_groups`
+   * `nova_groups_tags`
+   * `nutriscore_grade`
+   * `nutriscore_score`
+   * current/legacy Nutri-Score fields
+5. Determine how missing/null/unknown values are currently represented.
+6. Identify the existing components used for:
+
+   * Product Summary
+   * Smart Context
+   * ingredient/context flags
+   * provenance/source labels
+   * information cards
+   * collapsible sections
+7. Reuse the existing design system and components wherever practical.
+
+Do not duplicate data that is already normalized elsewhere.
+
+If these values are already stored under differently named fields, use the existing canonical representation rather than creating another source of truth.
+
+---
+
+# IMPORTANT PRODUCT PRINCIPLE
+
+NOVA and Nutri-Score are **not interchangeable**.
+
+They must occupy different levels in the interface.
+
+## NOVA
+
+NOVA is processing-level context.
+
+It may be relevant to the way Sugar pAI explains:
+
+* processing level
+* food structure
+* ingredient formulation
+* ingredient context
+
+Therefore NOVA belongs inside or immediately adjacent to:
+
+`Smart Context`
+
+## Nutri-Score
+
+Nutri-Score is a general nutrition-quality classification supplied by an external/community database.
+
+It is NOT:
+
+* Sugar pAI's diabetes score
+* Sugar pAI's glycemic score
+* a prediction of glucose response
+* a food-permission score
+* a replacement for carbohydrate evidence
+
+Therefore Nutri-Score belongs in a visibly secondary:
+
+`External metadata`
+
+or:
+
+`Community database metadata`
+
+area.
+
+---
+
+# SAFETY / CLAIMS REQUIREMENTS
+
+Do not write user-facing copy claiming that:
+
+* NOVA directly predicts glucose response
+* NOVA 4 necessarily causes a glucose spike
+* ultra-processing automatically means high glycemic response
+* Nutri-Score predicts diabetes suitability
+* Nutri-Score indicates whether a person with diabetes should eat a product
+* a favorable Nutri-Score means glycemically favorable
+* an unfavorable Nutri-Score means glycemically unfavorable
+
+Sugar pAI should present these classifications as **context**, not medical conclusions.
+
+Prefer language such as:
+
+`Processing level is one piece of food context and does not predict your individual glucose response.`
+
+Avoid language such as:
+
+`Ultra-processed foods digest rapidly and spike glucose.`
+
+The latter is too deterministic for a product-level consumer UI.
+
+---
+
+# DATA INTEGRITY
+
+Never infer NOVA or Nutri-Score from the product's ingredients or macros in the UI layer.
+
+Use only an explicit value supplied by the application's trusted product-data source.
+
+If no NOVA value exists:
+
+* show `Not available`, or
+* omit the NOVA block if that produces a cleaner UX
+
+If no Nutri-Score exists:
+
+* show `Not available`, or
+* omit the metadata row/card
+
+Do not calculate a replacement score.
+
+Do not silently substitute another classification.
+
+Do not convert unknown into a default group/grade.
+
+---
+
+# NOVA GROUP MAPPING
+
+Support the four standard NOVA groups in the presentation layer.
+
+Map the numeric value to human-readable text:
+
+`1 — Unprocessed or minimally processed foods`
+
+`2 — Processed culinary ingredients`
+
+`3 — Processed foods`
+
+`4 — Ultra-processed foods`
+
+Prefer a concise main presentation:
+
+`NOVA 4`
+
+`Ultra-processed`
+
+rather than displaying a long sentence as the primary value.
+
+The full explanation may appear below or in an info popover/disclosure.
+
+If the backend stores strings/tags rather than a number, normalize them through a reusable helper.
+
+Do not scatter NOVA string mappings across multiple components.
+
+Create/reuse one canonical formatter such as:
+
+`formatNovaGroup(...)`
+
+if appropriate to the existing architecture.
+
+---
+
+# NOVA UI PLACEMENT
+
+Add NOVA to the **Smart Context** hierarchy.
+
+Do not place it in the top-level nutrient summary beside carbohydrate/sugar/fiber values, because it is not a nutrient measurement.
+
+Preferred hierarchy:
+
+Product Summary
+
+↓
+
+Smart Context
+
+* actionable/contextual insight
+* NOVA processing context
+* ingredient flags/context
+
+↓
+
+External metadata
+
+* Nutri-Score
+
+NOVA should feel meaningful but not dominant.
+
+---
+
+# NOVA CARD / ROW
+
+Use the existing Smart Context card language.
+
+Possible presentation:
+
+`PROCESSING CONTEXT`
+
+`NOVA 4 · Ultra-processed`
+
+Supporting copy:
+
+`NOVA describes the extent and purpose of food processing. Processing level is one piece of food context and does not predict your individual glucose response.`
+
+If ingredient/context flags exist, they may appear nearby.
+
+For example:
+
+`NOVA 4 · Ultra-processed`
+
+`Ingredient context`
+
+`Maltodextrin`
+`Glucose syrup`
+`Modified starch`
+
+However, do not imply that every NOVA 4 product necessarily contains those ingredients.
+
+Only show ingredient flags that the existing ingredient-analysis system actually detected.
+
+---
+
+# NOVA VISUAL TREATMENT
+
+Do NOT turn NOVA into a red/yellow/green health score.
+
+Avoid:
+
+* traffic-light health judgments
+* giant warning badges
+* “bad” labels
+* thumbs-up/thumbs-down
+* danger icons merely because the product is NOVA 4
+
+Prefer a neutral informational presentation.
+
+For example:
+
+small neutral badge:
+
+`NOVA 4`
+
+text:
+
+`Ultra-processed`
+
+optional info icon.
+
+The classification itself is sufficient.
+
+If an amber or accent treatment already exists for contextual information, use it subtly and consistently.
+
+Do not make NOVA 4 look like an application error or medical warning.
+
+---
+
+# NOVA INFO DISCLOSURE
+
+Provide a concise explanation through an info icon, expandable disclosure, tooltip, or helper text depending on existing components.
+
+Suggested user-facing content:
+
+`About NOVA`
+
+`NOVA classifies foods by the extent and purpose of processing, from minimally processed foods (Group 1) to ultra-processed products (Group 4). It provides processing context rather than predicting your glucose response.`
+
+Keep it concise.
+
+Do not place a long academic explanation directly in the main Context flow.
+
+---
+
+# INGREDIENT FLAGS + NOVA
+
+NOVA and ingredient flags can visually belong to the same Smart Context area, but do not conflate them.
+
+Example:
+
+`PROCESSING CONTEXT`
+
+`NOVA 4 · Ultra-processed`
+
+Then:
+
+`INGREDIENT CONTEXT`
+
+`Sugar`
+`Maltodextrin`
+`Modified starch`
+
+Only show ingredient flags already supported by the existing analysis logic.
+
+Do not invent flags from the NOVA category.
+
+NOVA must not become a trigger that fabricates ingredient conclusions.
+
+---
+
+# NUTRI-SCORE
+
+Add Nutri-Score as **secondary external metadata**.
+
+Do not place it inside Sugar pAI's primary Smart Context recommendation card.
+
+Use a section/card/row labeled something like:
+
+`EXTERNAL FOOD DATABASE`
+
+or:
+
+`COMMUNITY DATABASE METADATA`
+
+Preferred presentation:
+
+`Nutri-Score`
+
+`Grade D`
+
+Supporting source:
+
+`Open Food Facts`
+
+Supporting explanation:
+
+`A general nutrition-quality classification. It is not a diabetes or glucose-response score.`
+
+This separation is important.
+
+---
+
+# NUTRI-SCORE VISUAL HIERARCHY
+
+Nutri-Score must visually rank below:
+
+* confirmed carbohydrate values
+* confirmed sugar values
+* fiber
+* serving basis
+* Smart Context
+* ingredient evidence
+* NOVA processing context
+
+It should not look like Sugar pAI's main verdict.
+
+Do NOT put a giant `A`, `B`, `C`, `D`, or `E` next to the product name.
+
+Do NOT put it in the main top Product Summary metrics row.
+
+Do NOT call it:
+
+`Health score`
+
+`Food score`
+
+`Diabetes score`
+
+`Glycemic score`
+
+Use:
+
+`Nutri-Score`
+
+and preferably:
+
+`Grade D`
+
+rather than simply displaying an unexplained letter.
+
+---
+
+# NUTRI-SCORE COLORS
+
+Be careful with color.
+
+The existing Sugar pAI UI intentionally avoids simplistic “good food / bad food” framing.
+
+Therefore do not make the Nutri-Score grade dominate the page with a large green-to-red traffic-light treatment.
+
+If the application already includes an official Nutri-Score presentation component and its use is appropriate, preserve its official semantics.
+
+Otherwise prefer a restrained neutral badge/card where the grade is readable but does not overpower the evidence hierarchy.
+
+For example:
+
+`Nutri-Score · D`
+
+with a small external-data/source treatment.
+
+The user should not interpret the card as Sugar pAI recommending or rejecting the food.
+
+---
+
+# NUTRI-SCORE EXPLANATION
+
+Add concise contextual copy.
+
+Suggested text:
+
+`Nutri-Score summarizes general nutritional composition. It is not designed to predict glucose response or diabetes suitability.`
+
+Optionally expose more detail through:
+
+`About Nutri-Score`
+
+Do not place a long critique of the Nutri-Score algorithm in the main UI.
+
+The application does not need to argue with Nutri-Score.
+
+It only needs to establish its scope.
+
+---
+
+# SOURCE PROVENANCE
+
+Both metrics should clearly expose their source.
+
+If values originate from Open Food Facts/local mirrored Open Food Facts data, show:
+
+`Source: Open Food Facts`
+
+or equivalent existing provenance UI.
+
+Do not present these values as calculated by Sugar pAI unless they actually are.
+
+The UI should make the distinction clear:
+
+Sugar pAI calculates/interprets its own evidence where applicable.
+
+NOVA/Nutri-Score are imported classification metadata.
+
+---
+
+# EXTERNAL METADATA COMPONENT
+
+If appropriate to the current architecture, create a reusable component such as:
+
+`ExternalProductMetadata`
+
+Possible contents:
+
+* Nutri-Score
+* source
+* potentially other future external database fields
+
+Do not over-engineer.
+
+If only one simple row is required, reuse an existing metadata component.
+
+The main goal is to keep community/external metadata visually separate from Sugar pAI's own contextual analysis.
+
+---
+
+# SUGGESTED CONTEXT PAGE STRUCTURE
+
+Target approximately:
+
+## Product Summary
+
+`SkyFlakes 25 g`
+
+Carbohydrate
+`17 g`
+
+Total sugars
+`2 g`
+
+Added sugars
+`0 g`
+
+Fiber
+`1 g`
+
+`Edit evidence`
+
+---
+
+## Smart Context
+
+Existing useful contextual guidance.
+
+Example:
+
+`Add a fiber anchor`
+
+Existing evidence-aware explanation.
+
+---
+
+### Processing context
+
+`NOVA 3 · Processed`
+
+`NOVA describes processing level and does not predict your individual glucose response.`
+
+Optional:
+
+`Learn about NOVA`
+
+---
+
+### Ingredient context
+
+Existing detected ingredient flags/context.
+
+Example:
+
+`Sugar detected`
+
+`Sugar appears 6th in the ingredient list. Ingredient order confirms presence but does not reveal grams.`
+
+---
+
+## External metadata
+
+`Nutri-Score`
+
+`Grade C`
+
+`Source: Open Food Facts`
+
+`A general nutrition-quality classification. It is not a diabetes or glucose-response score.`
+
+---
+
+## Sources & limitations
+
+Existing progressive disclosure.
+
+---
+
+# AVOID THIS STRUCTURE
+
+Do NOT create:
+
+`GLYCEMIC SCORE`
+
+`NOVA SCORE`
+
+`NUTRI-SCORE`
+
+as three equivalent side-by-side scores.
+
+That falsely implies they measure comparable things.
+
+Do not create a “score dashboard.”
+
+Sugar pAI should remain evidence-first.
+
+---
+
+# DO NOT REINTRODUCE DEMO GLYCEMIC DATA
+
+A previous UI version exposed internal/demo information such as:
+
+* heuristic demo GI
+* experimental GL estimates
+* taxonomy versions
+* rule versions
+* model identifiers
+
+Do not reintroduce those items simply because NOVA and Nutri-Score are being added.
+
+If Sugar pAI has a legitimate production glycemic-load calculation based on confirmed user/product data, preserve its existing implementation.
+
+But do not invent or expose demo/fallback glycemic estimates in order to visually accompany NOVA or Nutri-Score.
+
+NOVA and Nutri-Score should work independently from any unavailable product-specific glycemic evidence.
+
+---
+
+# MISSING DATA STATES
+
+Test these cases:
+
+### NOVA available / Nutri-Score available
+
+Show both in their proper hierarchy.
+
+### NOVA available / Nutri-Score missing
+
+Show NOVA normally.
+
+Omit Nutri-Score or display a subtle:
+
+`Nutri-Score not available`
+
+Do not leave a large empty card.
+
+### NOVA missing / Nutri-Score available
+
+Do not infer NOVA.
+
+Show Nutri-Score only in external metadata.
+
+### Both missing
+
+Do not create a large empty metadata section.
+
+The page should collapse cleanly.
+
+---
+
+# DATA NORMALIZATION
+
+Create reusable presentation helpers where necessary.
+
+Examples:
+
+`getNovaPresentation(value)`
+
+returns something like:
+
+```ts
+{
+  group: 4,
+  label: "Ultra-processed"
+}
+```
+
+`formatNutriScoreGrade(value)`
+
+should normalize:
+
+* uppercase/lowercase
+* missing values
+* unexpected values
+
+Only accept expected Nutri-Score grades:
+
+`A`
+`B`
+`C`
+`D`
+`E`
+
+Handle unknown/missing safely.
+
+Do not render malformed database values directly into the UI.
+
+---
+
+# ACCESSIBILITY
+
+For NOVA and Nutri-Score:
+
+* do not rely on color alone
+* include textual grade/group labels
+* provide adequate contrast
+* ensure info/disclosure controls are keyboard accessible
+* give icons accessible labels where required
+* use semantic buttons for expandable explanations
+* do not make static badges focusable/clickable unless they perform an action
+
+---
+
+# RESPONSIVENESS
+
+Desktop is the current visual priority, but preserve existing responsive behavior.
+
+On desktop:
+
+* NOVA may live inside the Smart Context stack
+* external metadata may appear as a compact secondary card/row
+* avoid creating a new tall right sidebar solely for metadata
+
+On narrow widths:
+
+* cards should stack naturally
+* labels should not truncate important grade/group text
+* source text may wrap cleanly
+
+Do not use fixed heights.
+
+---
+
+# VISUAL POLISH
+
+Match existing Sugar pAI styling.
+
+Use:
+
+* existing cream surfaces
+* mint/green accents
+* subtle neutral borders
+* existing serif/sans typography hierarchy
+* restrained card radius
+* existing spacing scale
+
+Avoid:
+
+* giant badges
+* gradients
+* excessive colored pills
+* traffic-light dashboards
+* prominent red for NOVA 4 or Nutri-Score E
+* excessive warning yellow
+* score gauges
+* progress circles
+* star ratings
+
+This should feel like evidence metadata, not gamification.
+
+---
+
+# USER-FACING COPY
+
+Prefer concise language.
+
+### NOVA
+
+Primary:
+
+`NOVA 4 · Ultra-processed`
+
+Secondary:
+
+`NOVA describes the extent and purpose of food processing. It does not predict your individual glucose response.`
+
+### Nutri-Score
+
+Primary:
+
+`Nutri-Score · Grade D`
+
+Secondary:
+
+`A general nutrition-quality classification from Open Food Facts. It is not a diabetes or glucose-response score.`
+
+Avoid stronger medical claims.
+
+---
+
+# OPTIONAL INFO DISCLOSURES
+
+If the current UI has an existing accordion/info component, provide:
+
+`About NOVA`
+
+and optionally:
+
+`About Nutri-Score`
+
+Do not create large explanatory sections unless expanded by the user.
+
+Keep the default Context screen compact.
+
+---
+
+# TEST WITH THE EXISTING SKYFLAKES PRODUCT
+
+Use the existing SkyFlakes/database-match workflow as one test case.
+
+Verify:
+
+* product confirmation
+* Review
+* Context
+* NOVA rendering if present
+* Nutri-Score rendering if present
+* source provenance
+* missing-data handling
+
+Do not hard-code SkyFlakes values into UI components.
+
+Use actual data returned by the existing product model.
+
+---
+
+# ALSO TEST
+
+Test at least:
+
+1. NOVA 1
+2. NOVA 2
+3. NOVA 3
+4. NOVA 4
+5. missing NOVA
+6. Nutri-Score A
+7. Nutri-Score B
+8. Nutri-Score C
+9. Nutri-Score D
+10. Nutri-Score E
+11. missing Nutri-Score
+12. invalid/unexpected Nutri-Score value
+13. both classifications present
+14. neither classification present
+15. product with ingredient flags
+16. product without ingredient flags
+
+Make sure no missing state causes:
+
+* empty giant cards
+* `undefined`
+* `null`
+* malformed tags
+* raw API values
+* broken layout
+
+---
+
+# IMPORTANT INFORMATION HIERARCHY
+
+Maintain this ranking:
+
+### Level 1 — Confirmed product evidence
+
+Serving size
+
+Carbohydrate
+
+Sugars
+
+Fiber
+
+Ingredients
+
+### Level 2 — Sugar pAI Smart Context
+
+Contextual interpretation based on confirmed evidence
+
+Ingredient context
+
+NOVA processing context
+
+### Level 3 — External/community metadata
+
+Nutri-Score
+
+Open Food Facts provenance
+
+### Level 4 — Technical details
+
+Debug/provenance information behind progressive disclosure or developer-only UI
+
+Do not flatten these levels into one collection of equal-looking scores.
+
+---
+
+# DO NOT
+
+Do not:
+
+* make NOVA a glycemic score
+* make Nutri-Score a glycemic score
+* infer NOVA from ingredients
+* calculate Nutri-Score in the frontend unless the application explicitly already does so
+* fabricate missing values
+* expose raw database tags
+* show `undefined`
+* make NOVA 4 automatically red/dangerous
+* call Nutri-Score a health recommendation
+* use either classification as food permission
+* add prescriptive “eat / avoid” language
+* claim either metric predicts an individual's glucose response
+* reintroduce heuristic/demo GI estimates
+* clutter the Product Summary with external metadata
+* create another long right sidebar
+* alter unrelated routes
+
+---
+
+# QUALITY BAR
+
+When finished, the Context stage should communicate:
+
+1. **What the package says**
+2. **What Sugar pAI can contextualize from that evidence**
+3. **How processed the product is according to NOVA**
+4. **What ingredient-level context was detected**
+5. **What external general-nutrition metadata exists**
+6. **What cannot be concluded from these classifications**
+
+A user should immediately understand that:
+
+`NOVA 4`
+
+does not mean:
+
+`Sugar pAI says this food is bad`
+
+and:
+
+`Nutri-Score A`
+
+does not mean:
+
+`Sugar pAI says this food is good for diabetes`
+
+The visual hierarchy and copy should make that distinction obvious without requiring the user to read a long disclaimer.
+
+---
+
+# AFTER IMPLEMENTATION
+
+Run the existing relevant:
+
+* formatter
+* lint
+* typecheck
+* unit tests
+* integration tests
+* build
+
+Fix regressions introduced by the changes.
+
+Then report:
+
+1. files changed
+2. data fields used for NOVA
+3. data fields used for Nutri-Score
+4. normalization helpers added
+5. Context components changed
+6. missing-data behavior
+7. accessibility changes
+8. responsive changes
+9. whether either value was unavailable in the existing test products
+10. any data-quality issues discovered in the current product dataset
+
+Do not claim the task is complete until both the UI and the missing-data states have been manually checked.
+
+
+
+# Task 5: Snak Pairing UI
+
+Continue working on the existing Sugar pAI web application.
+
+Route:
+
+`/sugar-pai/scan`
+
+This is a deliberately **small, focused feature**.
+
+I do NOT want to add a chatbot interface.
+
+I want to take the type of answer Sugar pAI can currently produce conversationally for:
+
+`What could go well with this snack?`
+
+and render that information directly inside the **Context UI** after the user has scanned and confirmed a packaged food.
+
+For example, with the currently selected product:
+
+`SkyFlakes 25 g`
+
+Sugar pAI currently has confirmed evidence such as:
+
+* carbohydrate: 17 g
+* fiber: 1 g
+* total sugars: 2 g
+* added sugars: 0 g
+* sugar alcohols: not declared / unavailable
+* protein: 3 g
+* fat: 5 g
+* ingredients available from the confirmed product record
+
+The existing evidence may not contain product-specific research saying exactly what should be paired with SkyFlakes.
+
+However, supporting nutrition/snack literature may support general companion-food ideas such as:
+
+* peanut butter
+* yogurt
+* cheese
+* whole fruit
+
+I want that translated into a polished **UI feature**, not a chat response.
+
+---
+
+# FIRST: INSPECT THE EXISTING APP
+
+Before editing code:
+
+1. Locate the Context stage of `/sugar-pai/scan`.
+2. Locate the existing `Smart Context` section.
+3. Locate the confirmed product object/state used after Review.
+4. Locate existing source/evidence/provenance components.
+5. Locate any current web/research evidence retrieval functionality used by Sugar pAI.
+6. Determine whether the application already stores structured citations or evidence records for contextual claims.
+7. Reuse the existing design system and evidence architecture.
+
+Do not build a second parallel research system if one already exists.
+
+Do not redesign unrelated parts of the route.
+
+---
+
+# FEATURE TO IMPLEMENT
+
+Add a new Context UI section named:
+
+## `Pair with this snack`
+
+For a confirmed snack/product, this section should present approximately **3–4 evidence-supported companion food ideas**.
+
+Example for SkyFlakes:
+
+### Peanut butter
+
+`Adds a separate protein- and fat-containing component to the snack.`
+
+### Plain yogurt
+
+`Adds a separate protein-rich component.`
+
+### Cheese
+
+`Adds a separate protein-containing accompaniment.`
+
+### Whole fruit
+
+`Adds a separate whole-food and fiber-containing component.`
+
+These are examples.
+
+Do not hard-code SkyFlakes-specific pairings directly into the component unless they come from a reusable recommendation/evidence configuration.
+
+---
+
+# IMPORTANT PRODUCT BOUNDARY
+
+The pairing section must remain completely separate from the scanned product's confirmed nutrition values.
+
+Do NOT:
+
+* add peanut butter nutrients to SkyFlakes
+* fill missing SkyFlakes nutrients using another food
+* change SkyFlakes carbohydrate/fiber/protein values
+* imply that SkyFlakes itself contains nutrients from the pairing
+* silently recalculate the product's nutrition facts
+
+The product remains:
+
+`SkyFlakes 25 g`
+
+with only its own confirmed evidence.
+
+The new section simply answers:
+
+`What could I eat alongside this?`
+
+---
+
+# THIS IS NOT A CHATBOT
+
+Do not create:
+
+* chat bubbles
+* conversation history
+* user/assistant message UI
+* text prompt input
+* AI typing indicators
+* conversational response cards
+
+This feature belongs directly in the normal Context page.
+
+It should feel like part of the existing Sugar pAI analysis.
+
+---
+
+# RECOMMENDED PLACEMENT
+
+Place the new section after the most important Smart Context explanation and before lower-priority external metadata / Sources & Limitations.
+
+Preferred Context hierarchy:
+
+1. Product Summary
+2. Smart Context
+3. Processing / ingredient context
+4. **Pair with this snack**
+5. External metadata such as Nutri-Score
+6. Sources & limitations
+
+Do not create another tall right-hand sidebar.
+
+Keep the section in the main content flow.
+
+---
+
+# UI DESIGN
+
+Use a compact card consistent with the existing Sugar pAI design.
+
+Suggested structure:
+
+`PAIR WITH THIS SNACK`
+
+# `A few ideas to have alongside it`
+
+Supporting text:
+
+`These are general pairing ideas based on the confirmed product context and supporting nutrition evidence.`
+
+Then 3–4 compact recommendation items.
+
+Example:
+
+---
+
+`Peanut butter`
+
+**Protein + fat**
+
+`Adds a separate protein- and fat-containing component alongside the crackers.`
+
+---
+
+`Plain yogurt`
+
+**Protein**
+
+`Adds a separate protein-containing snack component.`
+
+---
+
+`Whole fruit`
+
+**Whole-food side**
+
+`Adds a separate whole-food and fiber-containing component.`
+
+---
+
+Do not make these huge cards.
+
+Prefer a compact grid or stack.
+
+Desktop:
+
+2-column grid if it fits cleanly.
+
+Narrow/mobile:
+
+single-column stack.
+
+---
+
+# COPY STYLE
+
+Do not use chat-style wording such as:
+
+`The provided evidence does not specify what items pair well with SkyFlakes. However...`
+
+That is technically cautious but poor product UX.
+
+Instead use concise UI language.
+
+Preferred:
+
+`Pair with this snack`
+
+`A few general pairing ideas supported by snack and satiety research.`
+
+Then show the foods.
+
+Include a small qualification:
+
+`These suggestions are general food pairings, not product-specific clinical recommendations.`
+
+Do not turn this into a giant warning banner.
+
+---
+
+# DO NOT CALL THEM “HEALTHY FOODS”
+
+Avoid labels such as:
+
+`Healthy recommendations`
+
+`Healthier foods`
+
+`Good choices`
+
+`Better foods`
+
+`Diabetes-friendly foods`
+
+`Safe for diabetes`
+
+Keep the language neutral.
+
+Use:
+
+`Pair with`
+
+`Companion ideas`
+
+`Snack pairing`
+
+`Add alongside`
+
+This avoids good-food/bad-food framing.
+
+---
+
+# DO NOT CLAIM GLUCOSE OUTCOMES
+
+Do not say:
+
+* prevents glucose spikes
+* lowers blood sugar
+* stabilizes glucose
+* reduces the glycemic impact of SkyFlakes
+* makes this snack safe
+* offsets the carbohydrates
+* neutralizes the snack
+
+Unless Sugar pAI has direct validated evidence for a specific claim, do not make it.
+
+Use descriptive statements instead:
+
+`Adds a separate protein source.`
+
+`Adds a whole-food component.`
+
+`Adds fiber from another food.`
+
+`May support satiety as part of a snack.`
+
+If using a satiety claim, ensure it is supported by the evidence source used.
+
+---
+
+# EVIDENCE MODEL
+
+The UI should distinguish between:
+
+## Product evidence
+
+Example:
+
+`SkyFlakes 25 g`
+
+`17 g carbohydrate`
+
+`1 g fiber`
+
+This comes from the confirmed product record.
+
+and:
+
+## Supporting pairing evidence
+
+Example:
+
+research discussing:
+
+* protein-containing snacks
+* yogurt
+* cheese
+* fruit
+* peanut butter
+* satiety/snack composition
+
+Do not pretend the supporting research studied SkyFlakes specifically unless it actually did.
+
+---
+
+# SOURCE PROVENANCE
+
+Each pairing does not need a large academic citation immediately underneath it.
+
+Instead, add a subtle control:
+
+`Why these suggestions?`
+
+or:
+
+`Evidence for these pairings`
+
+When expanded, show the supporting sources in a compact evidence list.
+
+For example:
+
+`Supporting evidence`
+
+* Research discussing protein-containing snack options including peanut butter, yogurt, and cheese
+* Research discussing fruit and yogurt as common snack components
+* Research on higher-protein snacks and satiety
+
+Use the existing source/citation UI if one exists.
+
+Do not expose long raw article excerpts.
+
+Do not dump an academic abstract into the page.
+
+---
+
+# SOURCE STRENGTH
+
+If the existing Sugar pAI evidence system has evidence-strength labels, reuse them.
+
+For example:
+
+`Product evidence · Strong`
+
+for the confirmed label.
+
+and:
+
+`Supporting evidence · Moderate`
+
+for general snack literature.
+
+Do not label a general study as strong evidence for the exact scanned product.
+
+The evidence UI should make clear:
+
+`general supporting evidence`
+
+rather than:
+
+`validated pairing for SkyFlakes`
+
+---
+
+# INITIAL RECOMMENDATION SET
+
+For the current snack use case, the implementation should be capable of showing categories such as:
+
+* peanut butter
+* plain yogurt
+* cheese
+* whole fruit
+
+Potentially other appropriate items may be added later.
+
+For the first version, keep the recommendation set intentionally small.
+
+Do not create a giant food recommendation catalog as part of this task.
+
+---
+
+# IMPORTANT: ONLY SHOW RELEVANT PAIRINGS
+
+Do not show every option for every product.
+
+Use simple deterministic rules based on the selected product/context.
+
+For example, a snack-like carbohydrate product may be eligible for:
+
+* protein-containing companion
+* whole-food/fiber companion
+
+If the selected product already strongly represents one category, avoid redundant recommendations.
+
+Example:
+
+If the scanned product itself is yogurt, do not recommend yogurt.
+
+If it is peanut butter, do not recommend peanut butter.
+
+If it is cheese, do not recommend cheese.
+
+Keep the first implementation simple and deterministic.
+
+---
+
+# PRODUCT TYPE / CONTEXT
+
+Determine whether the existing product record provides useful category information.
+
+If the product is reasonably identifiable as:
+
+* cracker
+* biscuit
+* snack
+* bread
+* cereal-type snack
+
+then the pairing section may appear.
+
+If the product category is completely unknown and no safe pairing rules apply:
+
+do not fabricate recommendations.
+
+Either omit the section or show:
+
+`No specific pairing ideas available for this product yet.`
+
+Keep this state subtle.
+
+---
+
+# NO FREEFORM LLM INVENTION
+
+Do not ask an LLM:
+
+`What healthy foods go with this?`
+
+and render its freeform answer directly.
+
+The feature should use a controlled set of allowed pairings and evidence-backed reason text.
+
+A simple structure is preferred.
+
+For example:
+
+```ts
+type PairingOption = {
+  id: string
+  label: string
+  category: "protein" | "whole_food" | "fiber" | "mixed"
+  eligibleProductCategories: string[]
+  rationale: string
+  evidenceIds: string[]
+}
+```
+
+The implementation does not need to use exactly this type.
+
+Fit it into the existing architecture.
+
+The important requirement is:
+
+**Displayed pairing foods and claims must be controlled and traceable.**
+
+---
+
+# EXAMPLE RULE
+
+Conceptually:
+
+```ts
+if (
+  product.category === "cracker" ||
+  product.category === "snack_cracker"
+) {
+  candidates = [
+    "peanut-butter",
+    "plain-yogurt",
+    "cheese",
+    "whole-fruit"
+  ]
+}
+```
+
+Then remove:
+
+* duplicates
+* the selected product itself
+* unsupported candidates
+* candidates lacking evidence configuration
+
+Do not hard-code logic directly into UI JSX if a reusable rule/config layer is appropriate.
+
+---
+
+# EVIDENCE CONFIGURATION
+
+Pairing recommendations should link to structured supporting evidence.
+
+Example conceptual configuration:
+
+```ts
+{
+  id: "plain-yogurt",
+  label: "Plain yogurt",
+  rationale: "Adds a separate protein-containing component.",
+  evidenceIds: [
+    "snack-protein-options-study",
+    "healthy-snack-education-study"
+  ]
+}
+```
+
+This allows Sugar pAI to explain why the suggestion exists without inventing a new claim on every render.
+
+---
+
+# CURRENT SUPPORTING EVIDENCE
+
+The existing conversational response referenced general evidence along these lines:
+
+1. Research discussing snack options including:
+
+   * peanut butter
+   * protein items
+   * yogurt
+   * cheese
+   * fruit
+
+2. Research discussing adequate snack examples including:
+
+   * fruit
+   * yogurt
+   * dried fruit
+
+3. Research on higher-protein snacks and satiety.
+
+If these sources already exist in Sugar pAI's research/evidence layer, reuse them.
+
+If they do not, inspect the application's existing method for storing/citing web evidence before adding them.
+
+Do not hard-code article text into the component.
+
+Store/reuse only the source metadata and concise supported proposition needed by the UI.
+
+---
+
+# UI EXAMPLE
+
+For SkyFlakes, target something visually similar to:
+
+---
+
+`PAIR WITH THIS SNACK`
+
+## A few ideas to have alongside it
+
+`Peanut butter`
+`Protein + fat`
+Adds a separate protein- and fat-containing component.
+
+`Plain yogurt`
+`Protein`
+Adds a separate protein-containing snack component.
+
+`Cheese`
+`Protein`
+Adds a separate protein-containing accompaniment.
+
+`Whole fruit`
+`Whole-food side`
+Adds a separate whole-food and fiber-containing component.
+
+`Why these suggestions?`
+
+Small note:
+
+`General pairing ideas based on the confirmed product context and supporting nutrition evidence. They do not change the nutrition values of SkyFlakes.`
+
+---
+
+Do not literally use ASCII borders.
+
+Use the existing Sugar pAI card system.
+
+---
+
+# VISUAL HIERARCHY
+
+Do not make the pairing section more visually important than:
+
+* confirmed product values
+* Smart Context
+* major evidence limitations
+
+It is useful guidance, not the core evidence record.
+
+Avoid:
+
+* giant green CTA panels
+* red/green rating systems
+* food photography carousels
+* large illustration cards
+* “AI recommends” banners
+* sparkles everywhere
+* excessive badges
+
+Keep it calm and editorial.
+
+---
+
+# OPTIONAL INTERACTION
+
+If easy to implement with the existing architecture, each food card may have:
+
+`Add to meal`
+
+BUT ONLY if this already integrates naturally with Estimated Meal.
+
+If implementing `Add to meal` creates significant scope or state complexity, do not implement it in this task.
+
+The pairing suggestions themselves are the priority.
+
+---
+
+# DO NOT MODIFY SCANNED PRODUCT VALUES
+
+Add explicit regression protection.
+
+The pairing feature must never mutate:
+
+* serving size
+* carbohydrate
+* total sugars
+* added sugars
+* fiber
+* protein
+* fat
+* sugar alcohols
+* ingredients
+* NOVA
+* Nutri-Score
+
+of the confirmed scanned product.
+
+Recommendation state must be independent.
+
+---
+
+# MISSING PRODUCT DATA
+
+The feature should tolerate incomplete product evidence.
+
+Do not say:
+
+`This product is low in fiber`
+
+when fiber is unknown.
+
+Do not say:
+
+`This product needs more protein`
+
+when protein is unknown.
+
+The initial version does not need to generate nutrient-gap claims at all.
+
+It can simply provide general snack companion ideas based on product category/context.
+
+This is intentionally safer and simpler.
+
+---
+
+# V1 SCOPE
+
+Keep version 1 deliberately small.
+
+Implement:
+
+1. `Pair with this snack` section
+2. 3–4 controlled recommendation options
+3. concise rationale for each
+4. general supporting evidence/provenance
+5. deterministic eligibility rules
+6. graceful empty state
+7. no mutation of scanned-product evidence
+
+Do NOT implement in this task:
+
+* personalized nutrition
+* allergy personalization unless already available
+* dynamic web search on every page load
+* AI-generated food recommendations
+* meal optimization
+* glucose-spike predictions
+* missing-nutrient imputation
+* complex ranking models
+* hundreds of foods
+* recommendation percentages
+* recommendation scoring UI
+
+This should be a polished, trustworthy V1.
+
+---
+
+# RESPONSIVE DESIGN
+
+Desktop is the current visual priority.
+
+Use approximately:
+
+2 columns of pairing cards on desktop
+
+1 column on narrow/mobile layouts
+
+Allow content height to size naturally.
+
+Do not create fixed-height cards just to make all recommendations equal.
+
+Do not create a new sidebar.
+
+---
+
+# ACCESSIBILITY
+
+Ensure:
+
+* food names are normal text headings
+* expandable evidence control uses a semantic button
+* expanded/collapsed state uses correct ARIA attributes
+* cards do not pretend to be clickable if they are not
+* evidence links have understandable labels
+* focus states use existing application conventions
+* color is not required to understand pairing type
+
+---
+
+# TEST CASES
+
+Test at minimum:
+
+### SkyFlakes / cracker snack
+
+Expected pairing candidates may include:
+
+* peanut butter
+* plain yogurt
+* cheese
+* whole fruit
+
+### Yogurt product
+
+Do not recommend yogurt itself.
+
+### Peanut butter product
+
+Do not recommend peanut butter itself.
+
+### Cheese product
+
+Do not recommend cheese itself.
+
+### Unknown product category
+
+Do not fabricate pairings.
+
+Gracefully omit the section or display a restrained empty state.
+
+### Missing nutrient fields
+
+Pairings should still render if category/context is sufficient.
+
+Do not infer missing nutrients.
+
+### Context navigation
+
+Verify:
+
+Review → Context
+
+Context → Edit evidence → Context
+
+Pairing section should update if the selected product changes.
+
+---
+
+# QUALITY BAR
+
+The finished experience should feel as if Sugar pAI has answered:
+
+`What could go well with this snack?`
+
+without requiring the user to open a chat.
+
+It should communicate:
+
+**Here are a few reasonable things you could have alongside this food, and here is the general evidence supporting those ideas.**
+
+It should NOT communicate:
+
+**Our AI has medically optimized your meal.**
+
+The feature should feel:
+
+* helpful
+* concise
+* evidence-aware
+* optional
+* calm
+* trustworthy
+* integrated with Sugar pAI
+
+---
+
+# AFTER IMPLEMENTATION
+
+Run the project's existing:
+
+* formatter
+* lint
+* typecheck
+* tests
+* build
+
+Add/update tests covering:
+
+1. SkyFlakes shows eligible pairings
+2. selected food is never recommended as its own pairing
+3. unknown category does not generate invented suggestions
+4. recommendation evidence IDs resolve correctly
+5. scanned-product nutrition remains unchanged
+6. expanded evidence UI works
+7. responsive layout does not break
+8. no recommendation makes unsupported glucose-response claims
+
+Then report:
+
+* files changed
+* where the pairing rules live
+* pairings included in V1
+* evidence sources/configuration used
+* Context UI component added/modified
+* empty-state behavior
+* tests added
+* any limitations intentionally left for a later version

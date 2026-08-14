@@ -12,10 +12,15 @@ npm run lint
 npm run test
 ```
 
-Current verified result: **22 frontend tests passing**.
+Current verified result: **46 Vitest tests passing**.
 
 Current coverage includes:
 - Smart Context insight rules and action chips.
+- Context snack-pairing eligibility for SkyFlakes-style cracker products.
+- Self-filtering so yogurt, peanut butter, cheese, and whole-fruit products do not recommend themselves.
+- Unknown category behavior with no fabricated suggestions.
+- Source-ID resolution for snack-pairing evidence records.
+- Regression protection that snack pairings do not mutate scanned-product nutrition values or make unsupported glucose-response claims.
 - Ingredient context flag categories.
 - Curated unlabeled demo Smart Context with no numeric GI or GL.
 - Backward-compatible log handling where missing `kind` means packaged-label.
@@ -58,9 +63,9 @@ Current coverage includes:
 - Missing USDA-key behavior and qualitative fallback response.
 - Estimated-meal manual analysis SSE, context-only finalization, short-lived cleanup, nested record construction, evidence trails, and partial aggregate labeling.
 - Smart Context exact/range triggers, uncertainty-boundary behavior, Philippine pairing examples, cache-hit provenance, invented-number/action/source rejection, and prohibited health/suitability/medication/glucose claims.
-- Chat event ordering, product grounding, safety and out-of-scope refusals, request limits, authoritative-domain filtering, and source deduplication with mocked Ollama output.
+- Chat event ordering, product grounding, safety and out-of-scope refusals, request limits, authoritative-domain filtering, curated snack-pairing evidence retrieval, and source deduplication with mocked Ollama output.
 
-Current verified result: **60 backend tests passing**.
+Current verified result: **62 backend tests passing**.
 
 ## Build Verification
 
@@ -80,7 +85,7 @@ Command:
 npm run test:e2e
 ```
 
-Playwright is configured with one worker so full-page screenshots and route mocks remain deterministic against one preview process. Current verified result: **11 Playwright tests passing**.
+Playwright is configured with one worker so full-page screenshots and route mocks remain deterministic against one preview process. Current verified result: **12 Playwright tests passing**.
 
 Coverage includes:
 
@@ -89,6 +94,7 @@ Coverage includes:
 - Barcode database product summary, camera-denial recovery, dense label review, validation, and results mode.
 - Manual estimated meal through component confirmation, derived breakdown, Smart Context, Today, and History.
 - Multi-item photo draft with editable component identity and mobile overflow assertion.
+- Packaged-label Context snack-pairing section with controlled SkyFlakes suggestions, expandable evidence, no unsupported claim copy, desktop two-column layout, mobile one-column layout, and update behavior after editing product evidence.
 
 The suite mocks external model/database HTTP responses. It verifies application contracts and fallbacks, not live USDA/Ollama availability or nutritional accuracy.
 
@@ -96,6 +102,8 @@ The suite mocks external model/database HTTP responses. It verifies application 
 
 - Default app route opens `#/sugar-pai/scan`.
 - Packaged-label mode shows Smart Context only after validation.
+- Eligible packaged snacks show `Pair with this snack` after the main Context explanations; unknown categories do not fabricate suggestions.
+- Expanded snack-pairing evidence separates confirmed product evidence from general supporting evidence, and the section never changes scanned-product nutrition values.
 - Live barcode scanner detects UPC/EAN codes, shows local lookup status, and opens image-free review for complete local matches.
 - Partial or missing barcode matches explain missing fields and keep the image capture path available.
 - Meal vision returns only components, preparation clues, portions, ranges, and confidence—never macros.

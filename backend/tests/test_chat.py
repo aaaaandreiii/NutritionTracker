@@ -166,3 +166,14 @@ def test_search_failure_returns_curated_fallback_warning(monkeypatch):
 
     assert any(source.id == "off-data-source" for source in sources)
     assert warnings == ["Live search was unavailable; the answer uses curated evidence only."]
+
+
+def test_snack_pairing_questions_retrieve_curated_supporting_evidence():
+    sources, warnings = asyncio.run(retrieve_evidence("What could go well with this snack: peanut butter, yogurt, cheese, or fruit?", None))
+    source_ids = {source.id for source in sources}
+
+    assert warnings == []
+    assert "aha-snack-examples" in source_ids
+    assert "myplate-protein-foods" in source_ids
+    assert "myplate-dairy" in source_ids
+    assert any(source.id in {"high-protein-yogurt-satiety-2014", "snack-food-satiety-review-2016"} for source in sources)

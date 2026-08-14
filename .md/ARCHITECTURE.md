@@ -11,6 +11,7 @@ graph TD
         Packaged[Packaged-label scan and review]
         Meal[Estimated meal confirmation]
         Smart[Immediate deterministic and resolved Smart Context]
+        SnackPair[Client-side context snack pairing section]
         Ask[Evidence chat and citations]
         Today[Today range aggregation]
         History[Read-only estimated and editable label history]
@@ -58,6 +59,7 @@ graph TD
     Meal -->|confirmed components and gram ranges| USDAResolver
     Packaged --> Smart
     Meal --> Smart
+    Packaged --> SnackPair
     Smart --> API
     API --> Rules
     Rules -.-> Writer
@@ -96,6 +98,7 @@ The system keeps decision logic deterministic and makes acquisition paths explic
 6. The user edits and finalizes with `POST /api/v1/analyses/{id}/finalize`; corrected values become user-confirmed observations.
 7. The frontend renders existing deterministic cards immediately and calls `POST /api/v1/smart-context/resolve` asynchronously.
 8. Only a validated backend response replaces the fallback. The log stores the selected card/source/provenance snapshot so History is reproducible.
+9. The packaged-label Context page independently derives the compact `Pair with this snack` section from confirmed product context and static supporting-source metadata. This client-side section never changes the confirmed product evidence.
 
 ## Estimated Unlabeled-Meal Data Flow
 
@@ -148,6 +151,20 @@ Key invariants:
 8. Results are cached by normalized request and rule/evidence/pairing/writer/model versions. Responses expose `cacheHit` and fallback reason.
 
 The writer cannot originate rule triggers, nutrient values, actions, or citations.
+
+## Context Snack Pairing UI
+
+The `Pair with this snack` section is a client-side Context feature for confirmed packaged snacks. It lives beside the existing Smart Context architecture but does not call `/api/v1/chat/stream`, Tavily, Ollama, or a dynamic recommendation endpoint on render.
+
+Implementation rules:
+
+1. `buildSnackPairingIdeas(...)` receives the confirmed packaged-label result and classifies conservative snack-like contexts from product name and ingredients.
+2. Unknown product categories return an empty result, so the section is omitted.
+3. V1 options are fixed configuration records: peanut butter, plain yogurt, cheese, and whole fruit.
+4. A self-pattern removes the scanned product's own category, so yogurt does not recommend yogurt, peanut butter does not recommend peanut butter, and cheese does not recommend cheese.
+5. Each displayed option must have source IDs that resolve in `PAIRING_SOURCES`.
+6. The evidence panel distinguishes confirmed product evidence from general supporting evidence.
+7. Recommendation state is independent from `EvidenceValue` nutrition fields and cannot mutate serving size, carbohydrates, sugars, fiber, protein, fat, ingredients, NOVA, or Nutri-Score.
 
 ## Local Data Model
 
@@ -215,6 +232,7 @@ Missing `kind` continues to mean `packaged_label`. Existing curated records requ
 - **USDA FoodData Central:** Server-side search/details source for per-100-g nutrient data. API credentials never enter frontend code.
 - **Ollama meal vision:** May identify foods and portion uncertainty but is schema-prohibited from producing nutrient grams.
 - **Ollama Smart Context writer:** Optional wording layer; cannot select rules or introduce facts.
+- **Client snack pairing config:** Static controlled source metadata and deterministic eligibility rules for the packaged-label Context UI. It is not a nutrient source, product-specific clinical evidence source, or LLM-generated recommendation service.
 - **Curated catalog:** Static Philippine-relevant qualitative fallback; never a source of numeric nutrients.
 - **Tavily:** Optional authoritative-domain retrieval for evidence chat. It is not a nutrient-gram source.
 - **IndexedDB:** Durable local history and chat storage; clearing browser data removes it.

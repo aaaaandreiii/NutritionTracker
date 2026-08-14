@@ -9,6 +9,7 @@ Sugar pAI is a privacy-first packaged-food and estimated-meal decision-support p
 - **Deterministic validation:** Backend checks preserve unknown values, reject impossible sugar/carbohydrate arithmetic, and never turn missing fields into zero.
 - **Smart Context:** After backend validation, the app shows context rules for fiber, protein/fat, food order, ingredient flags, movement education, and data limits.
 - **Ingredient context flags:** Sugar aliases, high-fructose corn syrup, maltodextrin, starches, polyols, high-intensity sweeteners, and processing markers are shown as descriptive context rather than ratings.
+- **Context snack pairings:** For eligible confirmed packaged snacks, Context can show controlled companion-food ideas such as peanut butter, plain yogurt, cheese, and whole fruit. These suggestions use deterministic rules and structured supporting sources; they never change the scanned product's confirmed nutrition values.
 - **Estimated unlabeled meals:** A meal photo can identify up to 12 visible components without producing macros. Users confirm each identity, USDA match, household portion, and 1–5000 g range before the backend derives nutrient ranges.
 - **Honest qualitative fallback:** Components without a credible USDA match stay context-only and are excluded from numeric aggregates. The Filipino-food catalog remains available when vision or USDA is unavailable.
 - **Local history:** Confirmed records are stored in browser IndexedDB. Packaged-label and estimated-meal source images are retained only through explicit local opt-in.
@@ -25,6 +26,7 @@ GI and GL are handled conservatively:
 - Estimated unlabeled meals never receive numeric GI/GL or personal glucose predictions. Their ranges express confirmed portion uncertainty only.
 - Curated/context-only components do not display calories, macros, GI, GL, or FNRI-derived claims and never silently count as zero.
 - Ingredient aliases and catalog tags are context descriptors only.
+- Snack pairing ideas are general companion-food context, not product-specific clinical recommendations. They are separate from the scanned product record and do not add, impute, offset, or recalculate nutrients.
 
 ## Backend Interfaces
 
@@ -58,6 +60,8 @@ The estimated-meal evidence path is deliberately split:
 5. Backend deterministic rules resolve Smart Context. Estimated nutrient rules trigger only when the full range supports the threshold; boundary-crossing ranges receive an uncertainty card.
 
 Smart Context responses include rule IDs, cards, actions, source IDs, warnings, generation mode, cache state, and rule/evidence/pairing/writer versions. The browser stores that snapshot with the log so History does not regenerate different copy later.
+
+The packaged-label Context page also builds a small local `Pair with this snack` section from the confirmed product context. It is not a chat response and does not call an LLM. Eligibility is category-based and conservative: cracker, biscuit, bread, cereal-type snack, and similar snack contexts can receive a small controlled set of companion ideas; unknown categories omit the section.
 
 ## Quickstart
 

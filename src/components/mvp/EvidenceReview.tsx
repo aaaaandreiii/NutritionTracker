@@ -13,22 +13,18 @@ import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from
 import { NUTRIENT_KEYS, NUTRIENT_META, correctionsFromResult, makeLogTotals } from '../../domain/nutrition'
 import {
   buildIngredientContextFlags,
-  buildMealPairingSuggestions,
   buildPairingInsights,
-  createPairingMealComponent,
+  buildSnackPairingIdeas,
   deterministicSmartContextSnapshot,
   smartContextRequestFromAnalysis,
   smartContextResponseToInsights,
   type PairingInsight,
-  type PairingSuggestion,
 } from '../../domain/pairing'
 import type {
   AnalysisResult,
-  CuratedFoodCandidate,
   FinalizeCorrections,
   GlycemicEvidence,
   LogEntry,
-  MealPairingComponent,
   MealSlot,
   MethodDiagnostic,
   NutrientKey,
@@ -36,12 +32,12 @@ import type {
   SmartContextFlag,
   SmartContextResponse,
 } from '../../domain/types'
-import { finalizeAnalysis, getUnlabeledFoodCatalog, resolveSmartContext } from '../../lib/api'
+import { finalizeAnalysis, resolveSmartContext } from '../../lib/api'
 import { saveLog } from '../../lib/db'
 import type { AnalysisImages } from '../../lib/api'
 import ImagePreviewButton from './ImagePreviewButton'
-import MealPairingIdeas from './MealPairingIdeas'
 import PairingIdeas from './PairingIdeas'
+import SnackPairingSection from './SnackPairingSection'
 import {
   formatProductDisplayName,
   formatNutriScoreGrade,
@@ -231,10 +227,6 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
   const [ingredientsEditorOpen, setIngredientsEditorOpen] = useState(false)
   const [smartContextSnapshot, setSmartContextSnapshot] = useState<SmartContextResponse | null>(null)
   const [resolvedPairingInsights, setResolvedPairingInsights] = useState<PairingInsight[] | null>(null)
-  const [companionCatalog, setCompanionCatalog] = useState<CuratedFoodCandidate[]>([])
-  const [companionCatalogReady, setCompanionCatalogReady] = useState(false)
-  const [companionCatalogWarning, setCompanionCatalogWarning] = useState<string | null>(null)
-  const [mealPairingComponents, setMealPairingComponents] = useState<MealPairingComponent[]>([])
 
   const current = confirmed ?? result
   const validatedRecord = confirmed ?? (edited.size === 0 && result.status === 'confirmed' ? result : null)
@@ -261,7 +253,6 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
     setResultsMode(false)
     setResolvedPairingInsights(null)
     setSmartContextSnapshot(null)
-    setMealPairingComponents([])
     setEdited((previous) => new Set(previous).add(key))
   }
 
@@ -271,7 +262,6 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
     setResultsMode(false)
     setResolvedPairingInsights(null)
     setSmartContextSnapshot(null)
-    setMealPairingComponents([])
     onReviewing?.(reviewingResult)
     window.scrollTo({ top: 0, behavior: 'auto' })
   }
@@ -301,34 +291,17 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
     [corrections.consumedServings, corrections.productName, current, meal],
   )
   const visiblePairingInsights = resolvedPairingInsights ?? pairingInsights
-  const mealPairingSuggestions = useMemo(
+  const snackPairing = useMemo(
     () => current.status === 'confirmed'
-      ? buildMealPairingSuggestions({
+      ? buildSnackPairingIdeas({
         result: current,
         consumedServings: corrections.consumedServings,
         meal,
         productName: corrections.productName,
-      }, companionCatalog)
-      : [],
-    [companionCatalog, corrections.consumedServings, corrections.productName, current, meal],
+      })
+      : null,
+    [corrections.consumedServings, corrections.productName, current, meal],
   )
-
-  useEffect(() => {
-    if (current.status !== 'confirmed' || companionCatalogReady) return
-    let active = true
-    void getUnlabeledFoodCatalog('PH').then((payload) => {
-      if (!active) return
-      setCompanionCatalog(payload.foods)
-      setCompanionCatalogReady(true)
-      setCompanionCatalogWarning(null)
-    }).catch(() => {
-      if (!active) return
-      setCompanionCatalog([])
-      setCompanionCatalogReady(true)
-      setCompanionCatalogWarning('No specific pairings suggested. The trusted companion-food catalog is unavailable.')
-    })
-    return () => { active = false }
-  }, [companionCatalogReady, current.status])
 
   useEffect(() => {
     if (current.status !== 'confirmed') return
@@ -347,17 +320,6 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
     return () => { active = false }
   }, [corrections.consumedServings, corrections.productName, current, meal])
 
-  const addMealPairing = (suggestion: PairingSuggestion) => {
-    setMealPairingComponents((previous) => {
-      if (previous.some((component) => component.foodId === suggestion.foodId)) return previous
-      return [...previous, createPairingMealComponent(suggestion)].slice(0, 3)
-    })
-  }
-
-  const removeMealPairing = (componentId: string) => {
-    setMealPairingComponents((previous) => previous.filter((component) => component.componentId !== componentId))
-  }
-
   const capturedImages = [
     { kind: 'nutrition' as const, label: 'Nutrition Facts', file: images.nutrition },
     { kind: 'ingredients' as const, label: 'Ingredients', file: images.ingredients },
@@ -371,7 +333,6 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
     setError(null)
     setResolvedPairingInsights(null)
     setSmartContextSnapshot(null)
-    setMealPairingComponents([])
     try {
       const next = await finalizeAnalysis(result.analysisId, corrections)
       setConfirmed(next)
@@ -399,7 +360,6 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
         productName: displayName,
         result: validatedRecord,
         smartContextSnapshot: smartContextSnapshot ?? deterministicSmartContextSnapshot(pairingInsights),
-        mealPairingComponents: mealPairingComponents.length ? mealPairingComponents : undefined,
         totals: makeLogTotals(validatedRecord, corrections.consumedServings),
         retainedImages: retainImages && capturedImages.length > 0
           ? capturedImages.map((image) => ({ kind: image.kind, blob: image.file, name: image.file.name }))
@@ -584,15 +544,8 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
 
             {ingredientFlags.length > 0 && <IngredientContextCard flags={ingredientFlags} />}
 
-            {current.status === 'confirmed' && (
-              <MealPairingIdeas
-                suggestions={mealPairingSuggestions}
-                selectedComponents={mealPairingComponents}
-                catalogReady={companionCatalogReady}
-                catalogWarning={companionCatalogWarning}
-                onAddSuggestion={addMealPairing}
-                onRemoveComponent={removeMealPairing}
-              />
+            {current.status === 'confirmed' && snackPairing && (
+              <SnackPairingSection pairing={snackPairing} productDisplayName={displayName} />
             )}
 
             <section className="card interpretation-card">

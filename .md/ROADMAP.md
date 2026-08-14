@@ -1,11 +1,12 @@
 # Project Roadmap
 
-Sugar pAI V2 now supports packaged-label evidence, USDA-backed estimated meal ranges, deterministic backend Smart Context, and a qualitative Philippine-food fallback. Daily Dozen remains a supporting local tracker.
+Sugar pAI V2 now supports packaged-label evidence, controlled Context snack pairings, USDA-backed estimated meal ranges, deterministic backend Smart Context, and a qualitative Philippine-food fallback. Daily Dozen remains a supporting local tracker.
 
 ## Implemented Foundation
 
 - Barcode-first PH Open Food Facts lookup with package-label confirmation.
 - Strict label and meal-image schemas with deterministic validation.
+- Client-side `Pair with this snack` Context section for eligible packaged snacks, with controlled options, source metadata, self-filtering, and no product-nutrient mutation.
 - Multi-component estimated meals with user-confirmed USDA identity and portion ranges.
 - Honest partial aggregates, unknown counts, evidence trails, and local range exports.
 - Backend range-aware Smart Context, constrained PH pairings, optional validated writing, caching, and saved snapshots.
@@ -18,6 +19,7 @@ Sugar pAI V2 now supports packaged-label evidence, USDA-backed estimated meal ra
 - **Portion UX research:** Measure whether users understand household measures, gram min/max, midpoint notation, context-only exclusion, and partial-total warnings.
 - **Mobile/accessibility QA:** Audit component controls and estimated History drawers at 375, 430, 768, 1024, 1440, and 1920 px, including keyboard navigation, screen-reader labels, focus order, and 44 px touch targets.
 - **Rule governance:** Add review/version tooling for thresholds, evidence bundles, allowed categories, Philippine pairings, and source deprecation.
+- **Snack-pairing governance:** Add a lightweight review process for new companion-food options, eligibility terms, self-filtering patterns, copy boundaries, and source deprecation.
 - **Operational hardening:** Add endpoint-specific rate limiting, restricted CORS, structured redacted monitoring, and a shared job/cache store before public multi-worker deployment.
 - **Frontend TypeScript migration:** Convert remaining legacy Daily Dozen JSX components to strict TypeScript.
 
@@ -28,6 +30,7 @@ Sugar pAI V2 now supports packaged-label evidence, USDA-backed estimated meal ra
 - **USDA matching benchmark:** Measure top-1/top-5 candidate recall, user remap rate, generic/branded mismatch rate, nutrient missingness, cache performance, and schema drift.
 - **Partial-meal honesty evaluation:** Test whether users can distinguish matched-component subtotals from complete-meal totals.
 - **Smart Context evals:** Test range-boundary behavior, source/action preservation, prohibited-claim rejection, cache invalidation, and deterministic fallback across model/search failure modes.
+- **Snack-pairing evals:** Expand fixtures beyond SkyFlakes-style crackers while preserving self-filtering, source resolution, no nutrient mutation, no glucose-response claims, and unknown-category omission.
 - **OFF refresh automation:** Track local barcode hit/completeness/disagreement rates and add repeatable refresh/schema-drift checks.
 
 ## Phase 3: Permitted Data and Product Scaling
@@ -35,6 +38,7 @@ Sugar pAI V2 now supports packaged-label evidence, USDA-backed estimated meal ra
 - **Authoritative Philippine nutrition path:** Add FNRI or other local nutrient data only after licensing, provenance, versioning, and exact matching rules are resolved.
 - **Licensed GI path:** Add sourced GI only with permitted tested-food records and transparent match levels. Estimated unlabeled meals remain ineligible for numeric GI/GL unless a separately validated methodology is approved.
 - **Recipe-aware estimates:** Consider explicit user-authored recipes and ingredient weights; do not infer hidden recipes from a photo.
+- **Expanded pairing catalog:** Consider more companion-food categories only after evidence, eligibility rules, allergy/personalization boundaries, and source governance are defined.
 - **Optional sync:** Design authenticated, encrypted multi-device sync only after consent, deletion, export, tenant isolation, and retention requirements are defined.
 - **Reporting:** Add source/evidence audit views and longitudinal exports without turning educational estimates into clinical tracking.
 
@@ -42,6 +46,7 @@ Sugar pAI V2 now supports packaged-label evidence, USDA-backed estimated meal ra
 
 - Personal glucose prediction or claims that a food will spike/lower glucose.
 - Medication, insulin, diagnosis, treatment, allergy, or food-suitability guidance.
+- Freeform LLM-generated snack recommendations rendered directly into Context.
 - Numeric GI/GL for estimated unlabeled meals.
 - Hidden-ingredient or exact-recipe inference from a photograph.
 - Treating USDA population/database values as laboratory truth for the photographed meal.

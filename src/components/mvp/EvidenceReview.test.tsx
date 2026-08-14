@@ -96,6 +96,52 @@ function renderContext(result: AnalysisResult): string {
 }
 
 describe('EvidenceReview Context metadata', () => {
+  it('renders controlled snack pairing ideas in Context for cracker snacks', () => {
+    const html = renderContext(result({
+      product: {
+        ...result().product,
+        name: evidenceValue('SkyFlakes'),
+      },
+      serving: {
+        ...result().serving,
+        size: evidenceValue(25, { unit: 'g' }),
+      },
+      nutrients: {
+        ...result().nutrients,
+        totalCarbohydrate: evidenceValue(17, { unit: 'g' }),
+        fiber: evidenceValue(1, { unit: 'g' }),
+        totalSugars: evidenceValue(2, { unit: 'g' }),
+        addedSugars: evidenceValue(0, { unit: 'g' }),
+        protein: evidenceValue(3, { unit: 'g' }),
+        fat: evidenceValue(5, { unit: 'g' }),
+      },
+      rawIngredients: evidenceValue('Wheat flour, vegetable oil, sugar, salt', { sourceKind: 'user' }),
+    }))
+
+    expect(html).toContain('Pair with this snack')
+    expect(html).toContain('A few ideas to have alongside it')
+    expect(html).toContain('Peanut butter')
+    expect(html).toContain('Plain yogurt')
+    expect(html).toContain('Cheese')
+    expect(html).toContain('Whole fruit')
+    expect(html).toContain('They do not change the nutrition values of SkyFlakes 25 g')
+    expect(html).not.toMatch(/prevents?|blood sugar|glucose spikes|stabilizes glucose|diabetes-friendly|safe for diabetes/i)
+  })
+
+  it('omits snack pairing ideas when product category is unknown', () => {
+    const html = renderContext(result({
+      product: {
+        ...result().product,
+        name: evidenceValue('Uncategorized pantry item'),
+      },
+      rawIngredients: evidenceValue('', { sourceKind: 'user' }),
+    }))
+
+    expect(html).not.toContain('Pair with this snack')
+    expect(html).not.toContain('Peanut butter')
+    expect(html).not.toContain('Plain yogurt')
+  })
+
   it('renders NOVA in processing context and Nutri-Score as external metadata', () => {
     const html = renderContext(result({
       rawIngredients: evidenceValue('Wheat flour, Maltodextrin, Sugar', { sourceKind: 'user' }),

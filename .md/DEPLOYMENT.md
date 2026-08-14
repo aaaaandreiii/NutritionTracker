@@ -50,6 +50,8 @@ VITE_API_BASE_URL=http://localhost:8000
 
 `SUGAR_PAI_SMART_CONTEXT_WRITER=false` is the recommended default. Deterministic rule resolution does not require Ollama. When writer mode is enabled, timeout, invalid JSON, unknown IDs, invented claims, or model unavailability automatically returns deterministic cards.
 
+The packaged-label `Pair with this snack` Context section has no deployment environment variable. It is controlled by static client-side configuration and source metadata, and it does not call Ollama, Tavily, USDA, or a live recommendation endpoint when the Context page renders.
+
 ### Local Open Food Facts Database
 
 Barcode lookup uses a generated SQLite artifact at `backend/app/data/off_ph_products.db` by default. Regenerate it when `research/openfoodfacts_export.csv` changes:
@@ -186,6 +188,8 @@ curl -N -X POST http://localhost:8000/api/v1/chat/stream -H 'Content-Type: appli
 
 The barcode smoke response should report `status: "found"` and `complete: true` when local lookup is enabled. The curated catalog response must not include numeric calories, macros, GI, or GL. USDA search should either return candidate source snapshots or the explicit `available: false` fallback. Smart Context must return deterministic cards even with Ollama/Tavily unavailable.
 
+Frontend smoke checks should also confirm that an eligible SkyFlakes-style packaged snack shows the compact `Pair with this snack` section after Review -> Context, while an unknown category omits it. The section should expose supporting evidence only through the expandable control and should not alter the confirmed product values.
+
 ## Operational Fallback Matrix
 
 | Failure | Expected behavior |
@@ -194,6 +198,7 @@ The barcode smoke response should report `status: "found"` and `complete: true` 
 | USDA key missing | Search returns `available: false`; context-only confirmation remains available. |
 | USDA request fails after configuration | Search returns `503`; the user can retry or mark the component context-only. |
 | Smart Context writer invalid, unavailable, or slow | Deterministic rule cards remain visible and are saved. |
+| Snack-pairing source or eligibility does not resolve | The `Pair with this snack` section omits unsupported options or the whole section; product evidence remains unchanged. |
 | Tavily missing or unavailable | Evidence chat uses curated sources only; nutrient grams are never taken from Tavily. |
 | Browser storage cleared | Local logs, retained opt-in photos, and chat threads are lost; backend has no recovery copy. |
 

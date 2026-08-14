@@ -7,8 +7,9 @@ Sugar pAI V2 is a packaged-food and estimated-meal evidence prototype with groun
 1. **Packaged labels are hard to interpret:** Users must reconcile serving size, carbohydrate, sugars, fiber, protein, fat, and ingredient lists.
 2. **Ingredient naming is opaque:** Sugar-related ingredients can appear under many names, including HFCS, maltodextrin, syrups, starches, polyols, and high-intensity sweeteners.
 3. **Barcode databases are useful but uneven:** Community product records can reduce typing, but missing or outdated rows must stay visible.
-4. **Unlabeled meals lack package evidence:** Common Filipino meals may contain several foods, have no nutrition panel, and vary by recipe and portion. Estimates need visible ranges and source boundaries rather than false precision.
-5. **Privacy concerns are real:** Food and health-adjacent records are sensitive, and many users prefer local storage.
+4. **Snack context is usually separate from label facts:** Users may want ideas for what to eat alongside a packaged snack, but those ideas must not be mixed into the scanned product's nutrition record.
+5. **Unlabeled meals lack package evidence:** Common Filipino meals may contain several foods, have no nutrition panel, and vary by recipe and portion. Estimates need visible ranges and source boundaries rather than false precision.
+6. **Privacy concerns are real:** Food and health-adjacent records are sensitive, and many users prefer local storage.
 
 ## Value Proposition
 
@@ -18,6 +19,7 @@ Sugar pAI reduces interpretation friction while preserving evidence boundaries:
 - Use offline barcode lookup when a complete local Open Food Facts Philippines match exists.
 - Validate what was actually read or user-confirmed.
 - Show deterministic Smart Context.
+- Show a small, evidence-aware `Pair with this snack` section for eligible confirmed packaged snacks without changing the scanned product evidence.
 - Log locally.
 - Identify multiple photographed or manually entered meal components, let the user confirm USDA matches and `1–5000 g` ranges, and show matched-component nutrient ranges.
 - Keep unmatched components context-only and retain the curated Filipino-food catalog as a qualitative fallback.
@@ -29,6 +31,7 @@ Sugar pAI reduces interpretation friction while preserving evidence boundaries:
 | Label reviewer | Wants help reading complex package panels. | Evidence-preserving scan, correction, validation, and local log. |
 | Barcode-first shopper | Wants instant product lookup when a UPC/EAN exists. | Local database match preview, image-free review for complete rows, and capture guidance for partial rows. |
 | Ingredient-conscious shopper | Wants to notice sugar aliases and processing markers. | First-class ingredient context flags without food ratings. |
+| Snack-context user | Wants a few ideas for what can go alongside a packaged snack. | Controlled companion-food ideas with general supporting evidence and no recalculation of product nutrients. |
 | Filipino-food researcher | Wants an honest prototype flow for unlabeled meals. | Component confirmation, USDA-backed ranges, partial-total warnings, evidence trails, and a curated qualitative fallback. |
 | Privacy-focused user | Does not want cloud history. | IndexedDB local records and opt-in image retention. |
 | Whole-food tracker | Still wants Daily Dozen support. | Dashboard, pantry, groceries, and recipes remain available as secondary tooling. |
@@ -38,6 +41,7 @@ Sugar pAI reduces interpretation friction while preserving evidence boundaries:
 - **B2C local-first app:** Packaged-label evidence review and local logging.
 - **B2B extraction validation:** Deterministic validation pipeline for nutrition-label extraction workflows.
 - **Offline database assist:** Local barcode lookup can reduce VLM calls and user typing for complete records while preserving review requirements.
+- **Evidence-aware snack guidance:** Controlled pairing configuration shows how lightweight companion-food guidance can be useful without becoming a chatbot or medical optimization engine.
 - **Estimated-meal research:** Evaluates whether confirmed component matches and portion ranges are more useful than opaque point estimates.
 - **Research prototype:** Evaluates whether deterministic, evidence-linked Smart Context improves review without unsupported claims.
 - **Future licensed-data path:** Sourced GI or Filipino nutrition values can be added only with permitted datasets and provenance.

@@ -382,6 +382,17 @@ Returns `SmartContextResponse`:
 
 Estimated nutrient rules trigger only when the entire range supports the threshold. Threshold-crossing ranges receive `uncertainty-boundary`. Optional writer output is accepted only if rule IDs, evidence labels, actions, sources, and numbers validate; every failure returns deterministic cards.
 
+#### Context snack pairing note
+
+The packaged-label `Pair with this snack` Context section is not a backend endpoint. The browser derives it from the confirmed packaged-label product context through controlled client configuration in `src/domain/pairing.ts`.
+
+API boundaries:
+- It does not call `POST /api/v1/chat/stream` or ask an LLM to invent pairings.
+- It does not call Tavily or live web search on page load.
+- It does not submit or mutate scanned-product nutrient fields.
+- It uses static source IDs that must resolve to known source metadata before an option can render.
+- Unknown or ineligible product categories produce no fabricated suggestions.
+
 ### List Curated Unlabeled Foods
 
 `GET /api/v1/unlabeled-foods/catalog?market=PH`

@@ -33,6 +33,7 @@ If a multi-tenant cloud version is developed, it will utilize:
 - **Local OFF database:** `backend/app/data/off_ph_products.db` is a static generated Open Food Facts product dataset for offline lookup. It is not a user-data store.
 - A background worker (`cleanup_expired_jobs`) purges expired package and estimated-meal jobs, and shutdown cleanup removes remaining directories.
 - **Estimated records:** Confirmed component identities, USDA source snapshots, ranges, evidence trails, and Smart Context snapshots are saved only in local IndexedDB. A source meal photo is stored locally only through explicit opt-in.
+- **Context snack pairings:** The `Pair with this snack` section is derived from the confirmed packaged-label context and static source metadata in the frontend bundle. It does not send page-load recommendation requests to Ollama, Tavily, USDA, or any separate service.
 - **Curated fallback:** Catalog entries are static qualitative data. Existing curated records remain browser-local.
 - **Optional external processors:** Ollama may receive sanitized label/meal images and constrained evidence prompts. USDA FoodData Central receives component food-search terms and selected FDC-detail requests. Tavily receives an evidence-chat search question only when configured and curated coverage is insufficient; product context is not sent to Tavily. Deployments must disclose processors and hosting arrangements.
 
@@ -44,6 +45,7 @@ If a multi-tenant cloud version is developed, it will utilize:
 - **Input Validation:** Strict Pydantic schemas bound image size, strings, list sizes, component counts, candidate counts, confidence, and numeric ranges. Confirmed portions require finite ordered `1–5000 g` endpoints. The meal-image schema forbids extra macro/claim fields.
 - **Server-Originated Nutrients:** Finalize accepts selected USDA FDC IDs and portion ranges, not client/model nutrient grams. FastAPI retrieves source details and performs deterministic calculations.
 - **Generated-Copy Validation:** Smart Context writing cannot change rules, evidence labels, actions, sources, or introduce numbers. Prohibited medical, suitability, medication/insulin, and glucose-prediction language falls back to deterministic copy.
+- **Recommendation Boundary:** Snack pairings are controlled Context records, not generated medical advice. The UI must keep companion-food suggestions separate from scanned-product nutrient values and cannot mutate or fill missing product evidence.
 
 ### Secrets
 

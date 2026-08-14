@@ -1,3 +1,7 @@
+# Archived V1 Feature Inventory
+
+> This file is retained as historical Daily Dozen / early Sugar PAI reference material. It is not the current Sugar pAI V2 application specification. Use `README.md`, `.md/FEATURES.md`, `.md/ARCHITECTURE.md`, `.md/API.md`, `.md/TESTING.md`, `.md/LIMITATIONS.md`, `.md/ROADMAP.md`, and `.md/citations.md` for the current web application state.
+
 # NutritionTracker System Architecture & Comprehensive Feature Inventory Specification
 
 `NutritionTracker` is a client-side, frontend-only React and Vite single-page application (SPA) designed to track Dr. Greger’s Daily Dozen nutrition targets, log daily meal intake, manage household pantry inventory and grocery lists, curate and analyze recipes, and perform simulated computer vision / optical character recognition (OCR) sugar detection via the Sugar PAI scanning module.

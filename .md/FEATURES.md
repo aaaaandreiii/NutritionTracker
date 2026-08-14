@@ -63,6 +63,16 @@ This catalog describes the implemented Sugar pAI V2 behavior. Sugar pAI is the p
 - **Flags:** Sugar aliases, high-fructose corn syrup, maltodextrin, starches, polyols, high-intensity sweeteners, and processing markers.
 - **Workflow rules:** Flags are descriptive evidence context, not food ratings or suitability claims.
 
+### 2.5 Context Snack Pairings
+- **Capability:** Show a compact `Pair with this snack` section inside the packaged-label Context page after the primary Smart Context and ingredient/processing context.
+- **Inputs:** The user-confirmed packaged product record, including product name, serving identity, raw ingredients, and evidence status. Nutrient values are not required for V1 pairing eligibility and are never modified by this feature.
+- **Outputs:** Up to four controlled companion-food ideas with neutral labels, concise rationale, and an expandable evidence/provenance panel.
+- **V1 options:** Peanut butter, plain yogurt, cheese, and whole fruit.
+- **Eligibility:** Deterministic rules classify conservative snack-like contexts such as crackers, biscuits, bread, cereal-type snacks, and sweet snack labels. Unknown categories produce no invented recommendations.
+- **Self-filtering:** If the scanned product already appears to be yogurt, peanut butter, cheese, or whole fruit, that same food is removed from the suggestion set.
+- **Evidence model:** The UI separates `Product evidence · Strong` for the confirmed scanned product from `Supporting evidence · Moderate` for general snack and satiety literature. Supporting evidence is not represented as product-specific research for the scanned item.
+- **Workflow rules:** The section is passive Context UI, not a chatbot. It does not add items to Estimated Meal, impute missing nutrients, recalculate product values, claim glucose outcomes, or label foods as healthy, safe, better, or diabetes-friendly.
+
 ## 3. Estimated Unlabeled Meals
 
 ### 3.1 Photo or Manual Draft
@@ -88,7 +98,17 @@ This catalog describes the implemented Sugar pAI V2 behavior. Sugar pAI is the p
 - **Legacy endpoints:** `GET /api/v1/unlabeled-foods/catalog`, `POST /api/v1/unlabeled-foods/identify`, and `POST /api/v1/unlabeled-food-records/validate` remain available for existing clients and saved `curated_unlabeled_demo` logs.
 - **Boundary:** Curated/context-only components provide descriptors and limitations only. They are excluded from numeric meal aggregates and never receive calories, macros, GI, GL, or FNRI-derived claims.
 
-## 4. Local History and Export
+## 4. Evidence Chat
+
+- **Capability:** `#/sugar-pai/ask` provides an evidence-grounded chat surface for general nutrition-label questions or questions about one selected local packaged-label record.
+- **Inputs:** A user question, up to ten prior local turns, and an optional minimal product snapshot built from a validated local log.
+- **Outputs:** POST-SSE events for retrieval/generation stage, source snapshots before answer text, streamed Markdown deltas, completion, or retryable errors.
+- **Source UI:** Answers can expose interactive citations, active-source highlighting, mobile evidence sheet behavior, and focus mode. Source snapshots include relationship, strength, publisher/domain, URL, and a concise supporting excerpt.
+- **Local persistence:** Thread titles, messages, selected product context, sources, warnings, and state are stored in browser IndexedDB under `chatThreads`.
+- **Workflow rules:** Safety refusals, out-of-scope answers, and no-evidence answers are deterministic. Tavily is optional and restricted to authoritative domains; missing Tavily falls back to curated retrieval. The backend does not persist chat conversations.
+- **Boundary:** Evidence chat is separate from the packaged-label `Pair with this snack` Context section. The Context section renders controlled pairings directly and does not ask chat to generate them.
+
+## 5. Local History and Export
 
 - **Capability:** Store confirmed records in browser IndexedDB and export JSON/CSV without retained images.
 - **Packaged-label records:** Store `result`; missing `kind` is treated as legacy `packaged_label`.
@@ -97,6 +117,6 @@ This catalog describes the implemented Sugar pAI V2 behavior. Sugar pAI is the p
 - **Today totals:** Exact values behave as fixed ranges. Estimated values contribute min–max ranges and `~midpoint` summaries. Combined totals remain marked estimated/partial and count unknown or excluded components.
 - **Workflow rules:** Estimated records are read-only in this release. Source photos are retained only by explicit local opt-in. JSON excludes blobs; CSV includes midpoint, min, max, excluded count, and partial status.
 
-## 5. Daily Dozen Support
+## 6. Daily Dozen Support
 
 Daily Dozen dashboard, pantry, grocery, recipe, and meal logging remain available. Sugar pAI records can add local meal-slot snapshots, but Daily Dozen is secondary to the Sugar pAI V2 evidence and Smart Context story.

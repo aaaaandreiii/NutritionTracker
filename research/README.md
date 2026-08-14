@@ -72,6 +72,29 @@ The optional writer receives only preselected facts, cards, actions, pairings, a
 
 Tavily evaluation is limited to evidence-chat source retrieval from the authoritative-domain allowlist. Web text must never originate nutrient grams. Run external-service cases with mocks in routine CI and document credentials, model versions, latency, and retrieval date for controlled live runs.
 
+## Context snack-pairing evaluation
+
+Evaluate the packaged-label `Pair with this snack` section separately from backend Smart Context generation and evidence chat. The section is a deterministic UI feature, not a freeform recommendation model.
+
+Fixtures must cover:
+
+- eligible cracker, biscuit, bread, cereal-type snack, and sweet snack contexts;
+- SkyFlakes-style cracker labels with missing or unavailable nutrients;
+- scanned products that are yogurt, peanut butter, cheese, or whole fruit, where the same food must be removed from the suggestion set;
+- unknown product categories, which must not fabricate pairings;
+- changed product names after Review -> Context -> Edit evidence -> Context;
+- source IDs that fail closed when they do not resolve in the configured source map;
+- expanded and collapsed evidence UI states on desktop and mobile layouts.
+
+Assertions must preserve the product boundary:
+
+- no pairing can mutate serving size, carbohydrates, total sugars, added sugars, sugar alcohols, fiber, protein, fat, ingredients, NOVA, or Nutri-Score;
+- no pairing can fill missing product nutrients from a companion food;
+- no pairing copy can claim glucose stabilization, spike prevention, carbohydrate offsetting, safety for diabetes, or medical optimization;
+- no general supporting study can be labeled as direct evidence for the exact scanned product unless the source actually studied it.
+
+The allowed V1 set is intentionally small: peanut butter, plain yogurt, cheese, and whole fruit. New options require a controlled config entry, deterministic eligibility rules, self-filtering text, concise rationale, and resolving supporting source IDs before they can render.
+
 ## GI and GL policy
 
 No FNRI, Trinidad, or other licensed GI source data is bundled in this repository. Until licensed records are provided and matched, the application must keep `sourced` GI unavailable. Packaged-label records may show only the explicitly labeled `heuristic_demo` GL output; curated fallback and estimated-meal records must not display numeric GI or GL.

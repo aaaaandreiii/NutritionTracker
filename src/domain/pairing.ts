@@ -27,6 +27,12 @@ export type PairingSourceId =
   | 'sydney-gi-overview'
   | 'food-order-diabetes-care-2015'
   | 'post-meal-exercise-review-2023'
+  | 'aha-snack-examples'
+  | 'myplate-protein-foods'
+  | 'myplate-dairy'
+  | 'myplate-fruits'
+  | 'high-protein-yogurt-satiety-2014'
+  | 'snack-food-satiety-review-2016'
 
 export interface PairingSource {
   id: PairingSourceId
@@ -79,6 +85,39 @@ export interface PairingSuggestion {
   evidenceLabels: string[]
   source: CompanionFoodSource
   evidenceStrength: 'high' | 'moderate'
+}
+
+export type SnackPairingOptionId =
+  | 'peanut-butter'
+  | 'plain-yogurt'
+  | 'cheese'
+  | 'whole-fruit'
+
+export type SnackPairingEvidenceStrength = 'strong' | 'moderate'
+
+export interface SnackPairingIdea {
+  id: SnackPairingOptionId
+  label: string
+  tag: string
+  rationale: string
+  evidenceIds: PairingSourceId[]
+  evidenceStrength: SnackPairingEvidenceStrength
+}
+
+export interface SnackPairingEvidenceRecord {
+  id: string
+  title: string
+  relationship: 'product' | 'supporting'
+  strength: SnackPairingEvidenceStrength
+  summary: string
+  sourceIds: PairingSourceId[]
+}
+
+export interface SnackPairingResult {
+  productKind: SnackPairingProductKind | null
+  productKindLabel: string
+  ideas: SnackPairingIdea[]
+  evidence: SnackPairingEvidenceRecord[]
 }
 
 export interface PairingContext {
@@ -197,6 +236,13 @@ const TRUSTED_COMPANION_FOODS: Record<string, CompanionFoodMeta> = {
 
 type PairingProductKind = 'crackers' | 'bread' | 'sweet_snack' | 'sweet_beverage' | 'protein_food' | 'other'
 
+export type SnackPairingProductKind =
+  | 'cracker'
+  | 'biscuit'
+  | 'bread'
+  | 'cereal_snack'
+  | 'sweet_snack'
+
 interface PairingNeed {
   reasonCode: PairingReasonCode
   evidenceLabels: string[]
@@ -290,7 +336,132 @@ export const PAIRING_SOURCES: Record<PairingSourceId, PairingSource> = {
     url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC10036272/',
     summary: 'Review evidence supports post-meal activity as acute postprandial glucose education, not personal exercise advice.',
   },
+  'aha-snack-examples': {
+    id: 'aha-snack-examples',
+    title: 'American Heart Association snack examples',
+    url: 'https://www.heart.org/en/healthy-living/healthy-eating/add-color/healthy-snacking',
+    summary: 'Consumer nutrition education lists snack examples involving peanut butter, cheese, yogurt with fruit, whole fruit, crackers, and label checks for packaged snacks.',
+  },
+  'myplate-protein-foods': {
+    id: 'myplate-protein-foods',
+    title: 'MyPlate Protein Foods group',
+    url: 'https://www.myplate.gov/eat-healthy/protein-foods',
+    summary: 'MyPlate describes nuts, seeds, nut butters, beans, eggs, seafood, meats, and soy products as protein-food examples.',
+  },
+  'myplate-dairy': {
+    id: 'myplate-dairy',
+    title: 'MyPlate Dairy group',
+    url: 'https://www.myplate.gov/eat-healthy/dairy',
+    summary: 'MyPlate includes milk, yogurt, cheese, lactose-free dairy, and fortified soy milk or yogurt in the Dairy group.',
+  },
+  'myplate-fruits': {
+    id: 'myplate-fruits',
+    title: 'MyPlate Fruits group',
+    url: 'https://www.myplate.gov/eat-healthy/fruits',
+    summary: 'MyPlate emphasizes whole fruit forms and describes fruit as a food-group component that can be eaten as part of meals or snacks.',
+  },
+  'high-protein-yogurt-satiety-2014': {
+    id: 'high-protein-yogurt-satiety-2014',
+    title: 'High-protein yogurt snack satiety study',
+    url: 'https://pubmed.ncbi.nlm.nih.gov/25266206/',
+    summary: 'A small randomized crossover study compared higher-protein yogurt with other snack types and reported appetite and eating-initiation outcomes in healthy women.',
+  },
+  'snack-food-satiety-review-2016': {
+    id: 'snack-food-satiety-review-2016',
+    title: 'Snack foods and satiety review',
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC5015032/',
+    summary: 'A narrative review discusses how snack composition, including protein-containing and fiber-containing foods, can relate to satiety.',
+  },
 }
+
+const SNACK_PAIRING_ELIGIBLE_PRODUCT_KINDS = new Set<SnackPairingProductKind>([
+  'cracker',
+  'biscuit',
+  'bread',
+  'cereal_snack',
+  'sweet_snack',
+])
+
+const SNACK_PAIRING_OPTIONS = [
+  {
+    id: 'peanut-butter',
+    label: 'Peanut butter',
+    tag: 'Protein + fat',
+    rationale: 'Adds a separate protein- and fat-containing component alongside this snack.',
+    eligibleProductKinds: ['cracker', 'biscuit', 'bread', 'cereal_snack', 'sweet_snack'],
+    selfPattern: /\b(?:peanut\s+butter|nut\s+butter|mani\s+spread)\b/i,
+    evidenceIds: ['aha-snack-examples', 'myplate-protein-foods', 'snack-food-satiety-review-2016'],
+    evidenceStrength: 'moderate',
+  },
+  {
+    id: 'plain-yogurt',
+    label: 'Plain yogurt',
+    tag: 'Protein',
+    rationale: 'Adds a separate protein-containing snack component.',
+    eligibleProductKinds: ['cracker', 'biscuit', 'bread', 'cereal_snack', 'sweet_snack'],
+    selfPattern: /\b(?:plain\s+)?(?:yogurt|yoghurt|skyr)\b/i,
+    evidenceIds: ['aha-snack-examples', 'myplate-dairy', 'high-protein-yogurt-satiety-2014'],
+    evidenceStrength: 'moderate',
+  },
+  {
+    id: 'cheese',
+    label: 'Cheese',
+    tag: 'Protein',
+    rationale: 'Adds a separate protein-containing accompaniment.',
+    eligibleProductKinds: ['cracker', 'biscuit', 'bread', 'cereal_snack'],
+    selfPattern: /\b(?:cheese|cheddar|mozzarella|queso|cottage\s+cheese)\b/i,
+    evidenceIds: ['aha-snack-examples', 'myplate-dairy'],
+    evidenceStrength: 'moderate',
+  },
+  {
+    id: 'whole-fruit',
+    label: 'Whole fruit',
+    tag: 'Whole-food side',
+    rationale: 'Adds a separate whole-food and fiber-containing component.',
+    eligibleProductKinds: ['cracker', 'biscuit', 'bread', 'cereal_snack', 'sweet_snack'],
+    selfPattern: /\b(?:whole\s+fruit|fruit|apple|banana|orange|mango|grape|berries|berry|pear|pineapple|papaya)\b/i,
+    evidenceIds: ['aha-snack-examples', 'myplate-fruits', 'snack-food-satiety-review-2016'],
+    evidenceStrength: 'moderate',
+  },
+] satisfies Array<SnackPairingIdea & {
+  eligibleProductKinds: SnackPairingProductKind[]
+  selfPattern: RegExp
+}>
+
+const SNACK_PAIRING_EVIDENCE = [
+  {
+    id: 'product-context',
+    title: 'Confirmed product context',
+    relationship: 'product',
+    strength: 'strong',
+    summary: 'The scanned product identity, serving, ingredients, and nutrient values stay separate from any suggested companion food.',
+    sourceIds: [],
+  },
+  {
+    id: 'snack-examples',
+    title: 'Snack pairing examples',
+    relationship: 'supporting',
+    strength: 'moderate',
+    summary: 'Nutrition education examples include peanut butter, yogurt with fruit, cheese, whole fruit, and crackers as snack components.',
+    sourceIds: ['aha-snack-examples'],
+  },
+  {
+    id: 'food-group-context',
+    title: 'Food-group context',
+    relationship: 'supporting',
+    strength: 'moderate',
+    summary: 'MyPlate food-group references support describing peanut butter as a protein-food example, yogurt and cheese as dairy examples, and whole fruit as a fruit-group component.',
+    sourceIds: ['myplate-protein-foods', 'myplate-dairy', 'myplate-fruits'],
+  },
+  {
+    id: 'satiety-context',
+    title: 'Snack composition and satiety',
+    relationship: 'supporting',
+    strength: 'moderate',
+    summary: 'Snack literature supports the cautious claim that protein-containing or fiber-containing snack components may support satiety as part of a snack.',
+    sourceIds: ['high-protein-yogurt-satiety-2014', 'snack-food-satiety-review-2016'],
+  },
+] satisfies SnackPairingEvidenceRecord[]
 
 export function smartContextFromAnalysis(context: PairingContext): SmartContextInput {
   const result = context.result
@@ -481,6 +652,48 @@ export function buildMealPairingSuggestions(
     if (selected.length >= limit) break
   }
   return selected
+}
+
+export function buildSnackPairingIdeas(
+  context: SmartContextInput | PairingContext,
+  limit = 4,
+): SnackPairingResult {
+  const input = isPairingContext(context) ? smartContextFromAnalysis(context) : context
+  if (input.kind !== 'packaged_label') return emptySnackPairingResult()
+
+  const productText = snackProductText(input)
+  const productKind = classifySnackPairingProductKind(productText)
+  if (!productKind || !SNACK_PAIRING_ELIGIBLE_PRODUCT_KINDS.has(productKind)) {
+    return emptySnackPairingResult()
+  }
+
+  const ideas = SNACK_PAIRING_OPTIONS
+    .filter((option) => (option.eligibleProductKinds as readonly SnackPairingProductKind[]).includes(productKind))
+    .filter((option) => !option.selfPattern.test(productText))
+    .filter((option) => option.evidenceIds.every((sourceId) => sourceId in PAIRING_SOURCES))
+    .slice(0, limit)
+    .map((option): SnackPairingIdea => ({
+      id: option.id,
+      label: option.label,
+      tag: option.tag,
+      rationale: option.rationale,
+      evidenceIds: option.evidenceIds,
+      evidenceStrength: option.evidenceStrength,
+    }))
+
+  const sourceIds = new Set(ideas.flatMap((idea) => idea.evidenceIds))
+  const evidence = SNACK_PAIRING_EVIDENCE
+    .filter((record) => record.relationship === 'product' || record.sourceIds.some((sourceId) => sourceIds.has(sourceId)))
+    .map((record) => record.id === 'product-context'
+      ? { ...record, summary: `Product evidence stays limited to ${input.displayName}. Pairings are separate foods and do not change the confirmed product values.` }
+      : record)
+
+  return {
+    productKind,
+    productKindLabel: snackProductKindLabel(productKind),
+    ideas,
+    evidence,
+  }
 }
 
 export function createPairingMealComponent(
@@ -931,6 +1144,38 @@ function classifyPairingProductKind(input: SmartContextInput): PairingProductKin
   if (/\b(?:cookie|cookies|cake|chocolate|candy|wafer|dessert|sweet snack|bar)\b/.test(text)) return 'sweet_snack'
   if (/\b(?:tuna|sardine|sardines|fish|chicken|egg|itlog|protein)\b/.test(text)) return 'protein_food'
   return 'other'
+}
+
+function emptySnackPairingResult(): SnackPairingResult {
+  return {
+    productKind: null,
+    productKindLabel: 'No eligible snack context',
+    ideas: [],
+    evidence: [],
+  }
+}
+
+function snackProductText(input: SmartContextInput): string {
+  return normalizeForPairing(`${input.displayName} ${input.rawIngredients}`)
+}
+
+function classifySnackPairingProductKind(productText: string): SnackPairingProductKind | null {
+  if (/\b(?:cracker|crackers|saltine|skyflakes|sky flakes)\b/.test(productText)) return 'cracker'
+  if (/\b(?:biscuit|biscuits)\b/.test(productText)) return 'biscuit'
+  if (/\b(?:bread|toast|loaf|pandesal|pan de sal|bun|roll)\b/.test(productText)) return 'bread'
+  if (/\b(?:cereal|granola|rice cake|oat bar)\b/.test(productText)) return 'cereal_snack'
+  if (/\b(?:cookie|cookies|wafer|cake|chocolate|candy|snack bar|granola bar|bar)\b/.test(productText)) return 'sweet_snack'
+  return null
+}
+
+function snackProductKindLabel(productKind: SnackPairingProductKind): string {
+  switch (productKind) {
+    case 'cracker': return 'cracker snack'
+    case 'biscuit': return 'biscuit snack'
+    case 'bread': return 'bread snack'
+    case 'cereal_snack': return 'cereal-type snack'
+    case 'sweet_snack': return 'sweet snack'
+  }
 }
 
 function hasProcessingContext(input: SmartContextInput): boolean {

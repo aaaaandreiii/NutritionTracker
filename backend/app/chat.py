@@ -24,6 +24,7 @@ CORE_TOPIC_TERMS = {
     "carbohydrate", "fiber", "protein", "fat", "ingredient", "syrup", "sweetener",
     "glycemic", "glycaemic", "gi", "gl", "food order", "vegetables first", "walking",
     "exercise", "post-meal", "healthy diet", "nova", "nutri-score", "barcode",
+    "snack", "snacks", "pairing", "pair with",
 }
 
 SAFETY_RESPONSE = (
