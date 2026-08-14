@@ -1,5 +1,4 @@
 import type { AnalysisImages } from '../lib/api'
-import { API_BASE_LABEL } from '../lib/api'
 import type { AnalysisResult, AnalysisStageEvent, ImageQualityReport, Market, OffProductLookupResponse } from './types'
 
 export type AnalysisPanelKind = 'nutrition' | 'ingredients' | 'front'
@@ -8,6 +7,7 @@ export type PanelKind = AnalysisPanelKind | 'barcode'
 export interface ScanServiceStatus {
   state: 'unknown' | 'checking' | 'online' | 'offline'
   message: string
+  detail?: string | null
   checkedAt: string | null
 }
 
@@ -51,7 +51,8 @@ export function createInitialScanSession(): ScanSessionState {
     error: null,
     serviceStatus: {
       state: 'unknown',
-      message: `Backend not checked yet at ${API_BASE_LABEL}.`,
+      message: 'Analysis service has not been checked yet.',
+      detail: null,
       checkedAt: null,
     },
   }

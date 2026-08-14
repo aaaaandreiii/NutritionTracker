@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowRight, Barcode, Camera, Check, Database, LoaderCircle, LockKeyhole, RefreshCw, RotateCcw, ScanLine, Server, Upload, Utensils, X } from 'lucide-react'
+import { AlertCircle, ArrowRight, Barcode, Camera, Check, Database, LoaderCircle, RefreshCw, RotateCcw, ScanLine, Server, Upload, Utensils, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { type AnalysisPanelKind, type PanelKind, type ScanServiceStatus, type ScanSessionState } from '../../domain/scanSession'
@@ -12,14 +12,23 @@ import EvidenceReview from './EvidenceReview'
 import ImagePreviewButton from './ImagePreviewButton'
 import ImagePanelCard from './ImagePanelCard'
 import UnlabeledFoodDemo from './UnlabeledFoodDemo'
+import {
+  QualitySummaryInline,
+  TechnicalDetails,
+} from './uiHelpers'
+import {
+  consumerPipelineStageLabel,
+  consumerStageStatus,
+  scanSetupState,
+} from './uiDisplay'
 
 const PIPELINE_STAGES = [
-  ['image_check', 'Image check'],
-  ['barcode_lookup', 'Barcode lookup'],
-  ['label_extraction', 'VLM extraction'],
-  ['ingredient_classification', 'Ingredient classification'],
-  ['evidence_assembly', 'Evidence assembly'],
-  ['safety_validation', 'Claim validation'],
+  'image_check',
+  'barcode_lookup',
+  'label_extraction',
+  'ingredient_classification',
+  'evidence_assembly',
+  'safety_validation',
 ] as const
 
 interface Props {
@@ -57,7 +66,8 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
       ...previous,
       serviceStatus: {
         state: 'checking',
-        message: `Checking backend at ${API_BASE_LABEL}...`,
+        message: 'Checking analysis service...',
+        detail: null,
         checkedAt: null,
       },
     }))
@@ -112,11 +122,24 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
 
   const qualitySummary = useMemo(() => {
     const allChecks = [reports.nutrition, reports.ingredients, reports.front].flatMap((report) => report?.checks ?? [])
+    const failed = allChecks.filter((check) => check.status === 'fail')
+    const warned = allChecks.filter((check) => check.status === 'warn')
     return {
-      fails: allChecks.filter((check) => check.status === 'fail').length,
-      warnings: allChecks.filter((check) => check.status === 'warn').length,
+      fails: failed.length,
+      warnings: warned.length,
+      blockingDetails: failed.map((check) => check.detail || check.label),
+      warningDetails: warned.map((check) => check.detail || check.label),
     }
   }, [reports])
+
+  const setupState = scanSetupState({
+    hasEvidence: Boolean(barcode || barcodeImage || images.nutrition || images.ingredients || images.front),
+    canAnalyze,
+    analyzing,
+    fails: qualitySummary.fails,
+    warnings: qualitySummary.warnings,
+    resultStatus: result?.status,
+  })
 
   const chooseImage = async (kind: AnalysisPanelKind, file: File) => {
     setSession((previous) => ({
@@ -223,7 +246,8 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
       ...previous,
       serviceStatus: {
         state: 'checking',
-        message: `Checking backend at ${API_BASE_LABEL}...`,
+        message: 'Checking analysis service...',
+        detail: null,
         checkedAt: null,
       },
     }))
@@ -421,11 +445,16 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
 
         <aside className="scan-sidebar">
           <section className="card analysis-card">
-            <div className="section-heading"><div><span className="section-kicker">Analysis setup</span><h2>Before upload</h2></div><LockKeyhole size={19} /></div>
-            <div className="quality-summary">
-              <div><strong>{qualitySummary.fails}</strong><span>blocking issues</span></div>
-              <div><strong>{qualitySummary.warnings}</strong><span>review notes</span></div>
+            <div className="section-heading">
+              <div><span className="section-kicker">Scan state</span><h2>{setupState.label}</h2></div>
+              <span className={`scan-state-pill state-${setupState.tone}`}>{setupState.label}</span>
             </div>
+            {qualitySummary.fails > 0 && (
+              <div className="notice error"><AlertCircle size={17} /><span>{qualitySummary.blockingDetails[0] ?? 'Retake or replace the photo before analysis.'}</span></div>
+            )}
+            {qualitySummary.fails === 0 && qualitySummary.warnings > 0 && (
+              <div className="notice warning"><AlertCircle size={17} /><span>{qualitySummary.warningDetails[0] ?? 'One photo may need careful review after analysis.'}</span></div>
+            )}
             <div className={`service-status service-${serviceStatus.state}`}>
               <Server size={17} />
               <div>
@@ -440,24 +469,37 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
             {error && <div className="notice error"><AlertCircle size={17} /><span>{error}</span></div>}
             <button className="primary-button wide" disabled={!canAnalyze} onClick={() => void analyze()}>
               {analyzing ? <LoaderCircle className="spin" size={18} /> : <ScanLine size={18} />}
-              {analyzing ? 'Analyzing label…' : 'Analyze label'}
+              {analyzing ? 'Analysing label...' : 'Analyse label'}
               {!analyzing && <ArrowRight size={17} />}
             </button>
             {!images.nutrition && <small className="button-helper">Add a readable Nutrition Facts panel to continue.</small>}
+            <TechnicalDetails>
+              <div className="diagnostic-row"><strong>Service endpoint</strong><span>{API_BASE_LABEL}</span></div>
+              <div className="diagnostic-row"><strong>Service state</strong><span>{serviceStatus.state}</span></div>
+              {serviceStatus.detail && <div className="diagnostic-row"><strong>Last response</strong><span>{serviceStatus.detail}</span></div>}
+              {serviceStatus.checkedAt && <div className="diagnostic-row"><strong>Checked</strong><span>{new Date(serviceStatus.checkedAt).toLocaleString()}</span></div>}
+            </TechnicalDetails>
           </section>
 
           {analyzing && (
             <section className="card pipeline-card" aria-live="polite">
-              <span className="section-kicker">Live pipeline</span>
+              <span className="section-kicker">Analysis progress</span>
               <div className="pipeline-list">
-                {PIPELINE_STAGES.map(([id, label]) => {
+                {PIPELINE_STAGES.map((id) => {
                   const event = stages[id]
                   return <div key={id} className={`pipeline-row pipeline-${event?.status ?? 'waiting'}`}>
                     <span>{event?.status === 'complete' || event?.status === 'skipped' ? <Check size={14} /> : event?.status === 'running' ? <LoaderCircle className="spin" size={14} /> : event?.status === 'failed' ? <AlertCircle size={14} /> : null}</span>
-                    <div><strong>{label}</strong><small>{event?.label ?? 'Waiting'}</small></div>
+                    <div><strong>{consumerPipelineStageLabel(id)}</strong><small>{consumerStageStatus(event)}</small></div>
                   </div>
                 })}
               </div>
+              <details className="pipeline-raw-details">
+                <summary>Technical details</summary>
+                {PIPELINE_STAGES.map((id) => {
+                  const event = stages[id]
+                  return <small key={id}>{id}: {event?.label ?? 'waiting'} ({event?.status ?? 'waiting'})</small>
+                })}
+              </details>
           </section>
         )}
       </aside>
@@ -479,7 +521,8 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
 function statusFromHealth(health: BackendHealth): ScanServiceStatus {
   return {
     state: health.ok ? 'online' : 'offline',
-    message: health.message,
+    message: health.ok ? 'Ready to analyse labels.' : 'Analysis service unavailable. Check the local service and retry.',
+    detail: health.message,
     checkedAt: new Date().toISOString(),
   }
 }
@@ -587,14 +630,10 @@ function BarcodeFirstPanel({
             <div className="quality-list">
               <strong>{barcodeImage.name}</strong>
               {barcodeReading && <small>Reading barcode...</small>}
-              {barcodeReport?.checks.map((check) => (
-                <span key={check.code} className={`quality-${check.status}`} title={check.detail}>
-                  <i /> {check.label}
-                </span>
-              ))}
+              <QualitySummaryInline report={barcodeReport} checking={barcodeReading && !barcodeReport} />
             </div>
             <div className="image-actions">
-              <button type="button" onClick={() => inputRef.current?.click()} aria-label="Replace barcode photo"><RotateCcw size={16} /></button>
+              <button type="button" onClick={() => inputRef.current?.click()} aria-label="Retake or replace barcode photo"><RotateCcw size={16} /></button>
               <button type="button" onClick={onRemoveBarcodeImage} aria-label="Remove barcode photo"><X size={17} /></button>
             </div>
           </div>

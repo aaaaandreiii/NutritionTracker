@@ -45,7 +45,7 @@ export function createChatThread(context: ChatProductContext | null = null): Cha
   const now = new Date().toISOString()
   return {
     id: globalThis.crypto?.randomUUID?.() ?? `thread-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    title: 'New evidence question',
+    title: 'New question',
     createdAt: now,
     updatedAt: now,
     context,

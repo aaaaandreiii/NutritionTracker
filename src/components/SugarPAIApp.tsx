@@ -1,4 +1,3 @@
-import { CheckCircle2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import AboutPage from './mvp/AboutPage'
 import AskPage from './mvp/AskPage'
@@ -18,7 +17,8 @@ function routeFromHash(): RouteName {
   const path = window.location.hash.replace(/^#\/?/, '')
   if (path === BASE || path === `${BASE}/`) return 'scan'
   const [, route] = path.split('/')
-  return ROUTES.includes(route as RouteName) ? route as RouteName : 'scan'
+  const routeName = route?.split('?')[0]
+  return ROUTES.includes(routeName as RouteName) ? routeName as RouteName : 'scan'
 }
 
 function normalizeSugarPaiHash() {
@@ -35,7 +35,6 @@ interface Props {
 
 export default function SugarPAIApp({ triggerToast, onLogMeal }: Props) {
   const [route, setRoute] = useState<RouteName>(routeFromHash)
-  const [toast, setToast] = useState<string | null>(null)
   const [scanSession, setScanSession] = useState(createInitialScanSession)
   const [focusMode, setFocusMode] = useState(false)
   const [composerFocused, setComposerFocused] = useState(false)
@@ -62,16 +61,28 @@ export default function SugarPAIApp({ triggerToast, onLogMeal }: Props) {
 
   const navigate = (next: RouteName) => {
     const hasUnsavedScan = route === 'scan'
-      && scanSession.result?.status !== 'confirmed'
       && Boolean(scanSession.result || scanSession.barcode || Object.keys(scanSession.images).length)
-    if (next !== 'scan' && hasUnsavedScan && !window.confirm('Leave this label workflow? Your unvalidated capture will stay in this tab, but it has not been saved.')) return
+    if (next !== 'scan' && hasUnsavedScan && !window.confirm('Leave this label workflow? This capture has not been saved to Today.')) return
     window.location.hash = `#/${BASE}/${next}`
     setRoute(next)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const workflowStep = scanWorkflowStep(scanSession)
-  const workflowActive = workflowStep > 0 && scanSession.result?.status !== 'confirmed'
+  const workflowActive = workflowStep > 0
+
+  const handleWorkflowStep = (step: number) => {
+    if (step <= 1 && scanSession.result) {
+      setScanSession((previous) => ({
+        ...previous,
+        result: null,
+        stages: {},
+        analyzing: false,
+        error: null,
+      }))
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
 
   useEffect(() => {
     document.documentElement.dataset.sugarPaiUnsaved = workflowActive ? 'true' : 'false'
@@ -90,16 +101,15 @@ export default function SugarPAIApp({ triggerToast, onLogMeal }: Props) {
     const message = entry.kind === 'estimated_unlabeled_meal'
       ? 'Estimated meal and evidence snapshot saved on this device.'
       : 'Confirmed label values saved on this device.'
-    setToast(message)
     triggerToast?.(message, 'success')
-    window.setTimeout(() => setToast(null), 4200)
-    navigate('today')
+    window.location.hash = `#/${BASE}/today`
+    setRoute('today')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
     <div className="sugar-pai-embed">
-      <AppShell route={route} navigate={navigate} workflowStep={workflowStep} workflowActive={workflowActive} focusMode={focusMode} composerFocused={composerFocused}>
-        {toast && <div className="toast"><CheckCircle2 size={18} /> {toast}</div>}
+      <AppShell route={route} navigate={navigate} workflowStep={workflowStep} workflowActive={workflowActive} focusMode={focusMode} composerFocused={composerFocused} onWorkflowStep={handleWorkflowStep}>
         {route === 'ask' && <AskPage onFocusModeChange={setFocusMode} onComposerFocusChange={setComposerFocused} />}
         {route === 'scan' && <ScanPage session={scanSession} setSession={setScanSession} onLogged={logged} />}
         {route === 'today' && <TodayPage onScan={() => navigate('scan')} />}

@@ -48,8 +48,8 @@ export default function TodayPage({ onScan }: Props) {
           <div className="entry-list">
             {today.map((entry) => (
               <article className="entry-row" key={entry.id}>
-                <div className="entry-time"><strong>{new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(entry.loggedAt))}</strong><span>{entry.meal}</span></div>
                 <div className="entry-name"><strong>{entry.productName}</strong><span>{isCuratedUnlabeledLog(entry) ? entry.curatedRecord.selectedPortionLabel : isEstimatedMealLog(entry) ? `${entry.estimatedRecord.components.length} components` : `${entry.consumedServings} serving${entry.consumedServings === 1 ? '' : 's'}`} · {logStatusLabel(entry)}</span></div>
+                <div className="entry-time"><strong>{new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(entry.loggedAt))}</strong><span>{entry.meal}</span></div>
                 <div className="entry-macros">
                   <span><strong>{displayLogValue(entry, 'totalCarbohydrate')}</strong> carbs</span>
                   <span><strong>{displayLogValue(entry, 'totalSugars')}</strong> sugars</span>

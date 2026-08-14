@@ -54,14 +54,24 @@ _CATEGORY_ALIASES = {
     "mixed_dish": ("adobo", "meal", "dish", "ulam", "bowl", "plate"),
 }
 
-_PAIRINGS = {
-    "rice": ["Ginisang monggo", "Itlog or isda", "Pinakbet or other gulay"],
-    "bread": ["Egg", "Unsweetened peanut butter", "Tomato or cucumber"],
-    "noodles": ["Tokwa or chicken", "Extra cabbage and carrots", "Skip a sweet drink"],
-    "sweet_snack": ["Plain yogurt", "Nuts or seeds", "Keep the drink unsweetened"],
-    "drink": ["Choose water with the meal", "Pair food with a protein source", "Avoid stacking sweet drinks"],
-    "mixed_dish": ["Add a vegetable side", "Keep rice as a separate portion", "Note sauce or cooking oil"],
-    "other": ["Vegetable side", "Beans, tofu, egg, fish, or chicken", "Unsweetened drink"],
+_FIBER_PAIRINGS = {
+    "rice": ["Ginisang monggo", "Pinakbet or other gulay", "Okra or talong"],
+    "bread": ["Tomato or cucumber", "Beans", "Berries"],
+    "noodles": ["Extra cabbage and carrots", "Bean sprouts", "Gulay side"],
+    "sweet_snack": ["Berries", "Chia or ground flax", "Unsweetened fruit with fiber"],
+    "drink": ["Whole fruit instead", "Gulay with the meal", "Beans or vegetables"],
+    "mixed_dish": ["Add a vegetable side", "Beans or monggo", "Keep rice as a separate portion"],
+    "other": ["Vegetable side", "Beans or monggo", "Chia or ground flax"],
+}
+
+_PROTEIN_FAT_PAIRINGS = {
+    "rice": ["Itlog or isda", "Tokwa", "Chicken or beans"],
+    "bread": ["Egg", "Unsweetened peanut butter", "Plain yogurt"],
+    "noodles": ["Tokwa or chicken", "Fish", "Nuts or seeds"],
+    "sweet_snack": ["Plain yogurt", "Nuts or seeds", "Unsweetened peanut butter"],
+    "drink": ["Choose water with the meal", "Pair food with protein", "Avoid stacking sweet drinks"],
+    "mixed_dish": ["Note sauce or cooking oil", "Add tofu, fish, or chicken", "Separate rice portion"],
+    "other": ["Beans or tofu", "Egg, fish, or chicken", "Nuts or seeds"],
 }
 
 _PROHIBITED = re.compile(
@@ -191,9 +201,9 @@ def deterministic_cards(request: SmartContextResolveRequest) -> tuple[list[Smart
             id="fiber-anchor",
             rule_id="fiber-anchor",
             title="Add a fiber anchor",
-            body="The full carbohydrate range supports meal context, while fiber is low or unknown. Add a clearly separate fiber-rich side so the estimate remains honest.",
+            body="The full carbohydrate range supports meal context, while fiber is low or unknown. Add a clearly separate fiber-rich side and keep the missing or low fiber value visible.",
             evidence_labels=[_range_label("Carbs", carb), _range_label("Fiber", fiber)],
-            actions=_pairings_for(request)[:3],
+            actions=_pairings_for(request, purpose="fiber")[:3],
             source_ids=["sydney-gi-overview"],
         ))
 
@@ -204,7 +214,7 @@ def deterministic_cards(request: SmartContextResolveRequest) -> tuple[list[Smart
             title="Build the rest of the meal",
             body="Across the confirmed range, the available data is carbohydrate-led and low or unknown in both protein and fat. Use a familiar protein food or fat-containing food as separate meal context.",
             evidence_labels=[_range_label("Carbs", carb), _range_label("Protein", protein), _range_label("Fat", fat)],
-            actions=_pairings_for(request)[:3],
+            actions=_pairings_for(request, purpose="protein_fat")[:3],
         ))
 
     if high_sugar:
@@ -214,7 +224,7 @@ def deterministic_cards(request: SmartContextResolveRequest) -> tuple[list[Smart
             title="Treat it as the sweet part",
             body="The entire confirmed sugar range supports this cue. Avoid stacking the item with another sweet drink or dessert; this is meal context, not a glucose prediction.",
             evidence_labels=[_range_label("Total sugars", sugars), _range_label("Added sugars", added)],
-            actions=["Choose an unsweetened drink", "Skip another dessert", _pairings_for(request)[0]],
+            actions=["Choose an unsweetened drink", "Skip another dessert", _pairings_for(request, purpose="protein_fat")[0]],
         ))
 
     if higher_context:
@@ -228,15 +238,19 @@ def deterministic_cards(request: SmartContextResolveRequest) -> tuple[list[Smart
             source_ids=["food-order-diabetes-care-2015"],
         ))
 
-    if request.context_flags or request.qualitative_tags:
-        labels = [flag.label for flag in request.context_flags[:3]] + request.qualitative_tags[:3]
+    concrete_flags = [
+        flag for flag in request.context_flags
+        if flag.category in {"hfcs", "maltodextrin", "starch", "polyol", "high_intensity_sweetener", "sugar_alias"}
+    ]
+    if concrete_flags:
+        labels = [flag.label for flag in concrete_flags[:4]]
         cards.append(SmartContextCard(
             id="qualitative-context",
             rule_id="qualitative-context",
-            title="Preparation and ingredient context",
-            body="These descriptors help explain the food form, but they do not originate nutrient grams or rate the meal.",
+            title="Ingredient names are context only",
+            body="These ingredient names explain what appears on the label, but the order does not disclose grams of each ingredient or create a product GI.",
             evidence_labels=labels,
-            actions=["Check sauce or oil", "Note preparation", "Keep numeric claims separate"],
+            actions=["Review the ingredient order", "Check total carbohydrate", "Keep grams unknown"],
         ))
 
     if len(cards) == (1 if request.kind == "estimated_unlabeled_meal" else 0):
@@ -290,12 +304,13 @@ def _range_label(label: str, bounds: tuple[float, float] | None) -> str:
     return f"{label} {bounds[0]:g}–{bounds[1]:g} g"
 
 
-def _pairings_for(request: SmartContextResolveRequest) -> list[str]:
+def _pairings_for(request: SmartContextResolveRequest, *, purpose: str) -> list[str]:
     category = (request.category or "").casefold().strip()
-    if category not in _PAIRINGS:
+    pairings = _FIBER_PAIRINGS if purpose == "fiber" else _PROTEIN_FAT_PAIRINGS
+    if category not in pairings:
         text = " ".join([request.display_name, *request.qualitative_tags]).casefold()
         category = next((key for key, aliases in _CATEGORY_ALIASES.items() if any(alias in text for alias in aliases)), "other")
-    return _PAIRINGS[category]
+    return pairings[category]
 
 
 def _writer_enabled() -> bool:

@@ -11,7 +11,7 @@ describe('log entry compatibility', () => {
     expect(logEntryKind(oldEntry)).toBe('packaged_label')
     expect(isPackagedLabelLog(oldEntry)).toBe(true)
     expect(isCuratedUnlabeledLog(oldEntry)).toBe(false)
-    expect(logStatusLabel(oldEntry)).toBe('confirmed')
+    expect(logStatusLabel(oldEntry)).toBe('Confirmed')
   })
 
   it('identifies curated unlabeled demo records without requiring packaged result data', () => {

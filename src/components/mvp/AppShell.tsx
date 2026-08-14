@@ -8,7 +8,7 @@ const routes: Array<{ id: RouteName; label: string; icon: typeof ScanLine }> = [
   { id: 'scan', label: 'Scan', icon: ScanLine },
   { id: 'today', label: 'Today', icon: CalendarDays },
   { id: 'history', label: 'History', icon: History },
-  { id: 'about', label: 'More', icon: Menu },
+  { id: 'about', label: 'About', icon: Menu },
 ]
 
 const workflow = ['Identify', 'Evidence', 'Review', 'Context', 'Log']
@@ -21,6 +21,7 @@ interface Props {
   workflowActive?: boolean
   focusMode?: boolean
   composerFocused?: boolean
+  onWorkflowStep?: (step: number) => void
 }
 
 export default function AppShell({
@@ -31,29 +32,36 @@ export default function AppShell({
   workflowActive = false,
   focusMode = false,
   composerFocused = false,
+  onWorkflowStep,
 }: Props) {
   return (
     <div className={`app-shell ${focusMode ? 'shell-focus-mode' : ''} ${workflowActive ? 'workflow-active' : ''} ${composerFocused ? 'composer-focused' : ''}`}>
       <header className="topbar">
-        <div className="feature-title"><span>Sugar pAI</span><small>Evidence workspace</small></div>
-        <span className="research-badge">Research MVP</span>
         <nav className="desktop-nav" aria-label="Sugar pAI navigation">
           {routes.map(({ id, label, icon: Icon }) => (
             <button key={id} className={route === id ? 'active' : ''} onClick={() => navigate(id)}>
-              <Icon size={16} /> {id === 'about' ? 'About' : label}
+              <Icon size={16} /> {label}
             </button>
           ))}
         </nav>
       </header>
 
-      {route === 'scan' && (
+      {route === 'scan' && workflowActive && (
         <nav className="workflow-progress" aria-label="Label workflow progress">
           <ol>
-            {workflow.map((label, index) => (
-              <li key={label} className={index < workflowStep ? 'complete' : index === workflowStep ? 'current' : ''} aria-current={index === workflowStep ? 'step' : undefined}>
-                <span>{index < workflowStep ? '✓' : index + 1}</span><small>{label}</small>
-              </li>
-            ))}
+            {workflow.map((label, index) => {
+              const stateClass = index < workflowStep ? 'complete' : index === workflowStep ? 'current' : ''
+              const content = <><span>{index < workflowStep ? '✓' : index + 1}</span><small>{label}</small></>
+              return (
+                <li key={label} className={stateClass} aria-current={index === workflowStep ? 'step' : undefined}>
+                  {index < workflowStep && onWorkflowStep ? (
+                    <button type="button" className="workflow-step-button" onClick={() => onWorkflowStep(index)} aria-label={`Return to ${label}`}>
+                      {content}
+                    </button>
+                  ) : content}
+                </li>
+              )
+            })}
           </ol>
         </nav>
       )}

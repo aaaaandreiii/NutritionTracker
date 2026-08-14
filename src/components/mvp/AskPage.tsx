@@ -60,6 +60,12 @@ function displayValue(value: number | null): string {
   return value == null ? 'Not declared / unavailable' : `${value} g`
 }
 
+function requestedLogIdFromHash(): string | null {
+  const query = window.location.hash.split('?')[1]
+  if (!query) return null
+  return new URLSearchParams(query).get('logId')
+}
+
 export default function AskPage({ onFocusModeChange, onComposerFocusChange }: Props) {
   const [threads, setThreads] = useState<ChatThread[]>([])
   const [products, setProducts] = useState<Array<{ entry: LogEntry; context: ChatProductContext }>>([])
@@ -71,6 +77,7 @@ export default function AskPage({ onFocusModeChange, onComposerFocusChange }: Pr
   const [activeSource, setActiveSource] = useState<number | null>(null)
   const [evidenceOpen, setEvidenceOpen] = useState(false)
   const [threadsOpen, setThreadsOpen] = useState(false)
+  const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
@@ -86,7 +93,17 @@ export default function AskPage({ onFocusModeChange, onComposerFocusChange }: Pr
         const context = productContextFromLog(entry)
         return context ? [{ entry, context }] : []
       })
+      const requestedLogId = requestedLogIdFromHash()
+      const requestedContext = requestedLogId
+        ? contexts.find(({ entry }) => entry.id === requestedLogId)?.context ?? null
+        : null
       let initial = storedThreads
+      if (requestedContext) {
+        const next = createChatThread(requestedContext)
+        initial = [next, ...storedThreads]
+        void saveChatThread(next)
+        window.history.replaceState(null, '', '#/sugar-pai/ask')
+      }
       if (initial.length === 0) initial = [createChatThread()]
       setThreads(initial)
       setSelectedId(initial[0].id)
@@ -137,12 +154,14 @@ export default function AskPage({ onFocusModeChange, onComposerFocusChange }: Pr
     setStage('')
     setActiveSource(null)
     setThreadsOpen(false)
+    setContextMenuOpen(false)
   }
 
   const selectContext = (localLogId: string) => {
     if (!current || streaming) return
     const context = products.find((product) => product.context.localLogId === localLogId)?.context ?? null
     void persist({ ...current, context, updatedAt: new Date().toISOString() })
+    setContextMenuOpen(false)
   }
 
   const updateAssistant = (
@@ -277,17 +296,58 @@ export default function AskPage({ onFocusModeChange, onComposerFocusChange }: Pr
   }
 
   const suggestions = current?.context ? PRODUCT_SUGGESTIONS : GENERAL_SUGGESTIONS
+  const hasConversation = (current?.messages.length ?? 0) > 0
 
   if (loading || !current) {
     return <div className="page ask-page ask-loading"><LoaderCircle className="spin" /><span>Opening local conversations…</span></div>
   }
 
+  const composerDock = (
+    <div className="composer-dock">
+      {stage && <div className="chat-stage"><LoaderCircle className="spin" size={14} />{stage}</div>}
+      {actionMessage && <div className="chat-stage success">{actionMessage}</div>}
+      <div className="chat-composer">
+        <textarea
+          ref={textareaRef}
+          value={draft}
+          rows={1}
+          maxLength={2_000}
+          placeholder={current.context ? `Ask about ${current.context.productName}...` : 'Ask an evidence question...'}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            event.target.style.height = 'auto'
+            event.target.style.height = `${Math.min(event.target.scrollHeight, 132)}px`
+          }}
+          onFocus={() => onComposerFocusChange?.(true)}
+          onBlur={(event) => {
+            const nextTarget = event.relatedTarget
+            if (!(nextTarget instanceof Node && event.currentTarget.parentElement?.contains(nextTarget))) {
+              onComposerFocusChange?.(false)
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              submit()
+            }
+          }}
+        />
+        {streaming ? (
+          <button className="stop-button" onClick={() => abortRef.current?.abort()} aria-label="Stop response"><Square size={17} /></button>
+        ) : (
+          <button className="send-button" disabled={!draft.trim()} onClick={submit} aria-label="Send question"><Send size={18} /></button>
+        )}
+      </div>
+      <small>{draft.length}/2,000 · Educational evidence, not medical advice</small>
+    </div>
+  )
+
   return (
-    <div className={`ask-workspace ${focusMode ? 'focus-mode' : ''}`}>
+    <div className={`ask-workspace ${focusMode ? 'focus-mode' : ''} ${hasConversation ? 'has-chat' : 'empty-chat'}`}>
       <header className="ask-toolbar">
         <div className="thread-picker-wrap">
           <button className="thread-picker" type="button" onClick={() => setThreadsOpen((open) => !open)} aria-expanded={threadsOpen}>
-            <History size={17} /><span>{current.title}</span><ChevronDown size={15} />
+            <History size={17} /><span>{hasConversation ? current.title : 'History'}</span><ChevronDown size={15} />
           </button>
           {threadsOpen && (
             <div className="thread-menu">
@@ -297,16 +357,16 @@ export default function AskPage({ onFocusModeChange, onComposerFocusChange }: Pr
                   <span>{thread.title}</span><small>{new Date(thread.updatedAt).toLocaleDateString()}</small>
                 </button>
               ))}
-              <button className="thread-new" onClick={() => newThread()}><Plus size={16} /> New conversation</button>
+              <button className="thread-new" onClick={() => newThread()}><Plus size={16} /> New question</button>
               <button className="thread-clear" onClick={() => void clearThreads()}><Trash2 size={15} /> Clear all local chats</button>
             </div>
           )}
         </div>
         <div className="ask-toolbar-actions">
-          <button type="button" onClick={() => setEditingTitle((editing) => !editing)} aria-label="Rename conversation"><Pencil size={16} /></button>
-          <button type="button" onClick={() => newThread()} aria-label="New conversation"><Plus size={18} /></button>
-          <button type="button" onClick={() => setFocused(!focusMode)} aria-pressed={focusMode} aria-label="Toggle focus mode">{focusMode ? <PanelRightOpen size={17} /> : <Focus size={17} />}</button>
-          <button type="button" onClick={() => void removeCurrent()} aria-label="Delete conversation"><Trash2 size={16} /></button>
+          <button type="button" className="ask-action-labeled" onClick={() => newThread()}><Plus size={17} /> New question</button>
+          {hasConversation && <button type="button" onClick={() => setEditingTitle((editing) => !editing)} aria-label="Rename conversation"><Pencil size={16} /></button>}
+          {hasConversation && <button type="button" onClick={() => setFocused(!focusMode)} aria-pressed={focusMode} aria-label="Toggle focus mode">{focusMode ? <PanelRightOpen size={17} /> : <Focus size={17} />}</button>}
+          {hasConversation && <button type="button" onClick={() => void removeCurrent()} aria-label="Delete conversation"><Trash2 size={16} /></button>}
         </div>
       </header>
 
@@ -324,20 +384,28 @@ export default function AskPage({ onFocusModeChange, onComposerFocusChange }: Pr
       )}
 
       <div className="chat-context-bar">
-        <label>
-          <span>Answer context</span>
-          <select value={current.context?.localLogId ?? ''} disabled={streaming} onChange={(event) => selectContext(event.target.value)}>
-            <option value="">General evidence</option>
-            {products.map(({ entry, context }) => (
-              <option key={entry.id} value={entry.id}>{context.productName} · {new Date(entry.loggedAt).toLocaleDateString()}</option>
-            ))}
-          </select>
-        </label>
-        {current.context ? (
-          <div className="context-chip"><BookOpenCheck size={16} /><span><strong>{current.context.productName}</strong><small>Validated local record · {current.context.servingLabel ?? 'Serving unavailable'}</small></span></div>
-        ) : (
-          <div className="context-chip general"><Sparkles size={16} /><span><strong>Curated evidence</strong><small>No product data is attached</small></span></div>
-        )}
+        <div className="context-selector">
+          <span>Using evidence from:</span>
+          <button type="button" disabled={streaming} onClick={() => setContextMenuOpen((open) => !open)} aria-expanded={contextMenuOpen}>
+            {current.context ? <BookOpenCheck size={16} /> : <Sparkles size={16} />}
+            <strong>{current.context?.productName ?? 'General evidence'}</strong>
+            <small>Change</small>
+          </button>
+          {contextMenuOpen && (
+            <div className="context-menu">
+              <button type="button" className={!current.context ? 'active' : ''} onClick={() => selectContext('')}><Sparkles size={15} /><span>General evidence</span></button>
+              {products.map(({ entry, context }) => (
+                <button type="button" key={entry.id} className={current.context?.localLogId === entry.id ? 'active' : ''} onClick={() => selectContext(entry.id)}>
+                  <BookOpenCheck size={15} /><span>{context.productName}</span><small>{new Date(entry.loggedAt).toLocaleDateString()}</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className={`context-chip ${current.context ? '' : 'general'}`}>
+          {current.context ? <BookOpenCheck size={16} /> : <Sparkles size={16} />}
+          <span><strong>{current.context ? 'Validated local record' : 'Curated evidence'}</strong><small>{current.context?.servingLabel ?? 'No product data is attached'}</small></span>
+        </div>
       </div>
 
       <div className="chat-layout">
@@ -347,17 +415,20 @@ export default function AskPage({ onFocusModeChange, onComposerFocusChange }: Pr
               <span className="ask-orb"><MessageCircleQuestion size={28} /></span>
               <h1>Ask the evidence.</h1>
               <p>{current.context ? `Questions will use the validated label for ${current.context.productName} plus relevant curated sources.` : 'Ask within Sugar pAI’s curated topics. Answers stay tied to the sources shown beside them.'}</p>
+              <EvidenceContextPanel context={current.context} />
+              {composerDock}
               <div className="suggestion-grid">
                 {suggestions.map((suggestion) => <button key={suggestion} onClick={() => { setDraft(suggestion); textareaRef.current?.focus() }}>{suggestion}<Send size={14} /></button>)}
               </div>
             </section>
           ) : (
-            <div className="message-list" aria-live="polite">
-              {current.messages.map((message) => (
-                <article key={message.id} className={`chat-message message-${message.role} state-${message.state}`}>
-                  <div className="message-label">{message.role === 'user' ? 'You' : 'Sugar pAI'}{message.state === 'streaming' && <LoaderCircle className="spin" size={14} />}</div>
-                  {message.role === 'assistant' ? (
-                    <div className="markdown-answer">
+            <>
+              <div className="message-list" aria-live="polite">
+                {current.messages.map((message) => (
+                  <article key={message.id} className={`chat-message message-${message.role} state-${message.state}`}>
+                    <div className="message-label">{message.role === 'user' ? 'You' : 'Sugar pAI'}{message.state === 'streaming' && <LoaderCircle className="spin" size={14} />}</div>
+                    {message.role === 'assistant' ? (
+                      <div className="markdown-answer">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
@@ -375,62 +446,26 @@ export default function AskPage({ onFocusModeChange, onComposerFocusChange }: Pr
                           },
                         }}
                       >{message.content || (message.state === 'streaming' ? 'Reviewing the selected evidence…' : '')}</ReactMarkdown>
-                    </div>
-                  ) : <p>{message.content}</p>}
-                  {message.warnings.map((warning) => <div className="retrieval-warning" key={warning}>{warning}</div>)}
-                  {message.error && <div className="message-error"><strong>{message.error.message}</strong>{message.error.retryable && <button onClick={retryLast}><RefreshCw size={14} /> Retry</button>}</div>}
-                  {message.state === 'cancelled' && <div className="message-error"><span>Generation stopped. The partial answer is preserved.</span><button onClick={retryLast}><RefreshCw size={14} /> Retry</button></div>}
-                  {message.role === 'assistant' && message.state !== 'streaming' && (
-                    <div className="message-actions">
-                      <button onClick={() => { void navigator.clipboard.writeText(message.content); setActionMessage('Answer copied') }}><Copy size={14} /> Copy</button>
-                      {message.sources.length > 0 && <button onClick={() => setEvidenceOpen(true)}><BookOpenCheck size={14} /> {message.sources.length} sources</button>}
-                      <button onClick={retryLast}><RefreshCw size={14} /> Regenerate</button>
-                      <button aria-label="More answer actions"><MoreHorizontal size={16} /></button>
-                    </div>
-                  )}
-                </article>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
+                      </div>
+                    ) : <p>{message.content}</p>}
+                    {message.warnings.map((warning) => <div className="retrieval-warning" key={warning}>{warning}</div>)}
+                    {message.error && <div className="message-error"><strong>{message.error.message}</strong>{message.error.retryable && <button onClick={retryLast}><RefreshCw size={14} /> Retry</button>}</div>}
+                    {message.state === 'cancelled' && <div className="message-error"><span>Generation stopped. The partial answer is preserved.</span><button onClick={retryLast}><RefreshCw size={14} /> Retry</button></div>}
+                    {message.role === 'assistant' && message.state !== 'streaming' && (
+                      <div className="message-actions">
+                        <button onClick={() => { void navigator.clipboard.writeText(message.content); setActionMessage('Answer copied') }}><Copy size={14} /> Copy</button>
+                        {message.sources.length > 0 && <button onClick={() => setEvidenceOpen(true)}><BookOpenCheck size={14} /> {message.sources.length} sources</button>}
+                        <button onClick={retryLast}><RefreshCw size={14} /> Regenerate</button>
+                        <button aria-label="More answer actions"><MoreHorizontal size={16} /></button>
+                      </div>
+                    )}
+                  </article>
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+              {composerDock}
+            </>
           )}
-
-          <div className="composer-dock">
-            {stage && <div className="chat-stage"><LoaderCircle className="spin" size={14} />{stage}</div>}
-            {actionMessage && <div className="chat-stage success">{actionMessage}</div>}
-            <div className="chat-composer">
-              <textarea
-                ref={textareaRef}
-                value={draft}
-                rows={1}
-                maxLength={2_000}
-                placeholder={current.context ? `Ask about ${current.context.productName}…` : 'Ask an evidence question…'}
-                onChange={(event) => {
-                  setDraft(event.target.value)
-                  event.target.style.height = 'auto'
-                  event.target.style.height = `${Math.min(event.target.scrollHeight, 132)}px`
-                }}
-                onFocus={() => onComposerFocusChange?.(true)}
-                onBlur={(event) => {
-                  const nextTarget = event.relatedTarget
-                  if (!(nextTarget instanceof Node && event.currentTarget.parentElement?.contains(nextTarget))) {
-                    onComposerFocusChange?.(false)
-                  }
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault()
-                    submit()
-                  }
-                }}
-              />
-              {streaming ? (
-                <button className="stop-button" onClick={() => abortRef.current?.abort()} aria-label="Stop response"><Square size={17} /></button>
-              ) : (
-                <button className="send-button" disabled={!draft.trim()} onClick={submit} aria-label="Send question"><Send size={18} /></button>
-              )}
-            </div>
-            <small>{draft.length}/2,000 · Educational evidence, not medical advice</small>
-          </div>
         </main>
 
         {!focusMode && (
@@ -470,7 +505,7 @@ function EvidenceRail({
   return (
     <aside className={`evidence-rail ${open ? 'open' : ''}`} aria-label="Answer evidence">
       <div className="evidence-rail-heading">
-        <div><span className="section-kicker">Evidence</span><strong>{sources.length ? `${sources.length} sources` : 'Waiting for a question'}</strong></div>
+        <div><span className="section-kicker">Evidence</span><strong>{sources.length ? `${sources.length} sources used` : context ? 'Selected local evidence' : 'Ready for a question'}</strong></div>
         <button onClick={onClose} aria-label="Close evidence"><PanelRightClose size={18} /></button>
       </div>
       {context && (
@@ -502,9 +537,31 @@ function EvidenceRail({
             </div>
           </article>
         ))}
-        {!sources.length && <div className="evidence-empty"><BookOpenCheck size={22} /><p>Sources appear here before the answer begins.</p></div>}
+        {!sources.length && <div className="evidence-empty"><BookOpenCheck size={22} /><p>{context ? 'Curated sources used by the answer will appear here after retrieval starts.' : 'Sources used by the answer will appear here after retrieval starts.'}</p></div>}
       </div>
       <button className="evidence-sheet-close" onClick={onClose}><X size={17} /> Close evidence</button>
     </aside>
+  )
+}
+
+function EvidenceContextPanel({ context }: { context: ChatProductContext | null }) {
+  if (!context) {
+    return (
+      <div className="ask-evidence-context general">
+        <div><Sparkles size={18} /><span><strong>Curated nutrition evidence</strong><small>Serving-size interpretation, label-reading basics, ingredient-order limits, and GI context.</small></span></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="ask-evidence-context">
+      <div><BookOpenCheck size={18} /><span><strong>{context.productName}</strong><small>Validated label · {context.servingLabel ?? 'Serving unavailable'}</small></span></div>
+      <dl>
+        <div><dt>Carbohydrate</dt><dd>{displayValue(context.nutrients.totalCarbohydrate)}</dd></div>
+        <div><dt>Total sugars</dt><dd>{displayValue(context.nutrients.totalSugars)}</dd></div>
+        <div><dt>Fiber</dt><dd>{displayValue(context.nutrients.fiber)}</dd></div>
+      </dl>
+      {context.sugarVariants.length > 0 && <p>Ingredient evidence: {context.sugarVariants.slice(0, 3).join(', ')}</p>}
+    </div>
   )
 }

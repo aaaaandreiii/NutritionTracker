@@ -25,5 +25,7 @@ export function isEstimatedMealLog(entry: LogEntry): entry is EstimatedMealLogEn
 export function logStatusLabel(entry: LogEntry): string {
   if (isCuratedUnlabeledLog(entry)) return 'curated demo'
   if (isEstimatedMealLog(entry)) return entry.estimatedRecord.partial ? 'estimated · partial' : 'estimated'
-  return entry.result.status
+  if (entry.result.status === 'confirmed') return 'Confirmed'
+  if (entry.result.status === 'ready') return 'Ready to review'
+  return 'Needs review'
 }

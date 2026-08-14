@@ -38,6 +38,7 @@ import { saveLog } from '../../lib/db'
 import { inspectImage } from '../../lib/imageQuality'
 import CameraCapture from './CameraCapture'
 import ImagePanelCard from './ImagePanelCard'
+import { formatSmartContextMode } from './uiDisplay'
 
 interface Props {
   onLogged: (entry: LogEntry) => void | Promise<void>
@@ -292,7 +293,7 @@ export default function UnlabeledFoodDemo({ onLogged }: Props) {
           <ImagePanelCard
             number={1}
             title="Meal photo"
-            description="Use one photo with all visible foods, or search and add foods manually. You will confirm every identity and portion."
+            description="Start with a photo of the whole meal, or skip the photo and add foods manually."
             recommended
             file={foodImage ?? undefined}
             report={imageReport}
@@ -303,13 +304,13 @@ export default function UnlabeledFoodDemo({ onLogged }: Props) {
           />
 
           <section className="card meal-search-card">
-            <div className="section-heading"><div><span className="section-kicker">Photo or search</span><h2>Add meal components</h2></div><Search size={19} /></div>
+            <div className="section-heading"><div><span className="section-kicker">Add foods manually</span><h2>Meal components</h2></div><Search size={19} /></div>
             <div className="meal-search-row">
               <input value={manualQuery} placeholder="e.g. chicken adobo, white rice" onChange={(event) => setManualQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void addManualFood() }} />
               <button className="secondary-button" disabled={busy || !manualQuery.trim()} onClick={() => void addManualFood()}><Plus size={16} /> Add food</button>
             </div>
             <button className="primary-button wide" disabled={!foodImage || busy} onClick={() => void runAnalysis(foodImage ?? undefined)}>
-              {busy ? <LoaderCircle className="spin" size={18} /> : <ImagePlus size={18} />} Detect foods in photo
+              {busy ? <LoaderCircle className="spin" size={18} /> : <ImagePlus size={18} />} Identify foods in photo
             </button>
             {stageLabels.length > 0 && <div className="analysis-stage-list">{stageLabels.map((label) => <span key={label}><CheckCircle2 size={14} /> {label}</span>)}</div>}
           </section>
@@ -324,14 +325,14 @@ export default function UnlabeledFoodDemo({ onLogged }: Props) {
                     <div className="component-title"><span>{index + 1}</span><input aria-label={`Component ${index + 1} name`} value={component.identifiedName} onChange={(event) => updateComponent(component.componentId, { identifiedName: event.target.value })} /><button className="icon-button" aria-label={`Remove ${component.identifiedName}`} onClick={() => setDraft((previous) => previous ? { ...previous, components: previous.components.filter((item) => item.componentId !== component.componentId) } : previous)}><Trash2 size={16} /></button></div>
                     <div className="component-meta"><span className={`evidence-badge badge-${component.sourcePath}`}>{component.sourcePath === 'vlm' ? 'Estimated identity' : component.sourcePath === 'curated' ? 'Context only' : 'User added'}</span><span>{Math.round(component.confidence * 100)}% {component.confidenceBand} confidence</span></div>
                     {component.preparationClues.length > 0 && <p>{component.preparationClues.join(' · ')}</p>}
-                    <label className="select-field"><span>USDA match</span><select disabled={component.contextOnly} value={component.selectedFdcId ?? ''} onChange={(event) => updateComponent(component.componentId, { selectedFdcId: Number(event.target.value) || null })}><option value="">Choose a match</option>{component.candidates.map((candidate) => <option value={candidate.fdcId} key={candidate.fdcId}>{candidate.description}{candidate.brandOwner ? ` — ${candidate.brandOwner}` : ''}</option>)}</select></label>
-                    <div className="component-remap"><input aria-label={`Search a different match for ${component.identifiedName}`} value={matchQueries[component.componentId] ?? ''} placeholder="Search a different USDA match" onChange={(event) => setMatchQueries((value) => ({ ...value, [component.componentId]: event.target.value }))} /><button className="text-button" disabled={busy} onClick={() => void searchDifferentMatch(component)}><Search size={14} /> Search</button></div>
+                    <label className="select-field"><span>Food data match</span><select disabled={component.contextOnly} value={component.selectedFdcId ?? ''} onChange={(event) => updateComponent(component.componentId, { selectedFdcId: Number(event.target.value) || null })}><option value="">Choose a match</option>{component.candidates.map((candidate) => <option value={candidate.fdcId} key={candidate.fdcId}>{candidate.description}{candidate.brandOwner ? ` - ${candidate.brandOwner}` : ''}</option>)}</select></label>
+                    <div className="component-remap"><input aria-label={`Search a different match for ${component.identifiedName}`} value={matchQueries[component.componentId] ?? ''} placeholder="Search a different food-data match" onChange={(event) => setMatchQueries((value) => ({ ...value, [component.componentId]: event.target.value }))} /><button className="text-button" disabled={busy} onClick={() => void searchDifferentMatch(component)}><Search size={14} /> Search</button></div>
                     <div className="component-portion-grid">
                       <label><span>Household portion</span><input value={component.householdPortion} onChange={(event) => updateComponent(component.componentId, { householdPortion: event.target.value })} /></label>
                       <label><span>Minimum g</span><input type="number" min="1" max="5000" value={component.gramRange.minimum} onChange={(event) => updateComponent(component.componentId, { gramRange: { ...component.gramRange, minimum: Number(event.target.value) } })} /></label>
                       <label><span>Maximum g</span><input type="number" min="1" max="5000" value={component.gramRange.maximum} onChange={(event) => updateComponent(component.componentId, { gramRange: { ...component.gramRange, maximum: Number(event.target.value) } })} /></label>
                     </div>
-                    <label className="checkbox-row"><input type="checkbox" checked={component.contextOnly} onChange={(event) => updateComponent(component.componentId, { contextOnly: event.target.checked, selectedFdcId: event.target.checked ? null : component.candidates[0]?.fdcId ?? null })} /><span><strong>Context-only component</strong><small>Exclude it from every numeric meal range when no credible USDA match exists.</small></span></label>
+                    <label className="checkbox-row"><input type="checkbox" checked={component.contextOnly} onChange={(event) => updateComponent(component.componentId, { contextOnly: event.target.checked, selectedFdcId: event.target.checked ? null : component.candidates[0]?.fdcId ?? null })} /><span><strong>Context-only component</strong><small>Exclude it from every numeric meal range when no credible food-data match exists.</small></span></label>
                   </article>
                 ))}
               </div>
@@ -345,6 +346,15 @@ export default function UnlabeledFoodDemo({ onLogged }: Props) {
         <aside className="scan-sidebar">
           <section className="card analysis-card">
             <div className="section-heading"><div><span className="section-kicker">Estimated meal</span><h2>Confirm and calculate</h2></div><Database size={19} /></div>
+            <div className="meal-flow-steps">
+              <span className={foodImage ? 'complete' : ''}>Start with a photo</span>
+              <span className={components.length > 0 ? 'complete' : ''}>Add foods manually</span>
+              <span className={record ? 'complete' : components.length > 0 ? 'current' : ''}>Meal components</span>
+            </div>
+            <div className="component-sidebar-summary">
+              <strong>{components.length ? `${components.length} component${components.length === 1 ? '' : 's'}` : 'No components yet'}</strong>
+              <span>{validationErrors.length ? `${validationErrors.length} portion or match item${validationErrors.length === 1 ? '' : 's'} need confirmation` : components.length ? 'Identities and portions are ready' : 'Use a photo, manual search, or quick add.'}</span>
+            </div>
             <label className="select-field"><span>Meal name</span><input value={mealName} onChange={(event) => setMealName(event.target.value)} /></label>
             <label className="select-field"><span>Meal</span><select value={meal} onChange={(event) => setMeal(event.target.value as MealSlot)}>{MEAL_SLOTS.map((slot) => <option key={slot}>{slot}</option>)}</select></label>
             {draft?.warnings.map((warning) => <div className="notice warning" key={warning}><AlertCircle size={16} /><span>{warning}</span></div>)}
@@ -357,10 +367,13 @@ export default function UnlabeledFoodDemo({ onLogged }: Props) {
           </section>
 
           <section className="card limitations-card">
-            <span className="section-kicker">Curated fallback</span>
-            <p>If vision or USDA is unavailable, add a familiar food as context-only.</p>
+            <span className="section-kicker">Quick add</span>
+            <p>Common foods can be added as context-only components.</p>
             <div className="curated-fallback-list">{catalog.slice(0, 10).map((food) => <button type="button" key={food.foodId} disabled={busy} onClick={() => void addCuratedFallback(food)}><Utensils size={14} /> {food.displayName}</button>)}</div>
-            <ul>{catalogLimitations.slice(0, 2).map((item) => <li key={item}>{item}</li>)}</ul>
+            <details className="inline-technical-details">
+              <summary>Catalog limits</summary>
+              <ul>{catalogLimitations.map((item) => <li key={item}>{item}</li>)}</ul>
+            </details>
           </section>
         </aside>
       </div>
@@ -375,15 +388,16 @@ function EstimatedBreakdown({ record }: { record: EstimatedMealRecord }) {
     <div className="section-heading"><div><span className="section-kicker">Estimated breakdown</span><h2>{record.mealName}</h2></div><span className="evidence-badge badge-derived">Derived ranges</span></div>
     <div className="aggregate-range-grid">{NUTRIENT_KEYS.map((key) => <div key={key}><span>{NUTRIENT_META[key].label}</span><strong>{formatRange(record.aggregateNutrientRanges[key])}</strong><small>{record.unknownNutrientCounts[key] ? `${record.unknownNutrientCounts[key]} matched component value unknown` : 'Known matched components'}</small></div>)}</div>
     {record.partial && <div className="notice warning"><AlertCircle size={17} /><span>Partial meal estimate: {record.excludedComponentCount} context-only component{record.excludedComponentCount === 1 ? '' : 's'} excluded from all aggregate ranges.</span></div>}
-    <div className="component-result-list">{record.components.map((component) => <article key={component.componentId}><div><strong>{component.confirmedName}</strong><span>{component.householdPortion} · {component.gramRange.minimum}–{component.gramRange.maximum} g</span></div><span className={`evidence-badge ${component.contextOnly ? 'badge-contextual' : 'badge-estimated'}`}>{component.contextOnly ? 'Context only' : 'USDA-derived'}</span>{component.usdaMatch && <small>{component.usdaMatch.description} · FDC {component.usdaMatch.fdcId}</small>}</article>)}</div>
+    <div className="component-result-list">{record.components.map((component) => <article key={component.componentId}><div><strong>{component.confirmedName}</strong><span>{component.householdPortion} · {component.gramRange.minimum}–{component.gramRange.maximum} g</span></div><span className={`evidence-badge ${component.contextOnly ? 'badge-contextual' : 'badge-estimated'}`}>{component.contextOnly ? 'Context only' : 'Estimated range'}</span>{component.usdaMatch && <small>{component.usdaMatch.description}</small>}</article>)}</div>
   </section>
 }
 
 function SmartContextCards({ response }: { response: SmartContextResponse }) {
   return <section className="card smart-context-response-card">
-    <div className="section-heading"><div><span className="section-kicker">Smart Context</span><h2>Grounded meal context</h2></div><span className="evidence-badge badge-contextual">{response.generationMode}</span></div>
+    <div className="section-heading"><div><span className="section-kicker">Smart Context</span><h2>Grounded meal context</h2></div></div>
     <div className="smart-context-card-list">{response.cards.map((card) => <article key={card.id}><h3>{card.title}</h3><p>{card.body}</p><div>{card.evidenceLabels.map((label) => <span key={label}>{label}</span>)}</div>{card.actions.length > 0 && <small>{card.actions.join(' · ')}</small>}</article>)}</div>
     {response.sources.length > 0 && <div className="smart-context-sources">{response.sources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.sourceId}>{source.publisher}: {source.title}</a>)}</div>}
+    <details className="inline-technical-details"><summary>Technical details</summary><div className="diagnostic-row"><strong>Smart Context</strong><span>{formatSmartContextMode(response)}</span></div><div className="diagnostic-row"><strong>Rule version</strong><span>{response.provenance.ruleVersion}</span></div></details>
   </section>
 }
 
@@ -402,7 +416,7 @@ function validateComponents(components: EstimatedMealComponentDraft[]): string[]
     if (!component.identifiedName.trim()) errors.push(`${label}: confirm a food identity.`)
     if (!component.householdPortion.trim()) errors.push(`${label}: confirm a household portion.`)
     if (!Number.isFinite(component.gramRange.minimum) || !Number.isFinite(component.gramRange.maximum) || component.gramRange.minimum < 1 || component.gramRange.maximum > 5000 || component.gramRange.minimum > component.gramRange.maximum) errors.push(`${label}: use a valid 1–5000 g range with minimum no greater than maximum.`)
-    if (!component.contextOnly && !component.selectedFdcId) errors.push(`${label}: choose a USDA match or mark it context-only.`)
+    if (!component.contextOnly && !component.selectedFdcId) errors.push(`${label}: choose a food-data match or mark it context-only.`)
   })
   return errors
 }
@@ -431,7 +445,7 @@ function smartRequest(record: EstimatedMealRecord): SmartContextResolveRequest {
 function fallbackSmartContext(record: EstimatedMealRecord): SmartContextResponse {
   return {
     triggeredRuleIds: ['estimated-boundary'], evidenceSourceIds: [], sources: [], generationMode: 'deterministic', warnings: [],
-    cards: [{ id: 'estimated-boundary', ruleId: 'estimated-boundary', title: 'Estimated meal range', body: `Ranges cover ${record.matchedComponentCount} matched component${record.matchedComponentCount === 1 ? '' : 's'} only; ${record.excludedComponentCount} context-only component${record.excludedComponentCount === 1 ? ' was' : 's were'} excluded.`, evidenceLabels: ['USDA-derived', 'User-confirmed portion ranges'], actions: ['Review each match', 'Keep ranges visible'], sourceIds: [] }],
+    cards: [{ id: 'estimated-boundary', ruleId: 'estimated-boundary', title: 'Estimated meal range', body: `Ranges cover ${record.matchedComponentCount} matched component${record.matchedComponentCount === 1 ? '' : 's'} only; ${record.excludedComponentCount} context-only component${record.excludedComponentCount === 1 ? ' was' : 's were'} excluded.`, evidenceLabels: ['Food-data estimate', 'User-confirmed portion ranges'], actions: ['Review each match', 'Keep ranges visible'], sourceIds: [] }],
     provenance: { ruleVersion: 'local-fallback-v1', evidenceVersion: 'local-fallback-v1', pairingVersion: 'ph-pairings-v1', writerVersion: 'none', model: null, cacheHit: false, fallbackReason: 'Backend Smart Context is still loading or unavailable.' },
   }
 }

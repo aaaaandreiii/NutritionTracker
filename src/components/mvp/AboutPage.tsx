@@ -20,7 +20,7 @@ export default function AboutPage() {
       <section className="principles-grid">
         <article className="principle-card"><ShieldCheck /><span>01</span><h2>Evidence before confidence</h2><p>Every accepted number must point to the photographed label, an identified database record, or a user confirmation. Model self-confidence is never enough.</p></article>
         <article className="principle-card"><Database /><span>02</span><h2>Unknown stays unknown</h2><p>A missing added-sugar declaration is not zero. Database disagreements remain visible and never silently replace the current label.</p></article>
-        <article className="principle-card"><FlaskConical /><span>03</span><h2>GI labels stay explicit</h2><p>Sourced GI is separate from the alias-based heuristic_demo GL. Curated unlabeled demo records do not display GI or GL.</p></article>
+        <article className="principle-card"><FlaskConical /><span>03</span><h2>GI labels stay explicit</h2><p>Sourced GI is separate from experimental demo GL. Curated unlabeled demo records do not display GI or GL.</p></article>
         <article className="principle-card"><LockKeyhole /><span>04</span><h2>Local by default</h2><p>No accounts, cloud history, analytics, or advertising. Confirmed records use IndexedDB on this device; source images are retained only by explicit opt-in.</p></article>
       </section>
 

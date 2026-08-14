@@ -43,7 +43,11 @@ def test_estimated_rule_triggers_only_when_entire_range_supports_condition():
     assert "fiber-anchor" in {card.rule_id for card in supported}
     assert "fiber-anchor" not in {card.rule_id for card in boundary}
     assert "uncertainty-boundary" in {card.rule_id for card in boundary}
-    assert any("Ginisang monggo" in card.actions for card in supported)
+    fiber_card = next(card for card in supported if card.rule_id == "fiber-anchor")
+    protein_fat_card = next(card for card in supported if card.rule_id == "protein-fat-context")
+    assert "Ginisang monggo" in fiber_card.actions
+    assert not any(rejected in " ".join(fiber_card.actions).casefold() for rejected in ("itlog", "isda", "egg", "fish", "chicken", "drink"))
+    assert any(item in " ".join(protein_fat_card.actions).casefold() for item in ("itlog", "tokwa", "chicken", "beans"))
 
 
 def test_smart_context_cache_reports_cache_hit():

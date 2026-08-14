@@ -2,6 +2,7 @@ import { Camera, Check, RotateCcw, Upload, X } from 'lucide-react'
 import { useRef } from 'react'
 import type { ImageQualityReport } from '../../domain/types'
 import ImagePreviewButton from './ImagePreviewButton'
+import { QualitySummaryInline } from './uiHelpers'
 
 interface Props {
   number: number
@@ -52,15 +53,10 @@ export default function ImagePanelCard(props: Props) {
             <ImagePreviewButton file={props.file} label={props.title} />
             <div className="quality-list">
               <strong>{props.file.name}</strong>
-              {props.checking && <small>Checking image…</small>}
-              {props.report?.checks.map((check) => (
-                <span key={check.code} className={`quality-${check.status}`} title={check.detail}>
-                  <i /> {check.label}
-                </span>
-              ))}
+              <QualitySummaryInline report={props.report} checking={props.checking} />
             </div>
             <div className="image-actions">
-              <button onClick={() => inputRef.current?.click()} aria-label={`Replace ${props.title}`}><RotateCcw size={16} /></button>
+              <button onClick={() => inputRef.current?.click()} aria-label={`Retake or replace ${props.title}`}><RotateCcw size={16} /></button>
               <button onClick={props.onRemove} aria-label={`Remove ${props.title}`}><X size={17} /></button>
             </div>
           </div>

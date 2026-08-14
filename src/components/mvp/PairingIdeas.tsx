@@ -36,7 +36,7 @@ export default function PairingIdeas({ insights, variant = 'card' }: Props) {
   const heading = (
     <div>
       <span className="section-kicker">Smart Context</span>
-      {variant === 'drawer' ? <h3>Validated context rules</h3> : <h2>Validated context rules</h2>}
+      {variant === 'drawer' ? <h3>Based on the label you confirmed</h3> : <h2>Based on the label you confirmed</h2>}
     </div>
   )
 

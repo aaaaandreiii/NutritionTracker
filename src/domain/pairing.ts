@@ -448,7 +448,7 @@ function buildPackagedLabelInsights(input: SmartContextInput): PairingInsight[] 
       priority: 30,
       category: 'protein_fat',
       title: 'Build the rest of the meal',
-      body: 'This label looks mostly carbohydrate-led from the available data. Pair it with a protein or fat source such as beans, tofu, eggs, plain yogurt, fish, chicken, nuts, seeds, nut butter, or avocado.',
+      body: 'This label looks mostly carbohydrate-led from the available data. Pair it with a separate protein or fat source such as beans, tofu, eggs, plain yogurt, fish, chicken, nuts, seeds, nut butter, or avocado.',
       evidenceLabels: compactLabels([
         gramsLabel('Protein', nutrients.protein),
         gramsLabel('Fat', nutrients.fat),
@@ -503,17 +503,17 @@ function buildPackagedLabelInsights(input: SmartContextInput): PairingInsight[] 
   }
 
   const processingMarkers = input.contextFlags
-    .filter((flag) => flag.category !== 'sugar_alias')
+    .filter((flag) => ['hfcs', 'maltodextrin', 'starch', 'polyol', 'high_intensity_sweetener'].includes(flag.category))
     .map((flag) => flag.label)
   if (processingMarkers.length > 0) {
     insights.push({
       id: 'ingredient-processing-markers',
       priority: 55,
       category: 'ingredients',
-      title: 'Ingredient context flags',
-      body: `The ingredient list includes ${joinHuman(processingMarkers.slice(0, 4))}. These flags do not determine the food by themselves, but they are useful context when choosing a simpler pairing.`,
+      title: 'Ingredient names are context only',
+      body: `The ingredient list includes ${joinHuman(processingMarkers.slice(0, 4))}. The order shows presence, not grams of each ingredient or product GI.`,
       evidenceLabels: processingMarkers.slice(0, 4),
-      actionChips: ['Review flags', 'Compare simpler option'],
+      actionChips: ['Review ingredient order', 'Check total carbohydrate', 'Keep grams unknown'],
     })
   }
 

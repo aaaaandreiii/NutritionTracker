@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  ChevronDown,
   CheckCircle2,
   Download,
   Eye,
@@ -8,11 +9,11 @@ import {
   Image,
   Info,
   LoaderCircle,
+  MessageCircleQuestion,
   Pencil,
   Save,
   ScanLine,
   ShieldCheck,
-  Tag,
   Trash2,
   X,
 } from 'lucide-react'
@@ -20,6 +21,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { isCuratedUnlabeledLog, isEstimatedMealLog, isPackagedLabelLog, logStatusLabel } from '../../domain/logs'
 import { NUTRIENT_KEYS, NUTRIENT_META, correctionsFromResult, makeLogTotals, rangeMidpoint } from '../../domain/nutrition'
 import {
+  buildIngredientContextFlags,
   buildPairingInsights,
   deterministicSmartContextSnapshot,
   smartContextFromCuratedRecord,
@@ -35,6 +37,7 @@ import type {
   LogEntry,
   MealSlot,
   PackagedLabelLogEntry,
+  SmartContextFlag,
   ValidationCheck,
 } from '../../domain/types'
 import { useLogs } from '../../hooks/useLogs'
@@ -42,6 +45,8 @@ import { resolveSmartContext, validateLabelRecord } from '../../lib/api'
 import { deleteAllLogs, deleteLog, exportLogsCsv, exportLogsJson, saveLog } from '../../lib/db'
 import ImagePreviewButton from './ImagePreviewButton'
 import PairingIdeas from './PairingIdeas'
+import { ConfirmationModal, GlycemicEvidenceBlock } from './uiHelpers'
+import { marketLabel, reviewStatusLabel } from './uiDisplay'
 
 interface Props { onScan: () => void }
 
@@ -88,16 +93,21 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function validationSummary(checks: ValidationCheck[]): string {
-  if (checks.some((check) => check.status === 'fail')) return 'Failed'
+  if (checks.some((check) => check.status === 'fail')) return 'Needs review'
   if (checks.some((check) => check.status === 'review')) return 'Needs review'
-  return checks.length ? 'Passed' : 'Not validated'
+  return checks.length ? 'Confirmed' : 'Not validated'
 }
 
-function glBandLabel(band: AnalysisResult['glycemic']['glBand']): string {
-  if (band === 'green') return 'Green demo band'
-  if (band === 'yellow') return 'Yellow demo band'
-  if (band === 'red') return 'Red demo band'
-  return 'GL unavailable'
+function flagCategoryLabel(flag: SmartContextFlag): string {
+  return flag.category.replaceAll('_', ' ')
+}
+
+function askAboutLog(entryId: string) {
+  window.location.hash = `#/sugar-pai/ask?logId=${encodeURIComponent(entryId)}`
+}
+
+function ReadOnlyRow({ label, value, meta }: { label: string; value: string; meta?: string }) {
+  return <div className="readonly-row"><span>{label}</span><strong>{value}</strong>{meta && <small>{meta}</small>}</div>
 }
 
 function mergeValidatedRecord(
@@ -190,6 +200,7 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: PackagedLabelLogEntry;
     }),
     [entry],
   )
+  const ingredientFlags = useMemo(() => buildIngredientContextFlags(entry.result), [entry.result])
 
   const save = async () => {
     if (!requiredComplete || !hasNutrition) return
@@ -242,7 +253,6 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: PackagedLabelLogEntry;
             <div><span>Meal</span><strong>{meal}</strong></div>
             <div><span>Consumed</span><strong>{draft.consumedServings || '—'} serving{draft.consumedServings === 1 ? '' : 's'}</strong></div>
             <div><span>Validation</span><strong>{validationLabel}</strong></div>
-            <div><span>GL band</span><strong>{glBandLabel(entry.result.glycemic.glBand)}</strong></div>
           </section>
 
           <section className="drawer-section">
@@ -250,80 +260,87 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: PackagedLabelLogEntry;
               <div><span className="section-kicker">Product & serving</span><h3>Record details</h3></div>
               <StatusPill status={validationLabel} />
             </div>
-            <label className="field full-field">
-              <span>Product name</span>
-              <input
-                disabled={!editing}
-                value={draft.productName}
-                onChange={(event) => {
-                  markEdited('productName')
-                  setDraft((value) => ({ ...value, productName: event.target.value }))
-                }}
-              />
-              <StatusPill status={fieldStatus('productName', entry.result.product.name.status)} />
-            </label>
-            <div className="drawer-two-fields">
-              <label className="compact-field">
-                <span>Meal</span>
-                <select
-                  disabled={!editing}
-                  value={meal}
-                  onChange={(event) => {
-                    markEdited('meal')
-                    setMeal(event.target.value as MealSlot)
-                  }}
-                >
-                  {MEAL_SLOTS.map((slot) => <option key={slot}>{slot}</option>)}
-                </select>
-              </label>
-              <label className="compact-field">
-                <span>Servings consumed</span>
-                <input
-                  disabled={!editing}
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={draft.consumedServings || ''}
-                  onChange={(event) => {
-                    markEdited('consumedServings')
-                    setDraft((value) => ({ ...value, consumedServings: servingsFromInput(event.target.value) }))
-                  }}
-                />
-              </label>
-              <label className="compact-field">
-                <span>Serving size</span>
-                <input
-                  disabled={!editing}
-                  inputMode="decimal"
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder="Not declared / unavailable"
-                  value={draft.servingSize ?? ''}
-                  onChange={(event) => {
-                    markEdited('servingSize')
-                    setDraft((value) => ({ ...value, servingSize: numberFromInput(event.target.value) }))
-                  }}
-                />
-              </label>
-              <label className="compact-field">
-                <span>Serving unit</span>
-                <input
-                  disabled={!editing}
-                  value={draft.servingUnit}
-                  placeholder="g, mL, piece"
-                  onChange={(event) => {
-                    markEdited('servingUnit')
-                    setDraft((value) => ({ ...value, servingUnit: event.target.value }))
-                  }}
-                />
-              </label>
-            </div>
+            {!editing ? (
+              <div className="readonly-list">
+                <ReadOnlyRow label="Product" value={draft.productName || 'Unnamed product'} meta={fieldStatus('productName', entry.result.product.name.status)} />
+                <ReadOnlyRow label="Meal" value={meal} />
+                <ReadOnlyRow label="Servings consumed" value={`${draft.consumedServings || '—'} serving${draft.consumedServings === 1 ? '' : 's'}`} />
+                <ReadOnlyRow label="Serving size" value={draft.servingSize == null ? 'Not declared / unavailable' : `${draft.servingSize} ${draft.servingUnit}`.trim()} />
+              </div>
+            ) : (
+              <>
+                <label className="field full-field">
+                  <span>Product name</span>
+                  <input
+                    value={draft.productName}
+                    onChange={(event) => {
+                      markEdited('productName')
+                      setDraft((value) => ({ ...value, productName: event.target.value }))
+                    }}
+                  />
+                  <StatusPill status={fieldStatus('productName', entry.result.product.name.status)} />
+                </label>
+                <div className="drawer-two-fields">
+                  <label className="compact-field">
+                    <span>Meal</span>
+                    <select
+                      value={meal}
+                      onChange={(event) => {
+                        markEdited('meal')
+                        setMeal(event.target.value as MealSlot)
+                      }}
+                    >
+                      {MEAL_SLOTS.map((slot) => <option key={slot}>{slot}</option>)}
+                    </select>
+                  </label>
+                  <label className="compact-field">
+                    <span>Servings consumed</span>
+                    <input
+                      type="number"
+                      min="0.1"
+                      step="0.1"
+                      value={draft.consumedServings || ''}
+                      onChange={(event) => {
+                        markEdited('consumedServings')
+                        setDraft((value) => ({ ...value, consumedServings: servingsFromInput(event.target.value) }))
+                      }}
+                    />
+                  </label>
+                  <label className="compact-field">
+                    <span>Serving size</span>
+                    <input
+                      inputMode="decimal"
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="Not declared / unavailable"
+                      value={draft.servingSize ?? ''}
+                      onChange={(event) => {
+                        markEdited('servingSize')
+                        setDraft((value) => ({ ...value, servingSize: numberFromInput(event.target.value) }))
+                      }}
+                    />
+                  </label>
+                  <label className="compact-field">
+                    <span>Serving unit</span>
+                    <input
+                      value={draft.servingUnit}
+                      placeholder="g, mL, piece"
+                      onChange={(event) => {
+                        markEdited('servingUnit')
+                        setDraft((value) => ({ ...value, servingUnit: event.target.value }))
+                      }}
+                    />
+                  </label>
+                </div>
+              </>
+            )}
             <div className="drawer-meta-grid">
-              <span><strong>Market</strong>{entry.result.market}</span>
-              <span><strong>Analysis</strong>{entry.analysisId}</span>
-              <span><strong>Status</strong>{entry.result.status}</span>
+              <span><strong>Market</strong>{marketLabel(entry.result.market)}</span>
+              <span><strong>Source</strong>Confirmed label</span>
+              <span><strong>Status</strong>{reviewStatusLabel(entry.result.status)}</span>
             </div>
+            <details className="inline-technical-details"><summary>Technical details</summary><div className="diagnostic-row"><strong>Analysis ID</strong><span>{entry.analysisId}</span></div><div className="diagnostic-row"><strong>Raw status</strong><span>{entry.result.status}</span></div></details>
           </section>
 
           <section className="drawer-section">
@@ -331,87 +348,92 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: PackagedLabelLogEntry;
               <div><span className="section-kicker">Per labeled serving</span><h3>Nutrients</h3></div>
               <span className="unit-label">grams</span>
             </div>
-            <div className="nutrient-fields">
-              {NUTRIENT_KEYS.map((key) => (
-                <label className={`field nutrient-field nutrient-${key}`} key={key}>
-                  <span>{NUTRIENT_META[key].label}</span>
-                  <input
-                    disabled={!editing}
-                    inputMode="decimal"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={draft.nutrients[key] ?? ''}
-                    placeholder="Not declared / unavailable"
-                    onChange={(event) => {
-                      markEdited(key)
-                      const nutrientValue = numberFromInput(event.target.value)
-                      setDraft((previous) => ({
-                        ...previous,
-                        nutrients: { ...previous.nutrients, [key]: nutrientValue },
-                      }))
-                    }}
-                  />
-                  <small>{formatValue(entry.result.nutrients[key].value)} · {NUTRIENT_META[key].helper}</small>
-                  <StatusPill status={fieldStatus(key, entry.result.nutrients[key].status)} />
-                </label>
-              ))}
-            </div>
-          </section>
-
-          <section className="drawer-section">
-            <div className="section-heading"><div><span className="section-kicker">Ingredient order</span><h3>Ingredients & sugar variants</h3></div></div>
-            <label className="field full-field">
-              <span>Ingredients, in printed order</span>
-              <textarea
-                disabled={!editing}
-                rows={5}
-                value={draft.rawIngredients}
-                placeholder="No ingredient text saved"
-                onChange={(event) => {
-                  markEdited('ingredients')
-                  setDraft((value) => ({ ...value, rawIngredients: event.target.value }))
-                }}
-              />
-              <StatusPill status={fieldStatus('ingredients', entry.result.rawIngredients.status)} />
-            </label>
-            {entry.result.sugarVariants.length > 0 ? (
-              <div className="variant-list">
-                {entry.result.sugarVariants.map((variant) => (
-                  <div className="variant-row" key={`${variant.ingredientRank}-${variant.rawSpan}`}>
-                    <span className="rank">#{variant.ingredientRank}</span>
-                    <div><strong>{variant.canonicalName}</strong><small>Printed as “{variant.rawSpan}” · {variant.category}</small></div>
-                    <Tag size={16} />
+            {!editing ? (
+              <div className="nutrition-readonly-table">
+                {NUTRIENT_KEYS.map((key) => (
+                  <div key={key}>
+                    <span>{NUTRIENT_META[key].label}</span>
+                    <strong>{formatValue(entry.result.nutrients[key].value)}</strong>
+                    {entry.result.nutrients[key].status === 'User confirmed' && <small>User confirmed</small>}
+                    {entry.result.nutrients[key].status === 'Unavailable' && <small>Not declared</small>}
+                    {entry.result.nutrients[key].status === 'Conflict' && <small>Conflict</small>}
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="empty-inline">No sugar variants are currently matched for this record.</p>
+              <div className="nutrient-fields">
+                {NUTRIENT_KEYS.map((key) => (
+                  <label className={`field nutrient-field nutrient-${key}`} key={key}>
+                    <span>{NUTRIENT_META[key].label}</span>
+                    <input
+                      inputMode="decimal"
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={draft.nutrients[key] ?? ''}
+                      placeholder="Not declared / unavailable"
+                      onChange={(event) => {
+                        markEdited(key)
+                        const nutrientValue = numberFromInput(event.target.value)
+                        setDraft((previous) => ({
+                          ...previous,
+                          nutrients: { ...previous.nutrients, [key]: nutrientValue },
+                        }))
+                      }}
+                    />
+                    <small>{formatValue(entry.result.nutrients[key].value)} · {NUTRIENT_META[key].helper}</small>
+                    <StatusPill status={fieldStatus(key, entry.result.nutrients[key].status)} />
+                  </label>
+                ))}
+              </div>
             )}
           </section>
 
-          <section className="drawer-section">
-            <div className="section-heading"><div><span className="section-kicker">Glycemic evidence</span><h3>Demo GL status</h3></div></div>
-            {entry.result.glycemic.gl != null ? (
-              <div className={`heuristic-block band-${entry.result.glycemic.glBand ?? 'unknown'}`}>
-                <div className="demo-gl-value"><strong>{entry.result.glycemic.gl}</strong><span>Demo GL</span></div>
-                <div className="band-pill">{glBandLabel(entry.result.glycemic.glBand)}</div>
-                <p>{entry.result.glycemic.reason}</p>
-                <small>Net carbohydrate: {entry.result.glycemic.availableCarbohydrateGrams ?? 'unavailable'} g.</small>
+          <details className="drawer-section drawer-details-section" open>
+            <summary>Ingredient flags</summary>
+            {editing && (
+              <label className="field full-field">
+                <span>Ingredients, in printed order</span>
+                <textarea
+                  rows={5}
+                  value={draft.rawIngredients}
+                  placeholder="No ingredient text saved"
+                  onChange={(event) => {
+                    markEdited('ingredients')
+                    setDraft((value) => ({ ...value, rawIngredients: event.target.value }))
+                  }}
+                />
+                <StatusPill status={fieldStatus('ingredients', entry.result.rawIngredients.status)} />
+              </label>
+            )}
+            {ingredientFlags.length > 0 ? (
+              <div className="context-flag-list">
+                {ingredientFlags.map((flag) => (
+                  <div className={`context-flag flag-${flag.category}`} key={flag.id}>
+                    <strong>{flag.label}</strong>
+                    <span>{flagCategoryLabel(flag)}</span>
+                    <p>{flag.detail}</p>
+                    <small>{flag.evidenceLabels.join(' · ')}</small>
+                  </div>
+                ))}
               </div>
             ) : (
-              <div className="unavailable-block">
-                <AlertCircle size={22} />
-                <strong>GL unavailable</strong>
-                <p>{entry.result.glycemic.reason}</p>
-              </div>
+              <p className="empty-inline">No ingredient context flags are currently matched for this record.</p>
             )}
-          </section>
+          </details>
 
-          <PairingIdeas insights={pairingInsights} variant="drawer" />
+          <details className="drawer-section drawer-details-section">
+            <summary>Experimental glycemic context</summary>
+            <GlycemicEvidenceBlock glycemic={entry.result.glycemic} />
+          </details>
 
-          <section className="drawer-section">
-            <div className="section-heading"><div><span className="section-kicker">Validation status</span><h3>Backend checks</h3></div></div>
+          <details className="drawer-section drawer-details-section">
+            <summary>Smart Context</summary>
+            <PairingIdeas insights={pairingInsights} variant="drawer" />
+          </details>
+
+          <details className="drawer-section drawer-details-section">
+            <summary>Validation checks</summary>
             <div className="validation-list">
               {entry.result.validationChecks.map((check) => (
                 <div className={`validation-row validation-${check.status}`} key={check.code}>
@@ -421,10 +443,10 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: PackagedLabelLogEntry;
                 </div>
               ))}
             </div>
-          </section>
+          </details>
 
-          <section className="drawer-section">
-            <div className="section-heading"><div><span className="section-kicker">Retained images</span><h3>Local images</h3></div></div>
+          <details className="drawer-section drawer-details-section">
+            <summary>Evidence photos</summary>
             {entry.retainedImages?.length ? (
               <div className="retained-image-list">
                 {entry.retainedImages.map((image) => (
@@ -437,7 +459,7 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: PackagedLabelLogEntry;
             ) : (
               <p className="empty-inline">No source images were retained for this record.</p>
             )}
-          </section>
+          </details>
 
           {error && <div className="notice error"><AlertCircle size={17} />{error}</div>}
           {editing && edited.size > 0 && <div className="notice neutral"><Info size={17} />Saving edits requires backend validation. Daily Dozen meal snapshots are not changed.</div>}
@@ -446,7 +468,10 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: PackagedLabelLogEntry;
 
         <footer className="history-drawer-actions">
           {!editing ? (
-            <button type="button" className="primary-button" onClick={() => setEditing(true)}><Pencil size={17} /> Edit record</button>
+            <>
+              <button type="button" className="secondary-button" onClick={() => askAboutLog(entry.id)}><MessageCircleQuestion size={17} /> Ask about this record</button>
+              <button type="button" className="primary-button" onClick={() => setEditing(true)}><Pencil size={17} /> Edit</button>
+            </>
           ) : (
             <>
               <button type="button" className="secondary-button" disabled={saving} onClick={resetDraft}>Cancel</button>
@@ -510,10 +535,11 @@ function CuratedDemoHistoryDrawer({ entry, onClose }: { entry: CuratedUnlabeledL
               <StatusPill status="User confirmed" />
             </div>
             <div className="drawer-meta-grid">
-              <span><strong>Market</strong>{record.market}</span>
-              <span><strong>Record</strong>{record.recordId}</span>
-              <span><strong>Status</strong>{record.status}</span>
+              <span><strong>Market</strong>{marketLabel(record.market)}</span>
+              <span><strong>Source</strong>Quick-add catalog</span>
+              <span><strong>Status</strong>User confirmed</span>
             </div>
+            <details className="inline-technical-details"><summary>Technical details</summary><div className="diagnostic-row"><strong>Record ID</strong><span>{record.recordId}</span></div><div className="diagnostic-row"><strong>Raw status</strong><span>{record.status}</span></div></details>
             {record.notes && <p className="empty-inline">{record.notes}</p>}
           </section>
 
@@ -570,7 +596,7 @@ function EstimatedMealHistoryDrawer({ entry, onClose }: { entry: EstimatedMealLo
       <div className="history-drawer-scroll">
         <section className="drawer-summary-grid" aria-label="Estimated meal summary"><div><span>Meal</span><strong>{record.meal}</strong></div><div><span>Components</span><strong>{record.components.length}</strong></div><div><span>Matched</span><strong>{record.matchedComponentCount}</strong></div><div><span>Excluded</span><strong>{record.excludedComponentCount}</strong></div></section>
         <section className="drawer-section"><div className="section-heading"><div><span className="section-kicker">Matched-component ranges</span><h3>Estimated nutrients</h3></div><StatusPill status={record.partial ? 'Estimated · partial' : 'Estimated'} /></div><div className="aggregate-range-grid">{NUTRIENT_KEYS.map((key) => { const range = record.aggregateNutrientRanges[key]; return <div key={key}><span>{NUTRIENT_META[key].label}</span><strong>{range ? `~${rangeMidpoint(range)} g` : 'Unknown'}</strong><small>{range ? `${range.minimum}–${range.maximum} g${record.unknownNutrientCounts[key] ? ' · partial' : ''}` : 'Not available'}</small></div> })}</div></section>
-        <section className="drawer-section"><div className="section-heading"><div><span className="section-kicker">Confirmed components</span><h3>Identity, portion, and source</h3></div></div><div className="component-result-list">{record.components.map((component) => <article key={component.componentId}><div><strong>{component.confirmedName}</strong><span>{component.householdPortion} · {component.gramRange.minimum}–{component.gramRange.maximum} g</span></div><StatusPill status={component.contextOnly ? 'Contextual' : 'Estimated / derived'} />{component.usdaMatch ? <small>{component.usdaMatch.description} · USDA FDC {component.usdaMatch.fdcId}</small> : <small>Excluded from numeric aggregates</small>}<details><summary>Evidence trail</summary><ul>{component.evidenceTrail.map((item) => <li key={`${item.timestamp}-${item.note}`}>{item.evidenceType} · {item.note}</li>)}</ul></details></article>)}</div></section>
+        <section className="drawer-section"><div className="section-heading"><div><span className="section-kicker">Confirmed components</span><h3>Identity, portion, and source</h3></div></div><div className="component-result-list">{record.components.map((component) => <article key={component.componentId}><div><strong>{component.confirmedName}</strong><span>{component.householdPortion} · {component.gramRange.minimum}–{component.gramRange.maximum} g</span></div><StatusPill status={component.contextOnly ? 'Contextual' : 'Estimated range'} />{component.usdaMatch ? <small>{component.usdaMatch.description}</small> : <small>Excluded from numeric aggregates</small>}<details><summary>Evidence trail</summary><ul>{component.evidenceTrail.map((item) => <li key={`${item.timestamp}-${item.note}`}>{item.evidenceType} · {item.note}</li>)}</ul></details></article>)}</div></section>
         {record.smartContextSnapshot && <section className="drawer-section"><div className="section-heading"><div><span className="section-kicker">Saved Smart Context</span><h3>Reproducible snapshot</h3></div></div><div className="smart-context-card-list">{record.smartContextSnapshot.cards.map((card) => <article key={card.id}><h3>{card.title}</h3><p>{card.body}</p><small>{card.evidenceLabels.join(' · ')}</small></article>)}</div></section>}
         <section className="drawer-section"><div className="section-heading"><div><span className="section-kicker">Limitations</span><h3>Estimate boundary</h3></div></div><ul className="limitations-list">{record.limitations.map((item) => <li key={item}>{item}</li>)}</ul></section>
         <section className="drawer-section"><div className="section-heading"><div><span className="section-kicker">Retained image</span><h3>Local opt-in only</h3></div></div>{entry.retainedImages?.length ? entry.retainedImages.map((image) => <ImagePreviewButton key={image.name} file={image.blob} fileName={image.name} label="meal photo" className="captured-image-button" />) : <p className="empty-inline">No source photo was retained.</p>}</section>
@@ -584,15 +610,18 @@ export default function HistoryPage({ onScan }: Props) {
   const { logs, loading } = useLogs()
   const [deleting, setDeleting] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false)
   const selectedEntry = useMemo(
     () => logs.find((entry) => entry.id === selectedId) ?? null,
     [logs, selectedId],
   )
 
   const removeAll = async () => {
-    if (!window.confirm('Delete every local Sugar pAI log? This cannot be undone.')) return
+    setDeleting('all')
     await deleteAllLogs()
     setSelectedId(null)
+    setDeleteAllOpen(false)
+    setDeleting(null)
   }
 
   const removeLog = async (entry: LogEntry) => {
@@ -610,8 +639,13 @@ export default function HistoryPage({ onScan }: Props) {
       <header className="page-heading split-heading">
         <div><span className="eyebrow"><History size={14} /> History</span><h1>Your evidence-aware records.</h1><p>Stored only in this browser. Packaged labels remain editable; estimated meals are read-only and retain their ranges and Smart Context snapshot.</p></div>
         <div className="export-actions">
-          <button className="secondary-button" disabled={!logs.length} onClick={() => exportLogsCsv(logs)}><Download size={16} /> CSV</button>
-          <button className="secondary-button" disabled={!logs.length} onClick={() => exportLogsJson(logs)}><FileJson size={16} /> JSON</button>
+          <details className="export-menu">
+            <summary><Download size={16} /> Export <ChevronDown size={14} /></summary>
+            <div>
+              <button disabled={!logs.length} onClick={() => exportLogsCsv(logs)}><Download size={16} /> CSV</button>
+              <button disabled={!logs.length} onClick={() => exportLogsJson(logs)}><FileJson size={16} /> JSON</button>
+            </div>
+          </details>
         </div>
       </header>
 
@@ -625,8 +659,8 @@ export default function HistoryPage({ onScan }: Props) {
                 <div className="history-date"><strong>{new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(entry.loggedAt))}</strong><span>{new Intl.DateTimeFormat(undefined, { year: 'numeric' }).format(new Date(entry.loggedAt))}</span></div>
                 <button type="button" className="history-details history-details-button" onClick={() => setSelectedId(entry.id)}>
                   <strong>{entry.productName}</strong>
-                  <span>{entry.meal} · {isCuratedUnlabeledLog(entry) ? entry.curatedRecord.selectedPortionLabel : isEstimatedMealLog(entry) ? `${entry.estimatedRecord.components.length} components` : `${entry.consumedServings} serving${entry.consumedServings === 1 ? '' : 's'}`} · {isPackagedLabelLog(entry) ? entry.result.market : isEstimatedMealLog(entry) ? entry.estimatedRecord.market : entry.curatedRecord.market}</span>
-                  <small>Record {entry.analysisId.slice(0, 8)}… · {logStatusLabel(entry)}{entry.updatedAt ? ` · edited ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(entry.updatedAt))}` : ''}</small>
+                  <span>{entry.meal} · {isCuratedUnlabeledLog(entry) ? entry.curatedRecord.selectedPortionLabel : isEstimatedMealLog(entry) ? `${entry.estimatedRecord.components.length} components` : `${entry.consumedServings} serving${entry.consumedServings === 1 ? '' : 's'}`} · {marketLabel(isPackagedLabelLog(entry) ? entry.result.market : isEstimatedMealLog(entry) ? entry.estimatedRecord.market : entry.curatedRecord.market)}</span>
+                  <small>{logStatusLabel(entry)}{entry.updatedAt ? ` · edited ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(entry.updatedAt))}` : ''}</small>
                 </button>
                 <div className="history-values"><span>{historyValue(entry, 'totalCarbohydrate')} <small>carbs</small></span><span>{historyValue(entry, 'totalSugars')} <small>sugars</small></span><span>{historyValue(entry, 'addedSugars')} <small>added</small></span></div>
                 {entry.retainedImages?.length ? <span className="images-kept" title={`${entry.retainedImages.length} images stored locally`}><Image size={15} /> {entry.retainedImages.length}</span> : <span className="images-kept no-images">No images</span>}
@@ -637,7 +671,22 @@ export default function HistoryPage({ onScan }: Props) {
           </div>
         )}
       </section>
-      {logs.length > 0 && <button className="danger-text-button" onClick={() => void removeAll()}><Trash2 size={16} /> Delete all local data</button>}
+      {logs.length > 0 && (
+        <section className="card data-privacy-card">
+          <div><span className="section-kicker">Data & privacy</span><h2>Local records</h2><p>These records are stored in this browser. Deleting them does not affect Daily Dozen meal items already copied outside Sugar pAI.</p></div>
+          <button className="danger-text-button" onClick={() => setDeleteAllOpen(true)}><Trash2 size={16} /> Delete all local data</button>
+        </section>
+      )}
+      {deleteAllOpen && (
+        <ConfirmationModal
+          title="Delete all local Sugar pAI records?"
+          body="This removes every saved Sugar pAI history record from this browser. The action cannot be undone."
+          confirmLabel="Delete all records"
+          busy={deleting === 'all'}
+          onCancel={() => setDeleteAllOpen(false)}
+          onConfirm={() => void removeAll()}
+        />
+      )}
       {selectedEntry && (isPackagedLabelLog(selectedEntry) ? (
         <HistoryDetailDrawer
           key={`${selectedEntry.id}-${selectedEntry.updatedAt ?? selectedEntry.loggedAt}`}
