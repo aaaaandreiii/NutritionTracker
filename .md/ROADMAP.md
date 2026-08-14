@@ -1,34 +1,48 @@
 # Project Roadmap
 
-Sugar pAI V2 is now the primary product direction: packaged-label evidence validation, deterministic Smart Context, and qualitative curated demo support for unlabeled Filipino foods. Daily Dozen remains a supporting local tracker.
+Sugar pAI V2 now supports packaged-label evidence, USDA-backed estimated meal ranges, deterministic backend Smart Context, and a qualitative Philippine-food fallback. Daily Dozen remains a supporting local tracker.
 
-## Phase 1: Stabilize V2
+## Implemented Foundation
 
-- **Smart Context UX QA:** Verify packaged-label and curated demo flows across mobile and desktop, including text fit, drawer behavior, and context flag readability.
-- **Barcode-first QA:** Exercise live UPC/EAN scanner behavior, typed barcode lookup, complete database match review, and partial/missing match capture guidance across mobile and desktop.
-- **Catalog governance:** Add review workflow for curated Filipino-food entries, aliases, portion labels, qualitative tags, and limitations.
-- **Backend API hardening:** Add rate limits, request logging hooks, and stricter upload MIME validation for public deployments.
-- **Frontend TypeScript migration:** Convert legacy Daily Dozen JSX components to strict TypeScript.
-- **Daily Dozen persistence:** Move transient Daily Dozen meal state into durable local storage.
+- Barcode-first PH Open Food Facts lookup with package-label confirmation.
+- Strict label and meal-image schemas with deterministic validation.
+- Multi-component estimated meals with user-confirmed USDA identity and portion ranges.
+- Honest partial aggregates, unknown counts, evidence trails, and local range exports.
+- Backend range-aware Smart Context, constrained PH pairings, optional validated writing, caching, and saved snapshots.
+- Qualitative context-only fallback when vision or USDA is unavailable.
+- Local-only packaged, legacy curated, estimated-meal, and chat history.
+
+## Phase 1: Stabilize the Estimated-Meal Release
+
+- **Live service evaluation:** Run controlled tests against the pinned Ollama meal model and USDA production API; report schema-valid-after-retry rate, component identity accuracy, candidate acceptance/remap rate, latency, and failure reasons.
+- **Portion UX research:** Measure whether users understand household measures, gram min/max, midpoint notation, context-only exclusion, and partial-total warnings.
+- **Mobile/accessibility QA:** Audit component controls and estimated History drawers at 375, 430, 768, 1024, 1440, and 1920 px, including keyboard navigation, screen-reader labels, focus order, and 44 px touch targets.
+- **Rule governance:** Add review/version tooling for thresholds, evidence bundles, allowed categories, Philippine pairings, and source deprecation.
+- **Operational hardening:** Add endpoint-specific rate limiting, restricted CORS, structured redacted monitoring, and a shared job/cache store before public multi-worker deployment.
+- **Frontend TypeScript migration:** Convert remaining legacy Daily Dozen JSX components to strict TypeScript.
 
 ## Phase 2: Evidence and Benchmark Expansion
 
-- **Packaged-label benchmark:** Build the private 100-product gold set described in `research/README.md`.
-- **Extraction quality gates:** Keep VLM output as draft until exact-match, sugar-alias, schema-validity, cost, and latency gates pass.
-- **OFF database benchmark:** Track local barcode hit rate, completeness rate, missing-field distribution, and disagreement rate versus photographed current labels.
-- **Ingredient flag review:** Expand tests for sugar aliases, HFCS, maltodextrin, starches, polyols, high-intensity sweeteners, and processing markers.
-- **Curated demo evaluation:** Track whether users can correctly confirm food and portion after photo hints, including manual fallback rate.
+- **Packaged-label benchmark:** Complete the private 100-product gold set described in `research/README.md`.
+- **Meal-image benchmark:** Build a consented, non-clinical PH meal-photo set with component identity, preparation-clue, and portion-range annotations; nutrients remain independently calculated from confirmed database matches.
+- **USDA matching benchmark:** Measure top-1/top-5 candidate recall, user remap rate, generic/branded mismatch rate, nutrient missingness, cache performance, and schema drift.
+- **Partial-meal honesty evaluation:** Test whether users can distinguish matched-component subtotals from complete-meal totals.
+- **Smart Context evals:** Test range-boundary behavior, source/action preservation, prohibited-claim rejection, cache invalidation, and deterministic fallback across model/search failure modes.
+- **OFF refresh automation:** Track local barcode hit/completeness/disagreement rates and add repeatable refresh/schema-drift checks.
 
-## Phase 3: Permitted Data Integrations
+## Phase 3: Permitted Data and Product Scaling
 
-- **Licensed GI/FNRI path:** Add sourced GI or authoritative Filipino nutrition data only after licensing, provenance, and matching rules are resolved.
-- **Barcode/database expansion:** Expand beyond the generated PH Open Food Facts SQLite artifact only with clear provenance, refresh automation, and schema-drift tests.
-- **Reporting:** Improve CSV/JSON exports for packaged-label evidence, curated demo context, and Daily Dozen support snapshots.
+- **Authoritative Philippine nutrition path:** Add FNRI or other local nutrient data only after licensing, provenance, versioning, and exact matching rules are resolved.
+- **Licensed GI path:** Add sourced GI only with permitted tested-food records and transparent match levels. Estimated unlabeled meals remain ineligible for numeric GI/GL unless a separately validated methodology is approved.
+- **Recipe-aware estimates:** Consider explicit user-authored recipes and ingredient weights; do not infer hidden recipes from a photo.
+- **Optional sync:** Design authenticated, encrypted multi-device sync only after consent, deletion, export, tenant isolation, and retention requirements are defined.
+- **Reporting:** Add source/evidence audit views and longitudinal exports without turning educational estimates into clinical tracking.
 
-## Out of Scope Until Evidence Exists
+## Out of Scope Until Separate Evidence and Governance Exist
 
-- Numeric GI/GL for curated unlabeled demo foods.
-- Authoritative calories/macros for curated Filipino foods.
-- Personalized glucose prediction.
-- Medication, insulin, diagnosis, or treatment guidance.
-- Food permission or suitability claims.
+- Personal glucose prediction or claims that a food will spike/lower glucose.
+- Medication, insulin, diagnosis, treatment, allergy, or food-suitability guidance.
+- Numeric GI/GL for estimated unlabeled meals.
+- Hidden-ingredient or exact-recipe inference from a photograph.
+- Treating USDA population/database values as laboratory truth for the photographed meal.
+- Long-term backend user storage by default.

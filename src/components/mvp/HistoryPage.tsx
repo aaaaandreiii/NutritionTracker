@@ -17,12 +17,19 @@ import {
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { isCuratedUnlabeledLog, isPackagedLabelLog, logStatusLabel } from '../../domain/logs'
-import { NUTRIENT_KEYS, NUTRIENT_META, correctionsFromResult, makeLogTotals } from '../../domain/nutrition'
-import { buildPairingInsights, smartContextFromCuratedRecord } from '../../domain/pairing'
+import { isCuratedUnlabeledLog, isEstimatedMealLog, isPackagedLabelLog, logStatusLabel } from '../../domain/logs'
+import { NUTRIENT_KEYS, NUTRIENT_META, correctionsFromResult, makeLogTotals, rangeMidpoint } from '../../domain/nutrition'
+import {
+  buildPairingInsights,
+  deterministicSmartContextSnapshot,
+  smartContextFromCuratedRecord,
+  smartContextRequestFromAnalysis,
+  smartContextResponseToInsights,
+} from '../../domain/pairing'
 import type {
   AnalysisResult,
   CuratedUnlabeledLogEntry,
+  EstimatedMealLogEntry,
   FinalizeCorrections,
   LabelRecordValidation,
   LogEntry,
@@ -31,7 +38,7 @@ import type {
   ValidationCheck,
 } from '../../domain/types'
 import { useLogs } from '../../hooks/useLogs'
-import { validateLabelRecord } from '../../lib/api'
+import { resolveSmartContext, validateLabelRecord } from '../../lib/api'
 import { deleteAllLogs, deleteLog, exportLogsCsv, exportLogsJson, saveLog } from '../../lib/db'
 import ImagePreviewButton from './ImagePreviewButton'
 import PairingIdeas from './PairingIdeas'
@@ -175,7 +182,7 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: PackagedLabelLogEntry;
   const validationLabel = editing && edited.size > 0 ? 'Needs validation' : validationSummary(entry.result.validationChecks)
   const fieldStatus = (key: string, fallback: string) => editing && edited.has(key) ? 'Needs validation' : fallback
   const pairingInsights = useMemo(
-    () => buildPairingInsights({
+    () => entry.smartContextSnapshot ? smartContextResponseToInsights(entry.smartContextSnapshot) : buildPairingInsights({
       result: entry.result,
       consumedServings: entry.consumedServings,
       meal: entry.meal,
@@ -190,7 +197,19 @@ function HistoryDetailDrawer({ entry, onClose }: { entry: PackagedLabelLogEntry;
     setError(null)
     try {
       const validation = await validateLabelRecord(normalizedDraft)
-      await saveLog(mergeValidatedRecord(entry, normalizedDraft, meal, validation))
+      const merged = mergeValidatedRecord(entry, normalizedDraft, meal, validation)
+      const context = {
+        result: merged.result,
+        consumedServings: merged.consumedServings,
+        meal: merged.meal,
+        productName: merged.productName,
+      }
+      try {
+        merged.smartContextSnapshot = await resolveSmartContext(smartContextRequestFromAnalysis(context))
+      } catch {
+        merged.smartContextSnapshot = deterministicSmartContextSnapshot(buildPairingInsights(context))
+      }
+      await saveLog(merged)
       setEditing(false)
       setEdited(new Set())
     } catch (caught) {
@@ -537,6 +556,30 @@ function CuratedDemoHistoryDrawer({ entry, onClose }: { entry: CuratedUnlabeledL
   )
 }
 
+function EstimatedMealHistoryDrawer({ entry, onClose }: { entry: EstimatedMealLogEntry; onClose: () => void }) {
+  const record = entry.estimatedRecord
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  return <div className="history-drawer-backdrop" role="presentation" onMouseDown={onClose}>
+    <aside className="history-drawer" role="dialog" aria-modal="true" aria-label={`${entry.productName} estimated meal record`} onMouseDown={(event) => event.stopPropagation()}>
+      <header className="history-drawer-header"><div><span className="section-kicker">Saved estimated meal</span><h2>{entry.productName}</h2><p>Logged {formatDateTime(entry.loggedAt)} · read-only estimate</p></div><button className="icon-button" onClick={onClose} aria-label="Close record details"><X size={18} /></button></header>
+      <div className="history-drawer-scroll">
+        <section className="drawer-summary-grid" aria-label="Estimated meal summary"><div><span>Meal</span><strong>{record.meal}</strong></div><div><span>Components</span><strong>{record.components.length}</strong></div><div><span>Matched</span><strong>{record.matchedComponentCount}</strong></div><div><span>Excluded</span><strong>{record.excludedComponentCount}</strong></div></section>
+        <section className="drawer-section"><div className="section-heading"><div><span className="section-kicker">Matched-component ranges</span><h3>Estimated nutrients</h3></div><StatusPill status={record.partial ? 'Estimated · partial' : 'Estimated'} /></div><div className="aggregate-range-grid">{NUTRIENT_KEYS.map((key) => { const range = record.aggregateNutrientRanges[key]; return <div key={key}><span>{NUTRIENT_META[key].label}</span><strong>{range ? `~${rangeMidpoint(range)} g` : 'Unknown'}</strong><small>{range ? `${range.minimum}–${range.maximum} g${record.unknownNutrientCounts[key] ? ' · partial' : ''}` : 'Not available'}</small></div> })}</div></section>
+        <section className="drawer-section"><div className="section-heading"><div><span className="section-kicker">Confirmed components</span><h3>Identity, portion, and source</h3></div></div><div className="component-result-list">{record.components.map((component) => <article key={component.componentId}><div><strong>{component.confirmedName}</strong><span>{component.householdPortion} · {component.gramRange.minimum}–{component.gramRange.maximum} g</span></div><StatusPill status={component.contextOnly ? 'Contextual' : 'Estimated / derived'} />{component.usdaMatch ? <small>{component.usdaMatch.description} · USDA FDC {component.usdaMatch.fdcId}</small> : <small>Excluded from numeric aggregates</small>}<details><summary>Evidence trail</summary><ul>{component.evidenceTrail.map((item) => <li key={`${item.timestamp}-${item.note}`}>{item.evidenceType} · {item.note}</li>)}</ul></details></article>)}</div></section>
+        {record.smartContextSnapshot && <section className="drawer-section"><div className="section-heading"><div><span className="section-kicker">Saved Smart Context</span><h3>Reproducible snapshot</h3></div></div><div className="smart-context-card-list">{record.smartContextSnapshot.cards.map((card) => <article key={card.id}><h3>{card.title}</h3><p>{card.body}</p><small>{card.evidenceLabels.join(' · ')}</small></article>)}</div></section>}
+        <section className="drawer-section"><div className="section-heading"><div><span className="section-kicker">Limitations</span><h3>Estimate boundary</h3></div></div><ul className="limitations-list">{record.limitations.map((item) => <li key={item}>{item}</li>)}</ul></section>
+        <section className="drawer-section"><div className="section-heading"><div><span className="section-kicker">Retained image</span><h3>Local opt-in only</h3></div></div>{entry.retainedImages?.length ? entry.retainedImages.map((image) => <ImagePreviewButton key={image.name} file={image.blob} fileName={image.name} label="meal photo" className="captured-image-button" />) : <p className="empty-inline">No source photo was retained.</p>}</section>
+      </div>
+      <footer className="history-drawer-actions"><span>Estimated records are read-only. Delete and recreate to change them.</span><button className="secondary-button" onClick={onClose}>Close</button></footer>
+    </aside>
+  </div>
+}
+
 export default function HistoryPage({ onScan }: Props) {
   const { logs, loading } = useLogs()
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -565,7 +608,7 @@ export default function HistoryPage({ onScan }: Props) {
   return (
     <div className="page history-page">
       <header className="page-heading split-heading">
-        <div><span className="eyebrow"><History size={14} /> History</span><h1>Your confirmed label records.</h1><p>Stored only in this browser. Open a record to review, edit, validate, export, or delete it.</p></div>
+        <div><span className="eyebrow"><History size={14} /> History</span><h1>Your evidence-aware records.</h1><p>Stored only in this browser. Packaged labels remain editable; estimated meals are read-only and retain their ranges and Smart Context snapshot.</p></div>
         <div className="export-actions">
           <button className="secondary-button" disabled={!logs.length} onClick={() => exportLogsCsv(logs)}><Download size={16} /> CSV</button>
           <button className="secondary-button" disabled={!logs.length} onClick={() => exportLogsJson(logs)}><FileJson size={16} /> JSON</button>
@@ -582,10 +625,10 @@ export default function HistoryPage({ onScan }: Props) {
                 <div className="history-date"><strong>{new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(entry.loggedAt))}</strong><span>{new Intl.DateTimeFormat(undefined, { year: 'numeric' }).format(new Date(entry.loggedAt))}</span></div>
                 <button type="button" className="history-details history-details-button" onClick={() => setSelectedId(entry.id)}>
                   <strong>{entry.productName}</strong>
-                  <span>{entry.meal} · {isCuratedUnlabeledLog(entry) ? entry.curatedRecord.selectedPortionLabel : `${entry.consumedServings} serving${entry.consumedServings === 1 ? '' : 's'}`} · {isPackagedLabelLog(entry) ? entry.result.market : entry.curatedRecord.market}</span>
+                  <span>{entry.meal} · {isCuratedUnlabeledLog(entry) ? entry.curatedRecord.selectedPortionLabel : isEstimatedMealLog(entry) ? `${entry.estimatedRecord.components.length} components` : `${entry.consumedServings} serving${entry.consumedServings === 1 ? '' : 's'}`} · {isPackagedLabelLog(entry) ? entry.result.market : isEstimatedMealLog(entry) ? entry.estimatedRecord.market : entry.curatedRecord.market}</span>
                   <small>Record {entry.analysisId.slice(0, 8)}… · {logStatusLabel(entry)}{entry.updatedAt ? ` · edited ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(entry.updatedAt))}` : ''}</small>
                 </button>
-                <div className="history-values"><span>{entry.totals.totalCarbohydrate ?? '—'}g <small>carbs</small></span><span>{entry.totals.totalSugars ?? '—'}g <small>sugars</small></span><span>{entry.totals.addedSugars ?? '—'}g <small>added</small></span></div>
+                <div className="history-values"><span>{historyValue(entry, 'totalCarbohydrate')} <small>carbs</small></span><span>{historyValue(entry, 'totalSugars')} <small>sugars</small></span><span>{historyValue(entry, 'addedSugars')} <small>added</small></span></div>
                 {entry.retainedImages?.length ? <span className="images-kept" title={`${entry.retainedImages.length} images stored locally`}><Image size={15} /> {entry.retainedImages.length}</span> : <span className="images-kept no-images">No images</span>}
                 <button className="icon-button history-open-button" onClick={() => setSelectedId(entry.id)} aria-label={`Open ${entry.productName}`}><Eye size={16} /></button>
                 <button className="delete-button" disabled={deleting === entry.id} onClick={() => void removeLog(entry)} aria-label={`Delete ${entry.productName}`}><Trash2 size={17} /></button>
@@ -601,6 +644,12 @@ export default function HistoryPage({ onScan }: Props) {
           entry={selectedEntry}
           onClose={() => setSelectedId(null)}
         />
+      ) : isEstimatedMealLog(selectedEntry) ? (
+        <EstimatedMealHistoryDrawer
+          key={`${selectedEntry.id}-${selectedEntry.loggedAt}`}
+          entry={selectedEntry}
+          onClose={() => setSelectedId(null)}
+        />
       ) : (
         <CuratedDemoHistoryDrawer
           key={`${selectedEntry.id}-${selectedEntry.updatedAt ?? selectedEntry.loggedAt}`}
@@ -610,4 +659,12 @@ export default function HistoryPage({ onScan }: Props) {
       ))}
     </div>
   )
+}
+
+function historyValue(entry: LogEntry, key: 'totalCarbohydrate' | 'totalSugars' | 'addedSugars'): string {
+  if (isEstimatedMealLog(entry)) {
+    const range = entry.rangeTotals[key]
+    return range ? `~${entry.totals[key] ?? '—'}g (${range.minimum}–${range.maximum})` : '—'
+  }
+  return entry.totals[key] == null ? '—' : `${entry.totals[key]}g`
 }

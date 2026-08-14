@@ -46,6 +46,40 @@ const lookupPayload = {
   sourceUrl: 'https://world.openfoodfacts.org/product/4800361403764', sourceKind: 'local_open_food_facts', message: 'A complete local Open Food Facts record is available for review.',
 }
 
+const usdaCandidate = {
+  fdcId: 169756,
+  description: 'Rice, white, long-grain, regular, cooked',
+  dataType: 'Foundation',
+  brandOwner: null,
+  ingredients: null,
+  nutrientsPer100g: { totalCarbohydrate: 28, fiber: 0.4, totalSugars: 0.1, addedSugars: null, sugarAlcohols: null, protein: 2.7, fat: 0.3 },
+  source: { sourceId: 'usda-fdc-169756', name: 'USDA FoodData Central', url: 'https://fdc.nal.usda.gov/food-details/169756/nutrients', datasetVersion: null, retrievedAt: '2026-08-14T00:00:00Z' },
+}
+
+const estimatedDraft = {
+  kind: 'estimated_unlabeled_meal', analysisId: 'meal-e2e', status: 'ready', market: 'PH', warnings: [],
+  limitations: ['Ranges represent portion uncertainty only.'],
+  provenance: { pipelineVersion: 'estimated-unlabeled-meal-v1', completedAt: '2026-08-14T00:00:00Z', externalProcessors: ['USDA FoodData Central'] },
+  components: [{
+    componentId: 'rice-component', identifiedName: 'white rice', preparationClues: [], householdPortion: '1 cup',
+    gramRange: { minimum: 120, maximum: 180, unit: 'g' }, confidence: 1, confidenceBand: 'high', candidates: [usdaCandidate],
+    selectedFdcId: 169756, contextOnly: false, qualitativeTags: ['rice'], sourcePath: 'manual',
+  }],
+}
+
+const estimatedRecord = {
+  kind: 'estimated_unlabeled_meal', status: 'confirmed', recordId: 'record-e2e', analysisId: 'meal-e2e', market: 'PH', mealName: 'White rice lunch', meal: 'Lunch',
+  components: [{
+    componentId: 'rice-component', confirmedName: 'white rice', householdPortion: '1 cup', gramRange: { minimum: 120, maximum: 180, unit: 'g' },
+    contextOnly: false, confidence: 1, confidenceBand: 'high', usdaMatch: usdaCandidate,
+    nutrientRanges: { totalCarbohydrate: { minimum: 33.6, maximum: 50.4, unit: 'g' }, fiber: { minimum: 0.48, maximum: 0.72, unit: 'g' }, totalSugars: { minimum: 0.12, maximum: 0.18, unit: 'g' }, addedSugars: null, sugarAlcohols: null, protein: { minimum: 3.24, maximum: 4.86, unit: 'g' }, fat: { minimum: 0.36, maximum: 0.54, unit: 'g' } },
+    qualitativeTags: ['rice'], evidenceTrail: [{ timestamp: '2026-08-14T00:00:00Z', evidenceType: 'derived', sourceKind: 'calculated', sourceId: 'portion-range-calculation-v1', note: 'Confirmed range calculation.' }], limitations: [],
+  }],
+  aggregateNutrientRanges: { totalCarbohydrate: { minimum: 33.6, maximum: 50.4, unit: 'g' }, fiber: { minimum: 0.48, maximum: 0.72, unit: 'g' }, totalSugars: { minimum: 0.12, maximum: 0.18, unit: 'g' }, addedSugars: null, sugarAlcohols: null, protein: { minimum: 3.24, maximum: 4.86, unit: 'g' }, fat: { minimum: 0.36, maximum: 0.54, unit: 'g' } },
+  matchedComponentCount: 1, excludedComponentCount: 0, unknownNutrientCounts: { totalCarbohydrate: 0, fiber: 0, totalSugars: 0, addedSugars: 1, sugarAlcohols: 1, protein: 0, fat: 0 }, partial: true,
+  limitations: ['Some USDA nutrients are unknown.'], provenance: { pipelineVersion: 'estimated-unlabeled-meal-v1', completedAt: '2026-08-14T00:00:00Z', externalProcessors: ['USDA FoodData Central'] },
+}
+
 for (const viewport of viewports) {
   test(`Ask has no horizontal overflow at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport)
@@ -146,4 +180,63 @@ test('moves from barcode match through dense review into validated results mode'
   await expect(page.locator('.results-product-summary')).toContainText('Not declared / unavailable')
   await expect(page.getByRole('button', { name: 'Save to Today' })).toBeVisible()
   await page.screenshot({ path: 'test-results/screenshots/results-desktop.png', fullPage: true })
+})
+
+test('manual estimated meal flows through confirmation, Smart Context, Today, and History', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 900 })
+  await page.route('**/health', (route) => route.fulfill({ json: { status: 'ok' } }))
+  await page.route('**/api/v1/unlabeled-foods/catalog?market=PH', (route) => route.fulfill({ json: { market: 'PH', foods: [], limitations: [] } }))
+  await page.route('**/api/v1/unlabeled-meal-analyses', (route) => route.fulfill({ status: 202, json: { analysisId: 'meal-e2e', expiresInSeconds: 900 } }))
+  await page.route('**/api/v1/unlabeled-meal-analyses/meal-e2e/events', (route) => route.fulfill({
+    status: 200, contentType: 'text/event-stream',
+    body: `data: ${JSON.stringify({ type: 'stage', stage: 'nutrition_matching', status: 'complete', label: 'USDA candidates ready for confirmation' })}\n\ndata: ${JSON.stringify({ type: 'result', result: estimatedDraft })}\n\n`,
+  }))
+  await page.route('**/api/v1/unlabeled-meal-analyses/meal-e2e/finalize', (route) => route.fulfill({ json: estimatedRecord }))
+  await page.route('**/api/v1/smart-context/resolve', (route) => route.fulfill({ json: {
+    triggeredRuleIds: ['estimated-boundary'], evidenceSourceIds: [], sources: [], generationMode: 'deterministic', warnings: [],
+    cards: [{ id: 'estimated-boundary', ruleId: 'estimated-boundary', title: 'Estimated meal range', body: 'Ranges cover matched components only.', evidenceLabels: ['USDA-derived'], actions: ['Review each match'], sourceIds: [] }],
+    provenance: { ruleVersion: 'v1', evidenceVersion: 'v1', pairingVersion: 'v1', writerVersion: 'v1', model: null, cacheHit: false, fallbackReason: null },
+  } }))
+
+  await page.goto('/#/sugar-pai/scan')
+  await page.getByRole('button', { name: 'Estimated meal' }).click()
+  await page.getByPlaceholder('e.g. chicken adobo, white rice').fill('white rice')
+  await page.getByRole('button', { name: 'Add food' }).click()
+  await expect(page.getByRole('heading', { name: '1 detected component' })).toBeVisible()
+  await page.getByText('Meal name').locator('..').getByRole('textbox').fill('White rice lunch')
+  await page.getByText('Meal', { exact: true }).locator('..').getByRole('combobox').selectOption('Lunch')
+  await page.getByRole('button', { name: /Confirm portions and calculate/ }).click()
+  await expect(page.getByText('Estimated breakdown', { exact: true })).toBeVisible()
+  await expect(page.getByText('~42 g · 33.6–50.4 g')).toBeVisible()
+  await page.getByRole('button', { name: 'Save estimated meal to Today' }).click()
+  await expect(page).toHaveURL(/sugar-pai\/today/)
+  await expect(page.getByText('White rice lunch')).toBeVisible()
+  await page.getByRole('button', { name: 'History' }).click()
+  await page.getByRole('button', { name: /White rice lunch/ }).first().click()
+  await expect(page.getByRole('dialog', { name: 'White rice lunch estimated meal record' })).toBeVisible()
+})
+
+test('multi-item photo produces editable components without mobile overflow', async ({ page }) => {
+  const multiDraft = {
+    ...estimatedDraft,
+    components: [
+      estimatedDraft.components[0],
+      { ...estimatedDraft.components[0], componentId: 'chicken-component', identifiedName: 'chicken adobo', householdPortion: '1 piece', gramRange: { minimum: 70, maximum: 120, unit: 'g' }, confidence: 0.72, confidenceBand: 'medium', preparationClues: ['sauced'] },
+    ],
+  }
+  await page.setViewportSize({ width: 430, height: 932 })
+  await page.route('**/health', (route) => route.fulfill({ json: { status: 'ok' } }))
+  await page.route('**/api/v1/unlabeled-foods/catalog?market=PH', (route) => route.fulfill({ json: { market: 'PH', foods: [], limitations: [] } }))
+  await page.route('**/api/v1/unlabeled-meal-analyses', (route) => route.fulfill({ status: 202, json: { analysisId: 'meal-e2e', expiresInSeconds: 900 } }))
+  await page.route('**/api/v1/unlabeled-meal-analyses/meal-e2e/events', (route) => route.fulfill({ status: 200, contentType: 'text/event-stream', body: `data: ${JSON.stringify({ type: 'result', result: multiDraft })}\n\n` }))
+
+  await page.goto('/#/sugar-pai/scan')
+  await page.getByRole('button', { name: 'Estimated meal' }).click()
+  await page.locator('input[type="file"]').first().setInputFiles('research/02_nutrition_facts.jpg')
+  await page.getByRole('button', { name: 'Detect foods in photo' }).click()
+  await expect(page.getByRole('heading', { name: '2 detected components' })).toBeVisible()
+  await expect(page.getByLabel('Component 1 name')).toHaveValue('white rice')
+  await expect(page.getByLabel('Component 2 name')).toHaveValue('chicken adobo')
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(overflow).toBeLessThanOrEqual(1)
 })

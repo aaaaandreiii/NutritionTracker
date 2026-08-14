@@ -376,10 +376,10 @@ export default function ScanPage({ session, setSession, onLogged }: Props) {
 
       <div className="segmented-control scan-mode-tabs" aria-label="Sugar pAI scan mode">
         <button type="button" className={scanMode === 'packaged_label' ? 'active' : ''} onClick={() => setScanMode('packaged_label')}><ScanLine size={15} /><span>Packaged label</span></button>
-        <button type="button" className={scanMode === 'curated_unlabeled_demo' ? 'active' : ''} onClick={() => setScanMode('curated_unlabeled_demo')}><Utensils size={15} /><span>Unlabeled demo</span></button>
+        <button type="button" className={scanMode === 'estimated_unlabeled_meal' ? 'active' : ''} onClick={() => setScanMode('estimated_unlabeled_meal')}><Utensils size={15} /><span>Estimated meal</span></button>
       </div>
 
-      {scanMode === 'curated_unlabeled_demo' ? <UnlabeledFoodDemo onLogged={onLogged} /> : (
+      {scanMode === 'estimated_unlabeled_meal' ? <UnlabeledFoodDemo onLogged={onLogged} /> : (
       <div className="scan-layout">
         <div className="capture-stack">
           <ImagePanelCard

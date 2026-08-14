@@ -11,9 +11,16 @@ import {
   Tag,
   X,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NUTRIENT_KEYS, NUTRIENT_META, correctionsFromResult, makeLogTotals } from '../../domain/nutrition'
-import { buildIngredientContextFlags, buildPairingInsights } from '../../domain/pairing'
+import {
+  buildIngredientContextFlags,
+  buildPairingInsights,
+  deterministicSmartContextSnapshot,
+  smartContextRequestFromAnalysis,
+  smartContextResponseToInsights,
+  type PairingInsight,
+} from '../../domain/pairing'
 import type {
   AnalysisResult,
   FinalizeCorrections,
@@ -22,8 +29,9 @@ import type {
   MethodDiagnostic,
   PanelDiagnostic,
   SmartContextFlag,
+  SmartContextResponse,
 } from '../../domain/types'
-import { finalizeAnalysis } from '../../lib/api'
+import { finalizeAnalysis, resolveSmartContext } from '../../lib/api'
 import { saveLog } from '../../lib/db'
 import type { AnalysisImages } from '../../lib/api'
 import ImagePreviewButton from './ImagePreviewButton'
@@ -95,6 +103,8 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ingredientsEditorOpen, setIngredientsEditorOpen] = useState(false)
+  const [smartContextSnapshot, setSmartContextSnapshot] = useState<SmartContextResponse | null>(null)
+  const [resolvedPairingInsights, setResolvedPairingInsights] = useState<PairingInsight[] | null>(null)
 
   const current = confirmed ?? result
   const validatedRecord = confirmed ?? (edited.size === 0 && result.status === 'confirmed' ? result : null)
@@ -103,6 +113,8 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
   const changed = (key: string) => {
     setConfirmed(null)
     setResultsMode(false)
+    setResolvedPairingInsights(null)
+    setSmartContextSnapshot(null)
     setEdited((previous) => new Set(previous).add(key))
   }
 
@@ -123,6 +135,24 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
       : [],
     [corrections.consumedServings, corrections.productName, current, meal],
   )
+  const visiblePairingInsights = resolvedPairingInsights ?? pairingInsights
+
+  useEffect(() => {
+    if (current.status !== 'confirmed') return
+    let active = true
+    const context = {
+      result: current,
+      consumedServings: corrections.consumedServings,
+      meal,
+      productName: corrections.productName,
+    }
+    void resolveSmartContext(smartContextRequestFromAnalysis(context)).then((response) => {
+      if (!active) return
+      setSmartContextSnapshot(response)
+      setResolvedPairingInsights(smartContextResponseToInsights(response))
+    }).catch(() => undefined)
+    return () => { active = false }
+  }, [corrections.consumedServings, corrections.productName, current, meal])
   const capturedImages = [
     { kind: 'nutrition' as const, label: 'Nutrition', file: images.nutrition },
     { kind: 'ingredients' as const, label: 'Ingredients', file: images.ingredients },
@@ -132,6 +162,8 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
   const validate = async () => {
     setSaving(true)
     setError(null)
+    setResolvedPairingInsights(null)
+    setSmartContextSnapshot(null)
     try {
       const next = await finalizeAnalysis(result.analysisId, corrections)
       setConfirmed(next)
@@ -157,6 +189,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
         consumedServings: corrections.consumedServings,
         productName: corrections.productName.trim(),
         result: validatedRecord,
+        smartContextSnapshot: smartContextSnapshot ?? deterministicSmartContextSnapshot(pairingInsights),
         totals: makeLogTotals(validatedRecord, corrections.consumedServings),
         retainedImages: retainImages && capturedImages.length > 0
           ? capturedImages.map((image) => ({ kind: image.kind, blob: image.file, name: image.file.name }))
@@ -437,7 +470,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
         </aside>
       </div>
 
-      {current.status === 'confirmed' && <PairingIdeas insights={pairingInsights} />}
+      {current.status === 'confirmed' && <PairingIdeas insights={visiblePairingInsights} />}
 
       <section className="card log-card">
         <div>
@@ -450,7 +483,7 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
             changed('consumedServings')
             setCorrections((value) => ({ ...value, consumedServings: Number(event.target.value) }))
           }} /></label>
-          <label className="compact-field"><span>Meal</span><select value={meal} onChange={(event) => setMeal(event.target.value as MealSlot)}>{['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Other'].map((slot) => <option key={slot}>{slot}</option>)}</select></label>
+          <label className="compact-field"><span>Meal</span><select value={meal} onChange={(event) => { setMeal(event.target.value as MealSlot); setResolvedPairingInsights(null); setSmartContextSnapshot(null) }}>{['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Other'].map((slot) => <option key={slot}>{slot}</option>)}</select></label>
         </div>
         {capturedImages.length > 0 && <label className="checkbox-row"><input type="checkbox" checked={retainImages} onChange={(event) => setRetainImages(event.target.checked)} /><span><strong>Keep original images on this device</strong><small>Off by default. Images are otherwise removed from the server after 15 minutes.</small></span></label>}
         {error && <div className="notice error"><AlertCircle size={17} />{error}</div>}

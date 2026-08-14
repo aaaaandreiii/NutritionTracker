@@ -1,6 +1,8 @@
 export type Market = 'PH' | 'US'
 
-export type SmartContextRecordKind = 'packaged_label' | 'curated_unlabeled_demo'
+export type SmartContextRecordKind = 'packaged_label' | 'curated_unlabeled_demo' | 'estimated_unlabeled_meal'
+
+export type EvidenceType = 'observed' | 'retrieved' | 'estimated' | 'derived' | 'contextual' | 'unavailable'
 
 export type SourceKind =
   | 'label'
@@ -31,6 +33,29 @@ export interface EvidenceReference {
   note?: string
 }
 
+export interface NumericRange {
+  minimum: number
+  maximum: number
+  unit: string
+}
+
+export interface EvidenceTrailItem {
+  timestamp: string
+  evidenceType: EvidenceType
+  sourceKind: SourceKind
+  sourceId: string | null
+  note: string
+  value?: unknown
+}
+
+export interface SourceMetadata {
+  sourceId: string
+  name: string
+  url: string | null
+  datasetVersion: string | null
+  retrievedAt: string | null
+}
+
 export interface EvidenceValue<T> {
   value: T | null
   unit: string | null
@@ -41,6 +66,11 @@ export interface EvidenceValue<T> {
   confidence: number | null
   conflict: boolean
   confirmed: boolean
+  evidenceType?: EvidenceType
+  range?: NumericRange | null
+  confidenceBand?: 'high' | 'medium' | 'low' | 'unknown' | null
+  evidenceTrail?: EvidenceTrailItem[]
+  source?: SourceMetadata | null
 }
 
 export type NutrientKey =
@@ -294,6 +324,172 @@ export interface CuratedFoodRecord {
   provenance: AnalysisResult['provenance']
 }
 
+export interface UsdaNutrientProfile {
+  totalCarbohydrate: number | null
+  fiber: number | null
+  totalSugars: number | null
+  addedSugars: number | null
+  sugarAlcohols: number | null
+  protein: number | null
+  fat: number | null
+}
+
+export interface FoodDataCandidate {
+  fdcId: number
+  description: string
+  dataType: string | null
+  brandOwner: string | null
+  ingredients: string | null
+  nutrientsPer100g: UsdaNutrientProfile
+  source: SourceMetadata
+}
+
+export interface FoodDataSearchResponse {
+  query: string
+  candidates: FoodDataCandidate[]
+  available: boolean
+  sourceId: 'usda-fdc'
+  warning: string | null
+}
+
+export interface EstimatedMealComponentDraft {
+  componentId: string
+  identifiedName: string
+  preparationClues: string[]
+  householdPortion: string
+  gramRange: NumericRange
+  confidence: number
+  confidenceBand: 'high' | 'medium' | 'low' | 'unknown'
+  candidates: FoodDataCandidate[]
+  selectedFdcId: number | null
+  contextOnly: boolean
+  qualitativeTags: string[]
+  sourcePath: 'vlm' | 'manual' | 'curated'
+}
+
+export interface EstimatedMealDraft {
+  kind: 'estimated_unlabeled_meal'
+  analysisId: string
+  status: 'draft' | 'ready'
+  market: Extract<Market, 'PH'>
+  components: EstimatedMealComponentDraft[]
+  warnings: string[]
+  limitations: string[]
+  provenance: AnalysisResult['provenance']
+}
+
+export interface EstimatedMealStageEvent {
+  type: 'stage' | 'result' | 'error'
+  stage?: string
+  label?: string
+  status?: 'running' | 'complete' | 'skipped' | 'failed'
+  result?: EstimatedMealDraft
+  message?: string
+}
+
+export interface ConfirmedMealComponentRequest {
+  componentId: string
+  confirmedName: string
+  fdcId: number | null
+  householdPortion: string
+  gramRange: NumericRange
+  contextOnly: boolean
+  qualitativeTags: string[]
+}
+
+export type EstimatedNutrientRanges = Record<NutrientKey, NumericRange | null>
+
+export interface EstimatedMealComponentRecord {
+  componentId: string
+  confirmedName: string
+  householdPortion: string
+  gramRange: NumericRange
+  contextOnly: boolean
+  confidence: number | null
+  confidenceBand: 'high' | 'medium' | 'low' | 'unknown'
+  usdaMatch: FoodDataCandidate | null
+  nutrientRanges: EstimatedNutrientRanges
+  qualitativeTags: string[]
+  evidenceTrail: EvidenceTrailItem[]
+  limitations: string[]
+}
+
+export interface EstimatedMealRecord {
+  kind: 'estimated_unlabeled_meal'
+  status: 'confirmed'
+  recordId: string
+  analysisId: string
+  market: Extract<Market, 'PH'>
+  mealName: string
+  meal: MealSlot
+  components: EstimatedMealComponentRecord[]
+  aggregateNutrientRanges: EstimatedNutrientRanges
+  matchedComponentCount: number
+  excludedComponentCount: number
+  unknownNutrientCounts: Record<string, number>
+  partial: boolean
+  limitations: string[]
+  provenance: AnalysisResult['provenance']
+  smartContextSnapshot?: SmartContextResponse
+}
+
+export interface SmartContextNutrient {
+  value: number | null
+  range: NumericRange | null
+  evidenceType: EvidenceType
+  sourceId: string | null
+}
+
+export interface SmartContextResolveRequest {
+  kind: SmartContextRecordKind
+  displayName: string
+  market: Market
+  meal?: MealSlot | null
+  portionLabel?: string | null
+  category?: string | null
+  nutrients: Record<NutrientKey, SmartContextNutrient>
+  contextFlags: SmartContextFlag[]
+  qualitativeTags: string[]
+  limitations: string[]
+  excludedComponentCount: number
+}
+
+export interface SmartContextSource {
+  sourceId: string
+  title: string
+  publisher: string
+  url: string
+  summary: string
+}
+
+export interface SmartContextCard {
+  id: string
+  ruleId: string
+  title: string
+  body: string
+  evidenceLabels: string[]
+  actions: string[]
+  sourceIds: string[]
+}
+
+export interface SmartContextResponse {
+  triggeredRuleIds: string[]
+  cards: SmartContextCard[]
+  sources: SmartContextSource[]
+  evidenceSourceIds: string[]
+  generationMode: 'deterministic' | 'generated'
+  warnings: string[]
+  provenance: {
+    ruleVersion: string
+    evidenceVersion: string
+    pairingVersion: string
+    writerVersion: string
+    model: string | null
+    cacheHit: boolean
+    fallbackReason: string | null
+  }
+}
+
 export type MealSlot = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack' | 'Other'
 
 interface LogEntryBase {
@@ -315,6 +511,7 @@ interface LogEntryBase {
 export interface PackagedLabelLogEntry extends LogEntryBase {
   kind?: 'packaged_label'
   result: AnalysisResult
+  smartContextSnapshot?: SmartContextResponse
   retainedImages?: Array<{
     kind: 'nutrition' | 'ingredients' | 'front'
     blob: Blob
@@ -328,7 +525,22 @@ export interface CuratedUnlabeledLogEntry extends LogEntryBase {
   retainedImages?: undefined
 }
 
-export type LogEntry = PackagedLabelLogEntry | CuratedUnlabeledLogEntry
+export interface EstimatedMealLogEntry extends LogEntryBase {
+  kind: 'estimated_unlabeled_meal'
+  estimatedRecord: EstimatedMealRecord
+  rangeTotals: {
+    totalCarbohydrate: NumericRange | null
+    totalSugars: NumericRange | null
+    addedSugars: NumericRange | null
+  }
+  retainedImages?: Array<{
+    kind: 'food'
+    blob: Blob
+    name: string
+  }>
+}
+
+export type LogEntry = PackagedLabelLogEntry | CuratedUnlabeledLogEntry | EstimatedMealLogEntry
 
 export interface ImageQualityReport {
   width: number

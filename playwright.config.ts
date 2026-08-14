@@ -6,7 +6,10 @@ const macChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.e2e.ts',
-  fullyParallel: true,
+  // Screenshot-heavy responsive cases contend for the same local preview process on CI/macOS.
+  // Keep this small research suite serial so route mocks and full-page captures stay deterministic.
+  fullyParallel: false,
+  workers: 1,
   retries: 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {

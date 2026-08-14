@@ -7,8 +7,11 @@ import type {
   SmartContextFlag,
   SmartContextFlagCategory,
   SmartContextRecordKind,
+  SmartContextResolveRequest,
+  SmartContextResponse,
   SugarVariant,
 } from './types'
+import { NUTRIENT_KEYS } from './nutrition'
 
 export type PairingInsightCategory =
   | 'fiber'
@@ -219,6 +222,78 @@ export function smartContextFromCuratedRecord(record: CuratedFoodRecord, meal?: 
     contextFlags: record.contextFlags,
     qualitativeTags: record.qualitativeTags,
     limitations: record.limitations,
+  }
+}
+
+export function smartContextRequestFromAnalysis(context: PairingContext): SmartContextResolveRequest {
+  const input = smartContextFromAnalysis(context)
+  return {
+    kind: input.kind,
+    displayName: input.displayName,
+    market: context.result.market,
+    meal: input.meal,
+    portionLabel: input.portionLabel,
+    nutrients: Object.fromEntries(NUTRIENT_KEYS.map((key) => {
+      const field = context.result.nutrients[key]
+      return [key, {
+        value: input.nutrients[key],
+        range: null,
+        evidenceType: field.evidenceType ?? evidenceTypeFromSource(field.sourceKind),
+        sourceId: field.source?.sourceId ?? null,
+      }]
+    })) as SmartContextResolveRequest['nutrients'],
+    contextFlags: input.contextFlags,
+    qualitativeTags: [],
+    limitations: input.limitations,
+    excludedComponentCount: 0,
+  }
+}
+
+export function smartContextResponseToInsights(response: SmartContextResponse): PairingInsight[] {
+  return response.cards.map((card, index) => ({
+    id: card.id,
+    priority: index,
+    category: categoryForRule(card.ruleId),
+    title: card.title,
+    body: card.body,
+    evidenceLabels: card.evidenceLabels,
+    actionChips: card.actions,
+    sourceIds: card.sourceIds.filter((sourceId): sourceId is PairingSourceId => sourceId in PAIRING_SOURCES),
+  }))
+}
+
+export function deterministicSmartContextSnapshot(insights: PairingInsight[]): SmartContextResponse {
+  const sourceIds = Array.from(new Set(insights.flatMap((insight) => insight.sourceIds ?? [])))
+  return {
+    triggeredRuleIds: insights.map((insight) => insight.id),
+    cards: insights.map((insight) => ({
+      id: insight.id,
+      ruleId: insight.id,
+      title: insight.title,
+      body: insight.body,
+      evidenceLabels: insight.evidenceLabels,
+      actions: insight.actionChips ?? [],
+      sourceIds: insight.sourceIds ?? [],
+    })),
+    sources: sourceIds.map((sourceId) => ({
+      sourceId,
+      title: PAIRING_SOURCES[sourceId].title,
+      publisher: new URL(PAIRING_SOURCES[sourceId].url).hostname,
+      url: PAIRING_SOURCES[sourceId].url,
+      summary: PAIRING_SOURCES[sourceId].summary,
+    })),
+    evidenceSourceIds: sourceIds,
+    generationMode: 'deterministic',
+    warnings: ['Backend Smart Context was still loading or unavailable; the validated deterministic snapshot was saved.'],
+    provenance: {
+      ruleVersion: 'frontend-deterministic-v1',
+      evidenceVersion: 'pairing-sources-v1',
+      pairingVersion: 'frontend-ph-v1',
+      writerVersion: 'none',
+      model: null,
+      cacheHit: false,
+      fallbackReason: 'Backend Smart Context was not available before local save.',
+    },
   }
 }
 
@@ -478,6 +553,22 @@ function buildPackagedLabelInsights(input: SmartContextInput): PairingInsight[] 
 
 function isPairingContext(context: SmartContextInput | PairingContext): context is PairingContext {
   return 'result' in context
+}
+
+function evidenceTypeFromSource(sourceKind: AnalysisResult['nutrients']['fiber']['sourceKind']) {
+  if (sourceKind === 'label' || sourceKind === 'user') return 'observed' as const
+  if (sourceKind === 'database') return 'retrieved' as const
+  if (sourceKind === 'calculated') return 'derived' as const
+  return 'unavailable' as const
+}
+
+function categoryForRule(ruleId: string): PairingInsightCategory {
+  if (ruleId.includes('fiber')) return 'fiber'
+  if (ruleId.includes('protein') || ruleId.includes('fat')) return 'protein_fat'
+  if (ruleId.includes('food-order')) return 'food_order'
+  if (ruleId.includes('sugar') || ruleId.includes('ingredient') || ruleId.includes('qualitative')) return 'ingredients'
+  if (ruleId.includes('movement')) return 'movement'
+  return 'data_quality'
 }
 
 function emptyNutrients(): PortionNutrients {

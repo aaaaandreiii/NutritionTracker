@@ -31,6 +31,7 @@ from .schemas import (
     AnalysisDiagnostics,
     AnalysisResult,
     EvidenceReference,
+    EvidenceTrailItem,
     EvidenceValue,
     MethodDiagnostic,
     NutrientCorrections,
@@ -41,6 +42,7 @@ from .schemas import (
     Provenance,
     QualityCheck,
     ServingInformation,
+    SourceMetadata,
     ValidationCheck,
 )
 from .taxonomy import SUGAR_TAXONOMY_VERSION, classify_ingredients
@@ -127,6 +129,14 @@ def unavailable(unit: str | None = None, serving_basis: str | None = "per labele
         confidence=None,
         conflict=False,
         confirmed=False,
+        evidence_type="unavailable",
+        confidence_band="unknown",
+        evidence_trail=[EvidenceTrailItem(
+            timestamp=datetime.now(timezone.utc),
+            evidence_type="unavailable",
+            source_kind="unavailable",
+            note="No supported source supplied this value; it remains unknown rather than zero.",
+        )],
     )
 
 
@@ -152,6 +162,21 @@ def database_value(
         confidence=0.55,
         conflict=False,
         confirmed=False,
+        evidence_type="retrieved",
+        confidence_band="medium",
+        evidence_trail=[EvidenceTrailItem(
+            timestamp=datetime.now(timezone.utc),
+            evidence_type="retrieved",
+            source_kind="database",
+            source_id="local-open-food-facts",
+            note="Retrieved from the exact local barcode match; current package confirmation is still recommended.",
+        )],
+        source=SourceMetadata(
+            source_id="local-open-food-facts",
+            name="Local Open Food Facts snapshot",
+            url=url,
+            retrieved_at=datetime.now(timezone.utc),
+        ),
     )
 
 
@@ -178,6 +203,20 @@ def label_value(
         confidence=confidence,
         conflict=False,
         confirmed=False,
+        evidence_type="observed",
+        confidence_band="high" if confidence is not None and confidence >= 0.8 else "medium" if confidence is not None and confidence >= 0.55 else "low" if confidence is not None else "unknown",
+        evidence_trail=[EvidenceTrailItem(
+            timestamp=datetime.now(timezone.utc),
+            evidence_type="observed",
+            source_kind="label",
+            source_id=f"photo-{image_kind}",
+            note="Observed by automated vision extraction from the photographed package panel; user confirmation is pending.",
+        )],
+        source=SourceMetadata(
+            source_id=f"photo-{image_kind}",
+            name="Photographed package panel",
+            retrieved_at=datetime.now(timezone.utc),
+        ),
     )
 
 
@@ -203,6 +242,20 @@ def user_value(
         confidence=None,
         conflict=False,
         confirmed=True,
+        evidence_type="observed",
+        confidence_band="high",
+        evidence_trail=[EvidenceTrailItem(
+            timestamp=datetime.now(timezone.utc),
+            evidence_type="observed",
+            source_kind="user",
+            source_id="user-label-confirmation",
+            note="User confirmed this value from the current package.",
+        )],
+        source=SourceMetadata(
+            source_id="user-label-confirmation",
+            name="User-confirmed photographed label",
+            retrieved_at=datetime.now(timezone.utc),
+        ),
     )
 
 

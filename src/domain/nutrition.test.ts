@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { calculateGl, scaleKnown, sumKnown } from './nutrition'
+import { calculateGl, rangeMidpoint, scaleKnown, sumKnown, summarizeLogRanges } from './nutrition'
 import { classifyGlare } from '../lib/imageQuality'
+import type { LogEntry } from './types'
 
 describe('nutrition calculations', () => {
   it('preserves missing values instead of turning them into zero', () => {
@@ -12,6 +13,21 @@ describe('nutrition calculations', () => {
     expect(calculateGl(55, 20)).toBe(11)
     expect(calculateGl(null, 20)).toBeNull()
     expect(calculateGl(55, null)).toBeNull()
+  })
+
+  it('combines exact values as fixed ranges with estimated ranges and unknown counts', () => {
+    const exact = { kind: 'packaged_label', totals: { totalCarbohydrate: 10, totalSugars: 2, addedSugars: null } } as LogEntry
+    const estimated = {
+      kind: 'estimated_unlabeled_meal',
+      totals: { totalCarbohydrate: 30, totalSugars: null, addedSugars: null },
+      rangeTotals: { totalCarbohydrate: { minimum: 20, maximum: 40, unit: 'g' }, totalSugars: null, addedSugars: null },
+      estimatedRecord: { unknownNutrientCounts: { totalCarbohydrate: 1 } },
+    } as unknown as LogEntry
+
+    expect(rangeMidpoint({ minimum: 20, maximum: 40, unit: 'g' })).toBe(30)
+    expect(summarizeLogRanges([exact, estimated], 'totalCarbohydrate')).toEqual({
+      minimum: 30, maximum: 50, midpoint: 40, unknown: 1, estimated: 1,
+    })
   })
 })
 

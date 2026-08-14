@@ -1,6 +1,6 @@
 # Sugar pAI research protocol
 
-Sugar pAI V2 is evaluated as a packaged-label evidence and Smart Context prototype. Automated extraction is only one part of the research claim; the accepted record is the validated label evidence plus deterministic context shown after user confirmation.
+Sugar pAI V2 is evaluated as a packaged-label and estimated-meal evidence prototype. Automated extraction or image identification is only a proposal step; an accepted record consists of user-confirmed evidence, deterministic calculations, explicit uncertainty, and the saved Smart Context snapshot.
 
 ## Packaged-label benchmark
 
@@ -45,14 +45,35 @@ PYTHONPATH=backend python -m app.db.ingest_off \
 
 Track barcode hit rate, complete-record rate, partial-record missing fields, and disagreement rate versus the current photographed label.
 
-## Curated unlabeled demo mode
+## Estimated unlabeled-meal benchmark
 
-The Filipino-food catalog is a qualitative demo mode for Smart Context research. It may include allowed food names, aliases, portion labels, qualitative tags, and limitations. It must not include authoritative calories, macros, GI, GL, or FNRI-derived claims unless a permitted dataset and matching protocol are added later.
+Evaluate the estimated-meal path separately from packaged-label extraction. Build a consented meal-photo set that represents one- and multi-component Philippine meals, occlusion, mixed dishes, sauces, varied lighting, and realistic household portions. Split by meal, not by image, so near-duplicate views never cross development and evaluation sets.
 
-Image-based identification in this mode is only a candidate suggestion step. The user must confirm the catalog food and portion before Smart Context appears. If no candidate is suggested, the UI must fall back to manual catalog selection.
+The meal-image model is evaluated only on its allowed schema: component name, preparation clues, household portion, gram minimum/maximum, and confidence. It must never return calories, macros, GI, GL, or a personal glucose prediction. Cap accepted output at 12 components, test invalid-schema retry once, and report:
+
+- component top-1 and top-5 identity accuracy;
+- missed, merged, and hallucinated component rates;
+- schema-valid-after-retry and prohibited-macro rates;
+- portion-range coverage of the adjudicated reference weight, plus range width;
+- confidence calibration and latency;
+- successful manual add, remove, rename, and remap rates.
+
+For USDA matching, retain the selected FDC ID and source snapshot. Report candidate recall, confirmed-match accuracy, missing-nutrient frequency, API/cache/timeout behavior, and calculation agreement with `per100g × confirmed grams / 100`. Automated tests should use mocked USDA responses; controlled live evaluation requires a server-only key and a pinned query set.
+
+Evaluate complete and partial meals. A component without a credible confirmed match must become context-only and be excluded from every numeric aggregate. Verify that the UI and export state the excluded-component count, preserve unknown nutrient counts, and never call a matched-component subtotal a complete-meal total. The `~midpoint` display must always remain paired with its minimum–maximum range.
+
+The Filipino-food catalog remains the qualitative fallback for unavailable vision or USDA matching. It may include allowed names, aliases, portion labels, qualitative tags, and limitations. It must not originate authoritative calories, macros, GI, GL, or FNRI-derived claims unless a permitted dataset and matching protocol are added later.
+
+## Smart Context evaluation
+
+Evaluate rule selection independently from generated wording. Fixtures must cover exact values, fixed ranges, estimated ranges wholly above/below thresholds, ranges crossing each threshold, missing nutrients, context-only components, Philippine category aliases, and partial meals. For every fixture, assert rule IDs, actions, evidence/source IDs, warnings, and cache-version behavior.
+
+The optional writer receives only preselected facts, cards, actions, pairings, and citations. Test malformed JSON, unknown/duplicate rule IDs, changed actions or evidence labels, invented numbers, unknown sources, prohibited medical/suitability/medication/glucose-prediction claims, timeout, and network failure. Every failure must return the deterministic cards. Generated-copy evaluation should score factual preservation and clarity, never whether the model selected the advice.
+
+Tavily evaluation is limited to evidence-chat source retrieval from the authoritative-domain allowlist. Web text must never originate nutrient grams. Run external-service cases with mocks in routine CI and document credentials, model versions, latency, and retrieval date for controlled live runs.
 
 ## GI and GL policy
 
-No FNRI, Trinidad, or other licensed GI source data is bundled in this repository. Until licensed records are provided and matched, the application must keep `sourced` GI unavailable. Packaged-label records may show only the explicitly labeled `heuristic_demo` GL output; curated unlabeled demo records must not display numeric GI or GL.
+No FNRI, Trinidad, or other licensed GI source data is bundled in this repository. Until licensed records are provided and matched, the application must keep `sourced` GI unavailable. Packaged-label records may show only the explicitly labeled `heuristic_demo` GL output; curated fallback and estimated-meal records must not display numeric GI or GL.
 
 Smart Context copy must not make permission-style, treatment, medication, insulin, or glucose-prediction claims. Movement content remains optional education, not personal exercise advice.

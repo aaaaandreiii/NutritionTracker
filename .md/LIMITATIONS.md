@@ -6,7 +6,7 @@ This document captures known V2 limits for Sugar pAI and its supporting Daily Do
 
 ### VLM Reliability
 
-The VLM can misread distorted, shiny, cropped, low-contrast, or multi-column labels. Deterministic validation catches impossible arithmetic and schema violations, but user review remains required for every accepted packaged-label record.
+The label VLM can misread distorted, shiny, cropped, low-contrast, or multi-column labels. Meal vision can misidentify foods, merge separate components, miss sauces/toppings, or propose a poor household portion/range. Deterministic schemas and validation prevent the meal VLM from supplying macros, but user confirmation remains required for every accepted identity and portion.
 
 ### Local Open Food Facts Coverage
 
@@ -16,13 +16,23 @@ The bundled Open Food Facts SQLite database is generated from the available Phil
 
 No licensed FNRI, Trinidad, or proprietary tested-product GI table is bundled. `sourced` GI remains unavailable until permitted data and matching rules are added. Packaged-label demo GL is explicitly `heuristic_demo`.
 
-### Curated Unlabeled Demo Is Qualitative
+### Estimated Meals Are Not Laboratory Nutrition Analysis
 
-The Filipino-food catalog contains allowed demo foods, aliases, portion labels, qualitative tags, and limitations only. It does not provide authoritative calories, macros, GI, GL, or FNRI-derived claims.
+Estimated meal nutrients use the user-confirmed gram endpoints and the selected USDA record's available per-100-g values. The range represents portion uncertainty only. It does not represent recipe variation, cooking loss/gain, laboratory uncertainty, population variance, hidden ingredients, sauce/oil absorption, or the actual chemical composition of the photographed serving.
+
+USDA matches may describe a similar generic or branded food rather than the exact recipe. Missing nutrients remain unknown. Context-only and unresolved components are excluded from aggregates; therefore a partial aggregate must not be interpreted as a complete-meal total.
+
+### USDA and Optional-Service Availability
+
+FoodData Central requires a server-only key and network access. With no key, estimated-meal numeric matching is unavailable and the flow uses qualitative fallback. Ollama, Tavily, and Smart Context writing are also optional. Deterministic Smart Context and the curated catalog remain available, but no offline USDA nutrient cache is bundled.
+
+### Curated Filipino-Food Fallback Is Qualitative
+
+The catalog contains allowed food names, aliases, portion labels, qualitative tags, and limitations only. It does not provide authoritative calories, macros, GI, GL, or FNRI-derived claims. Legacy filename-alias identification remains an API compatibility route but is no longer the current estimated-meal UI identification method.
 
 ### Local-Only History
 
-Sugar pAI history is stored in browser IndexedDB. Clearing browser data removes local records. Multi-device sync is not implemented.
+Sugar pAI history, range/source snapshots, retained opt-in photos, and Smart Context snapshots are stored in browser IndexedDB. Clearing browser data removes them. Multi-device sync and server recovery are not implemented. Estimated records are read-only; changes require delete and recreate.
 
 ### Daily Dozen State
 
@@ -36,10 +46,12 @@ The backend uses in-memory analysis jobs and temporary files for user data. The 
 
 - Convert legacy JSX Daily Dozen components to TypeScript.
 - Add stronger public-deployment rate limits and auth options.
-- Add end-to-end browser tests for packaged-label and curated demo flows.
+- Add live-service contract tests against a controlled USDA sandbox/key and pinned Ollama model; current automated tests mock external network/model behavior.
 - Add barcode-camera end-to-end tests with mocked camera permissions and ZXing decode results.
 - Automate OFF export refresh and schema-drift checks.
-- Add catalog governance for Filipino-food aliases, portions, and limitations.
+- Add governance and review/version tooling for Filipino-food aliases, pairing examples, rule thresholds, evidence bundles, and source deprecation.
+- Add durable distributed job/cache storage before any multi-worker backend deployment.
+- Add performance/load budgets for a 12-component meal when USDA details must be fetched for every component.
 - Improve accessibility and mobile QA for History drawers and dense Smart Context cards.
 
 ## Out of Scope
@@ -47,5 +59,7 @@ The backend uses in-memory analysis jobs and temporary files for user data. The 
 - Medical advice, diagnosis, treatment, medication, or insulin guidance.
 - Individual glucose prediction.
 - Suitability or permission-style food claims.
-- Numeric GI/GL for curated unlabeled demo foods.
+- Numeric GI/GL for curated foods or estimated unlabeled meals.
 - Authoritative Filipino nutrition values without a permitted dataset.
+- Allergy filtering or recipe-level hidden-ingredient inference.
+- Clinical personalization or long-term backend user storage.

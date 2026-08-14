@@ -27,6 +27,75 @@
   --mobile-nav-height: 67px;
 }
 
+/* Estimated unlabeled meal flow */
+.sugar-pai-embed .meal-search-card,
+.sugar-pai-embed .component-review-card,
+.sugar-pai-embed .estimated-breakdown-card,
+.sugar-pai-embed .smart-context-response-card { padding: 22px; }
+.sugar-pai-embed .meal-search-row,
+.sugar-pai-embed .component-remap { display: flex; gap: 9px; align-items: center; margin-bottom: 12px; }
+.sugar-pai-embed .meal-search-row input,
+.sugar-pai-embed .component-remap input,
+.sugar-pai-embed .component-title input,
+.sugar-pai-embed .component-portion-grid input,
+.sugar-pai-embed .analysis-card input { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); padding: 11px 12px; font: inherit; }
+.sugar-pai-embed .analysis-stage-list { display: grid; gap: 6px; margin-top: 12px; color: var(--muted); font-size: .82rem; }
+.sugar-pai-embed .analysis-stage-list span { display: flex; gap: 7px; align-items: center; }
+.sugar-pai-embed .estimated-component-list { display: grid; gap: 14px; }
+.sugar-pai-embed .estimated-component { min-width: 0; padding: 17px; border-radius: 14px; background: color-mix(in srgb, var(--paper) 88%, var(--green) 12%); }
+.sugar-pai-embed .component-title { display: grid; grid-template-columns: 28px minmax(0,1fr) 44px; gap: 8px; align-items: center; }
+.sugar-pai-embed .component-title > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: var(--paper); font-weight: 800; font-size: .75rem; }
+.sugar-pai-embed .component-meta { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; margin: 10px 0; color: var(--muted); font-size: .78rem; }
+.sugar-pai-embed .evidence-badge { display: inline-flex; width: fit-content; align-items: center; min-height: 26px; padding: 4px 9px; border-radius: 999px; background: #e8eee7; color: #35503a; font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.sugar-pai-embed .badge-vlm,
+.sugar-pai-embed .badge-estimated { background: #fff0cc; color: #74500a; }
+.sugar-pai-embed .badge-derived { background: #e3eef8; color: #254c70; }
+.sugar-pai-embed .badge-contextual,
+.sugar-pai-embed .badge-curated { background: #eee8f5; color: #58406e; }
+.sugar-pai-embed .component-portion-grid { display: grid; grid-template-columns: minmax(150px,1.5fr) repeat(2,minmax(90px,.7fr)); gap: 10px; margin: 12px 0; }
+.sugar-pai-embed .component-portion-grid label { display: grid; gap: 6px; min-width: 0; color: var(--muted); font-size: .76rem; font-weight: 700; }
+.sugar-pai-embed .checkbox-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; margin: 12px 0; }
+.sugar-pai-embed .checkbox-row input { width: 18px; height: 18px; margin-top: 2px; flex: 0 0 auto; }
+.sugar-pai-embed .checkbox-row span { display: grid; gap: 3px; }
+.sugar-pai-embed .checkbox-row small { color: var(--muted); line-height: 1.35; }
+.sugar-pai-embed .component-errors { margin: 10px 0; padding-left: 20px; color: var(--red); font-size: .8rem; }
+.sugar-pai-embed .curated-fallback-list { display: grid; gap: 6px; margin: 12px 0; }
+.sugar-pai-embed .curated-fallback-list button { display: flex; gap: 7px; align-items: center; min-height: 42px; padding: 8px 10px; border: 0; border-radius: 9px; background: var(--paper); color: var(--ink); text-align: left; cursor: pointer; }
+.sugar-pai-embed .aggregate-range-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin: 14px 0; }
+.sugar-pai-embed .aggregate-range-grid > div { display: grid; gap: 4px; min-width: 0; padding: 12px; border-radius: 11px; background: var(--paper); }
+.sugar-pai-embed .aggregate-range-grid span,
+.sugar-pai-embed .aggregate-range-grid small { color: var(--muted); font-size: .72rem; }
+.sugar-pai-embed .aggregate-range-grid strong { overflow-wrap: anywhere; }
+.sugar-pai-embed .component-result-list,
+.sugar-pai-embed .smart-context-card-list { display: grid; gap: 10px; }
+.sugar-pai-embed .component-result-list article,
+.sugar-pai-embed .smart-context-card-list article { display: grid; gap: 8px; min-width: 0; padding: 14px; border-radius: 12px; background: var(--paper); }
+.sugar-pai-embed .component-result-list article > div { display: grid; gap: 3px; }
+.sugar-pai-embed .component-result-list span,
+.sugar-pai-embed .component-result-list small { color: var(--muted); overflow-wrap: anywhere; }
+.sugar-pai-embed .smart-context-card-list h3,
+.sugar-pai-embed .smart-context-card-list p { margin: 0; }
+.sugar-pai-embed .smart-context-card-list article > div { display: flex; gap: 6px; flex-wrap: wrap; }
+.sugar-pai-embed .smart-context-card-list article > div span { padding: 4px 7px; border-radius: 7px; background: #f0ede5; color: var(--muted); font-size: .72rem; }
+.sugar-pai-embed .smart-context-card-list small { color: var(--muted); }
+.sugar-pai-embed .smart-context-sources { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 13px; }
+.sugar-pai-embed .smart-context-sources a { color: var(--green-dark); font-size: .78rem; overflow-wrap: anywhere; }
+
+@media (max-width: 760px) {
+  .sugar-pai-embed .meal-search-row,
+  .sugar-pai-embed .component-remap { align-items: stretch; flex-direction: column; }
+  .sugar-pai-embed .meal-search-row button,
+  .sugar-pai-embed .component-remap button { min-height: 44px; justify-content: center; }
+  .sugar-pai-embed .component-portion-grid { grid-template-columns: 1fr 1fr; }
+  .sugar-pai-embed .component-portion-grid label:first-child { grid-column: 1 / -1; }
+  .sugar-pai-embed .aggregate-range-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 430px) {
+  .sugar-pai-embed .aggregate-range-grid { grid-template-columns: 1fr; }
+  .sugar-pai-embed .component-title { grid-template-columns: 24px minmax(0,1fr) 44px; }
+}
+
 .sugar-pai-embed *{ box-sizing: border-box; }
 .sugar-pai-embed{ scroll-behavior: smooth; }
 .sugar-pai-embed{ margin: 0; min-width: 320px; min-height: 100vh; min-height: 100svh; min-height: 100dvh; background: var(--cream); overflow-x: hidden; overflow-x: clip; }

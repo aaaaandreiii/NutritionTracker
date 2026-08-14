@@ -1,6 +1,6 @@
 # API Documentation
 
-The FastAPI backend exposes short-lived packaged-label analysis jobs, local barcode lookup, stateless label validation, curated unlabeled-food demo endpoints, and evidence-grounded chat streaming. It stores no conversations.
+The FastAPI backend exposes short-lived packaged-label and estimated-meal jobs, local barcode lookup, USDA-backed food matching, stateless validation, backend Smart Context resolution, legacy curated-food fallbacks, and evidence-grounded chat streaming. It stores no conversations or durable meal records.
 
 ## General Notes
 
@@ -8,8 +8,42 @@ The FastAPI backend exposes short-lived packaged-label analysis jobs, local barc
 - OpenAPI docs: `/docs`
 - Response field names are camelCase.
 - Uploaded images are limited to 8 MB each.
-- Backend analysis jobs are in-memory and expire after 15 minutes.
+- Backend analysis jobs are in-memory and expire after 15 minutes. Estimated-meal files are also deleted immediately on finalize or explicit delete.
 - Local Open Food Facts lookup is enabled with `SUGAR_PAI_ENABLE_OFF_LOOKUP=true` and reads `SUGAR_PAI_OFF_DB_PATH` or `backend/app/data/off_ph_products.db`.
+- USDA FoodData Central calls require server-only `USDA_FDC_API_KEY`. Missing credentials return an explicit qualitative-fallback response.
+- Optional Smart Context writing is disabled unless `SUGAR_PAI_SMART_CONTEXT_WRITER=true`; deterministic resolution is always available.
+
+## Evidence Value Compatibility
+
+Existing `EvidenceValue` fields remain compatible. Responses now also include:
+
+```json
+{
+  "value": 14,
+  "unit": "g",
+  "sourceKind": "database",
+  "status": "Database match",
+  "evidenceType": "retrieved",
+  "range": null,
+  "confidenceBand": "medium",
+  "evidenceTrail": [
+    {
+      "timestamp": "2026-08-14T00:00:00Z",
+      "evidenceType": "retrieved",
+      "sourceKind": "database",
+      "sourceId": "local-open-food-facts",
+      "note": "Retrieved from the exact local barcode match."
+    }
+  ],
+  "source": {
+    "sourceId": "local-open-food-facts",
+    "name": "Local Open Food Facts snapshot",
+    "url": "https://world.openfoodfacts.org/product/..."
+  }
+}
+```
+
+Allowed evidence types are `observed`, `retrieved`, `estimated`, `derived`, `contextual`, and `unavailable`. A numeric range uses `{ "minimum", "maximum", "unit" }`; its minimum must not exceed its maximum.
 
 ## Endpoints
 
@@ -198,6 +232,156 @@ Payload: `FinalizeRequest`
 
 Returns `LabelRecordValidationResponse`.
 
+### Create Estimated Unlabeled-Meal Analysis
+
+`POST /api/v1/unlabeled-meal-analyses`
+
+Content type: `multipart/form-data`
+
+Fields:
+- `market`: currently `PH`
+- `food_image`: optional JPEG, PNG, or WebP
+- `description`: optional manual food name, maximum 250 characters
+
+At least one of `food_image` or `description` is required. Returns `202 Accepted`:
+
+```json
+{ "analysisId": "uuid-string", "expiresInSeconds": 900 }
+```
+
+The image is sanitized and stripped of EXIF metadata before Ollama receives it. The meal model may return at most 12 components and is schema-prohibited from returning macros, calories, GI, GL, health claims, or glucose predictions.
+
+Errors:
+- `413`: image exceeds 8 MB
+- `422`: missing input, unsupported market, or invalid image
+
+### Stream Estimated-Meal Events
+
+`GET /api/v1/unlabeled-meal-analyses/{analysis_id}/events`
+
+Response type: `text/event-stream`.
+
+Stages include `image_check`, `component_identification`, and `nutrition_matching`, followed by a `result` containing `EstimatedMealDraft` or an `error`. Draft components contain:
+
+- `componentId`
+- `identifiedName`
+- visible `preparationClues`
+- `householdPortion`
+- `gramRange`
+- numeric confidence and confidence band
+- no more than five USDA candidates
+- selected candidate ID when available
+- `contextOnly`, qualitative tags, and source path
+
+Vision or USDA failure is represented in `warnings`; the result remains usable for manual/context-only confirmation.
+
+### Search USDA FoodData Central
+
+`GET /api/v1/food-data/search?q={food_name}&limit=5`
+
+Returns `FoodDataSearchResponse` with `available`, warning, and up to five `FoodDataCandidate` objects. Each candidate includes FDC ID, description, data type, optional brand/ingredients, available per-100-g nutrients, and source metadata.
+
+When `USDA_FDC_API_KEY` is missing:
+
+```json
+{
+  "query": "white rice",
+  "candidates": [],
+  "available": false,
+  "sourceId": "usda-fdc",
+  "warning": "USDA FoodData Central is not configured; use the curated qualitative fallback."
+}
+```
+
+Errors:
+- `422`: invalid query or limit
+- `503`: configured USDA search timed out or failed
+
+### Finalize Estimated Meal
+
+`POST /api/v1/unlabeled-meal-analyses/{analysis_id}/finalize`
+
+Example payload:
+
+```json
+{
+  "mealName": "Rice and chicken lunch",
+  "meal": "Lunch",
+  "components": [
+    {
+      "componentId": "component-uuid",
+      "confirmedName": "White rice, cooked",
+      "fdcId": 169756,
+      "householdPortion": "1 cup",
+      "gramRange": { "minimum": 120, "maximum": 180, "unit": "g" },
+      "contextOnly": false,
+      "qualitativeTags": ["rice"]
+    }
+  ]
+}
+```
+
+Every component must have a non-empty identity and household portion plus a finite, ordered `1–5000 g` range. A numeric component requires a USDA FDC ID; otherwise it must be marked `contextOnly`.
+
+The backend retrieves USDA details itself and calculates each available nutrient as:
+
+```text
+per-100-g nutrient × confirmed gram endpoint / 100
+```
+
+The returned `EstimatedMealRecord` includes confirmed component/source snapshots, component nutrient ranges, aggregate known-component ranges, matched/excluded counts, per-nutrient unknown counts, `partial`, limitations, evidence trails, and provenance. Context-only components are excluded from every aggregate. Missing USDA nutrients remain unknown.
+
+Successful finalize deletes the short-lived job and backend image. Errors:
+- `404`: missing or expired analysis
+- `409`: analysis is still processing
+- `422`: invalid confirmation, unavailable selected USDA details, duplicate component, or invalid range
+
+### Delete Estimated-Meal Analysis
+
+`DELETE /api/v1/unlabeled-meal-analyses/{analysis_id}`
+
+Deletes the in-memory job and temporary image directory. Returns `204 No Content`, including when the job no longer exists.
+
+### Resolve Smart Context
+
+`POST /api/v1/smart-context/resolve`
+
+This stateless endpoint accepts `kind` (`packaged_label`, `curated_unlabeled_demo`, or `estimated_unlabeled_meal`), record/meal/market identity, exact nutrient values or ranges with evidence types, context flags, qualitative tags, limitations, and excluded-component count.
+
+Returns `SmartContextResponse`:
+
+```json
+{
+  "triggeredRuleIds": ["estimated-boundary", "fiber-anchor"],
+  "cards": [
+    {
+      "id": "fiber-anchor",
+      "ruleId": "fiber-anchor",
+      "title": "Add a fiber anchor",
+      "body": "...",
+      "evidenceLabels": ["Carbs 20–35 g", "Fiber 0.5–2.5 g"],
+      "actions": ["Ginisang monggo", "Itlog or isda", "Pinakbet or other gulay"],
+      "sourceIds": ["sydney-gi-overview"]
+    }
+  ],
+  "sources": [],
+  "evidenceSourceIds": ["sydney-gi-overview"],
+  "generationMode": "deterministic",
+  "warnings": [],
+  "provenance": {
+    "ruleVersion": "smart-context-rules-ph-v1",
+    "evidenceVersion": "smart-context-evidence-v1",
+    "pairingVersion": "ph-pairings-v1",
+    "writerVersion": "grounded-writer-v1",
+    "model": null,
+    "cacheHit": false,
+    "fallbackReason": null
+  }
+}
+```
+
+Estimated nutrient rules trigger only when the entire range supports the threshold. Threshold-crossing ranges receive `uncertainty-boundary`. Optional writer output is accepted only if rule IDs, evidence labels, actions, sources, and numbers validate; every failure returns deterministic cards.
+
 ### List Curated Unlabeled Foods
 
 `GET /api/v1/unlabeled-foods/catalog?market=PH`
@@ -236,7 +420,7 @@ Fields:
 - `food_image` file, required
 - `market` enum, required: `PH`
 
-Returns `UnlabeledFoodIdentifyResponse` with candidate hints. If no candidate is found, `method` is `manual_catalog_fallback` and `candidates` is empty.
+Returns the legacy `UnlabeledFoodIdentifyResponse` with filename-alias demo hints. The current estimated-meal UI does not use filename matching; this route remains for backward compatibility. If no candidate is found, `method` is `manual_catalog_fallback` and `candidates` is empty.
 
 ### Validate Curated Unlabeled Record
 

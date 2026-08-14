@@ -1,3 +1,4 @@
+import json
 from io import BytesIO
 from pathlib import Path
 
@@ -339,3 +340,70 @@ def test_unlabeled_food_record_validation_rejects_unknown_food_and_portion():
     assert "not found" in unknown_food.json()["detail"]
     assert bad_portion.status_code == 422
     assert "Portion label" in bad_portion.json()["detail"]
+
+
+def test_manual_estimated_meal_can_finalize_as_context_only_without_usda_key(monkeypatch):
+    monkeypatch.delenv("USDA_FDC_API_KEY", raising=False)
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/unlabeled-meal-analyses",
+            data={"market": "PH", "description": "pandesal"},
+        )
+        assert created.status_code == 202, created.text
+        analysis_id = created.json()["analysisId"]
+        with client.stream("GET", f"/api/v1/unlabeled-meal-analyses/{analysis_id}/events") as stream:
+            body = "".join(stream.iter_text())
+        result_event = next(
+            json.loads(line[6:]) for line in body.splitlines()
+            if line.startswith("data: ") and '"type":"result"' in line
+        )
+        component = result_event["result"]["components"][0]
+
+        finalized = client.post(
+            f"/api/v1/unlabeled-meal-analyses/{analysis_id}/finalize",
+            json={
+                "mealName": "Pandesal snack",
+                "meal": "Snack",
+                "components": [{
+                    "componentId": component["componentId"],
+                    "confirmedName": "Pandesal",
+                    "fdcId": None,
+                    "householdPortion": "1 piece",
+                    "gramRange": {"minimum": 35, "maximum": 55, "unit": "g"},
+                    "contextOnly": True,
+                    "qualitativeTags": component["qualitativeTags"],
+                }],
+            },
+        )
+
+    assert finalized.status_code == 200, finalized.text
+    payload = finalized.json()
+    assert payload["kind"] == "estimated_unlabeled_meal"
+    assert payload["partial"] is True
+    assert payload["excludedComponentCount"] == 1
+    assert payload["aggregateNutrientRanges"]["totalCarbohydrate"] is None
+
+
+def test_food_data_search_and_smart_context_have_deterministic_fallbacks_without_optional_keys(monkeypatch):
+    monkeypatch.delenv("USDA_FDC_API_KEY", raising=False)
+    monkeypatch.setenv("SUGAR_PAI_SMART_CONTEXT_WRITER", "false")
+    with TestClient(app) as client:
+        search = client.get("/api/v1/food-data/search?q=white%20rice")
+        context = client.post("/api/v1/smart-context/resolve", json={
+            "kind": "estimated_unlabeled_meal",
+            "displayName": "White rice",
+            "market": "PH",
+            "meal": "Lunch",
+            "nutrients": {
+                "totalCarbohydrate": {"range": {"minimum": 20, "maximum": 40, "unit": "g"}, "evidenceType": "derived"},
+                "fiber": {"range": {"minimum": 0.5, "maximum": 2, "unit": "g"}, "evidenceType": "derived"},
+            },
+            "qualitativeTags": ["rice"],
+            "excludedComponentCount": 0,
+        })
+
+    assert search.status_code == 200
+    assert search.json()["available"] is False
+    assert context.status_code == 200, context.text
+    assert context.json()["generationMode"] == "deterministic"
+    assert "fiber-anchor" in context.json()["triggeredRuleIds"]

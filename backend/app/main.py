@@ -10,13 +10,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, AsyncIterator, Literal
 
-from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import FastAPI, File, Form, HTTPException, Query, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from .db.off_products import LOCAL_OFF_SOURCE_NAME, lookup_local_off_product, lookup_response
 from .chat import chat_event_stream
 from .glycemic import build_glycemic_evidence
+from .estimated_meals import (
+    EstimatedMealJob,
+    finalize_estimated_meal,
+    run_estimated_meal_pipeline,
+)
 from .pipeline import (
     JOB_TTL_SECONDS,
     MAX_UPLOAD_BYTES,
@@ -35,17 +40,24 @@ from .schemas import (
     CreateBarcodeAnalysisResponse,
     CreateAnalysisResponse,
     CuratedFoodRecord,
+    CreateEstimatedMealAnalysisResponse,
+    EstimatedMealRecord,
+    FinalizeEstimatedMealRequest,
     FinalizeRequest,
+    FoodDataSearchResponse,
     LabelRecordValidationResponse,
     NutrientFields,
     OffProductLookupResponse,
     ProductIdentity,
     Provenance,
     ServingInformation,
+    SmartContextResolveRequest,
+    SmartContextResponse,
     UnlabeledFoodCatalogResponse,
     UnlabeledFoodIdentifyResponse,
     UnlabeledFoodRecordRequest,
 )
+from .smart_context import resolve_smart_context
 from .taxonomy import SUGAR_TAXONOMY_VERSION, classify_ingredients
 from .unlabeled_foods import (
     UnknownFoodError,
@@ -56,9 +68,11 @@ from .unlabeled_foods import (
     validate_unlabeled_food_record,
 )
 from .validation import validate_nutrients
+from .usda import UsdaRequestError, search_food_data
 
 
 JOBS: dict[str, AnalysisJob] = {}
+ESTIMATED_MEAL_JOBS: dict[str, EstimatedMealJob] = {}
 
 
 async def cleanup_expired_jobs() -> None:
@@ -68,6 +82,9 @@ async def cleanup_expired_jobs() -> None:
         expired = [job_id for job_id, job in JOBS.items() if job.created_at.timestamp() < cutoff]
         for job_id in expired:
             delete_job_files(JOBS.pop(job_id))
+        expired_meals = [job_id for job_id, job in ESTIMATED_MEAL_JOBS.items() if job.created_at.timestamp() < cutoff]
+        for job_id in expired_meals:
+            delete_job_files(ESTIMATED_MEAL_JOBS.pop(job_id))
 
 
 @asynccontextmanager
@@ -78,12 +95,15 @@ async def lifespan(_app: FastAPI):
     for job in JOBS.values():
         delete_job_files(job)
     JOBS.clear()
+    for job in ESTIMATED_MEAL_JOBS.values():
+        delete_job_files(job)
+    ESTIMATED_MEAL_JOBS.clear()
 
 
 app = FastAPI(
     title="Sugar pAI Research API",
-    version="0.1.0",
-    description="Short-lived, evidence-preserving packaged-food label analysis.",
+    version="0.2.0",
+    description="Short-lived, evidence-preserving label and estimated-meal analysis with grounded Smart Context.",
     lifespan=lifespan,
 )
 app.add_middleware(
@@ -95,7 +115,7 @@ app.add_middleware(
 )
 
 
-def delete_job_files(job: AnalysisJob) -> None:
+def delete_job_files(job: AnalysisJob | EstimatedMealJob) -> None:
     if job.temp_dir.exists():
         shutil.rmtree(job.temp_dir, ignore_errors=True)
 
@@ -297,7 +317,7 @@ def validate_label_record(request: FinalizeRequest) -> LabelRecordValidationResp
     )
 
 
-async def event_stream(job: AnalysisJob) -> AsyncIterator[str]:
+async def event_stream(job: AnalysisJob | EstimatedMealJob) -> AsyncIterator[str]:
     index = 0
     while True:
         timed_out = False
@@ -430,6 +450,113 @@ async def validate_unlabeled_record_endpoint(request: UnlabeledFoodRecordRequest
         raise HTTPException(status_code=422, detail="Portion label is not allowed for this curated demo food.") from exc
     except UnsupportedMarketError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post(
+    "/api/v1/unlabeled-meal-analyses",
+    response_model=CreateEstimatedMealAnalysisResponse,
+    response_model_by_alias=True,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def create_unlabeled_meal_analysis(
+    market: Annotated[Literal["PH"], Form()] = "PH",
+    food_image: Annotated[UploadFile | None, File()] = None,
+    description: Annotated[str | None, Form(max_length=250)] = None,
+) -> CreateEstimatedMealAnalysisResponse:
+    normalized_description = " ".join((description or "").split()).strip() or None
+    if not food_image and not normalized_description:
+        raise HTTPException(status_code=422, detail="Add a food photo or a food name.")
+    analysis_id = str(uuid.uuid4())
+    temp_dir = Path(tempfile.mkdtemp(prefix=f"sugar-pai-meal-{analysis_id[:8]}-"))
+    image_path: Path | None = None
+    try:
+        if food_image:
+            content_type = food_image.content_type or ""
+            if not content_type.startswith("image/"):
+                raise HTTPException(status_code=422, detail="Use a JPEG, PNG, or WebP food photo.")
+            image_path, _checks = await save_upload(food_image, "food", temp_dir)
+    except Exception:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+
+    job = EstimatedMealJob(
+        analysis_id=analysis_id,
+        temp_dir=temp_dir,
+        image_path=image_path,
+        description=normalized_description,
+    )
+    ESTIMATED_MEAL_JOBS[analysis_id] = job
+    asyncio.create_task(run_estimated_meal_pipeline(job))
+    return CreateEstimatedMealAnalysisResponse(analysis_id=analysis_id)
+
+
+def require_estimated_meal_job(analysis_id: str) -> EstimatedMealJob:
+    job = ESTIMATED_MEAL_JOBS.get(analysis_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Unlabeled meal analysis not found or already expired.")
+    return job
+
+
+@app.get("/api/v1/unlabeled-meal-analyses/{analysis_id}/events")
+async def unlabeled_meal_analysis_events(analysis_id: str) -> StreamingResponse:
+    return StreamingResponse(
+        event_stream(require_estimated_meal_job(analysis_id)),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.get(
+    "/api/v1/food-data/search",
+    response_model=FoodDataSearchResponse,
+    response_model_by_alias=True,
+)
+async def food_data_search(
+    q: Annotated[str, Query(min_length=1, max_length=250)],
+    limit: Annotated[int, Query(ge=1, le=5)] = 5,
+) -> FoodDataSearchResponse:
+    try:
+        return await search_food_data(q, limit)
+    except UsdaRequestError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post(
+    "/api/v1/unlabeled-meal-analyses/{analysis_id}/finalize",
+    response_model=EstimatedMealRecord,
+    response_model_by_alias=True,
+)
+async def finalize_unlabeled_meal_analysis(
+    analysis_id: str,
+    request: FinalizeEstimatedMealRequest,
+) -> EstimatedMealRecord:
+    job = require_estimated_meal_job(analysis_id)
+    if not job.done or not job.result:
+        raise HTTPException(status_code=409, detail="Unlabeled meal analysis is still processing.")
+    try:
+        record = await finalize_estimated_meal(job, request)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    ESTIMATED_MEAL_JOBS.pop(analysis_id, None)
+    delete_job_files(job)
+    return record
+
+
+@app.delete("/api/v1/unlabeled-meal-analyses/{analysis_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_unlabeled_meal_analysis(analysis_id: str) -> Response:
+    job = ESTIMATED_MEAL_JOBS.pop(analysis_id, None)
+    if job:
+        delete_job_files(job)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post(
+    "/api/v1/smart-context/resolve",
+    response_model=SmartContextResponse,
+    response_model_by_alias=True,
+)
+async def smart_context_resolve(request: SmartContextResolveRequest) -> SmartContextResponse:
+    return await resolve_smart_context(request)
 
 
 @app.delete("/api/v1/analyses/{analysis_id}", status_code=status.HTTP_204_NO_CONTENT)

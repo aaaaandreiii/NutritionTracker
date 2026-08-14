@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Generic, Literal, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 def to_camel(value: str) -> str:
@@ -21,6 +21,14 @@ class ApiModel(BaseModel):
 
 T = TypeVar("T")
 SourceKind = Literal["label", "database", "user", "calculated", "unavailable"]
+EvidenceType = Literal[
+    "observed",
+    "retrieved",
+    "estimated",
+    "derived",
+    "contextual",
+    "unavailable",
+]
 FieldStatus = Literal[
     "Read from label",
     "Database match",
@@ -45,6 +53,35 @@ class EvidenceReference(ApiModel):
     note: str | None = None
 
 
+class NumericRange(ApiModel):
+    minimum: float = Field(ge=0, allow_inf_nan=False)
+    maximum: float = Field(ge=0, allow_inf_nan=False)
+    unit: str = "g"
+
+    @model_validator(mode="after")
+    def validate_order(self) -> "NumericRange":
+        if self.minimum > self.maximum:
+            raise ValueError("Range minimum must not exceed maximum.")
+        return self
+
+
+class EvidenceTrailItem(ApiModel):
+    timestamp: datetime
+    evidence_type: EvidenceType
+    source_kind: SourceKind
+    source_id: str | None = None
+    note: str
+    value: Any | None = None
+
+
+class SourceMetadata(ApiModel):
+    source_id: str
+    name: str
+    url: str | None = None
+    dataset_version: str | None = None
+    retrieved_at: datetime | None = None
+
+
 class EvidenceValue(ApiModel, Generic[T]):
     value: T | None = None
     unit: str | None = None
@@ -55,6 +92,26 @@ class EvidenceValue(ApiModel, Generic[T]):
     confidence: float | None = Field(default=None, ge=0, le=1)
     conflict: bool = False
     confirmed: bool = False
+    evidence_type: EvidenceType = "unavailable"
+    range: NumericRange | None = None
+    confidence_band: Literal["high", "medium", "low", "unknown"] | None = None
+    evidence_trail: list[EvidenceTrailItem] = Field(default_factory=list)
+    source: SourceMetadata | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def infer_legacy_evidence_type(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or "evidence_type" in data or "evidenceType" in data:
+            return data
+        source_kind = data.get("source_kind", data.get("sourceKind", "unavailable"))
+        inferred = {
+            "label": "observed",
+            "database": "retrieved",
+            "user": "observed",
+            "calculated": "derived",
+            "unavailable": "unavailable",
+        }.get(source_kind, "unavailable")
+        return {**data, "evidence_type": inferred}
 
 
 class ProductIdentity(ApiModel):
@@ -274,6 +331,212 @@ class CuratedFoodRecord(ApiModel):
     glycemic: GlycemicEvidence
     limitations: list[str]
     provenance: Provenance
+
+
+class UsdaNutrientProfile(ApiModel):
+    total_carbohydrate: float | None = Field(default=None, ge=0)
+    fiber: float | None = Field(default=None, ge=0)
+    total_sugars: float | None = Field(default=None, ge=0)
+    added_sugars: float | None = Field(default=None, ge=0)
+    sugar_alcohols: float | None = Field(default=None, ge=0)
+    protein: float | None = Field(default=None, ge=0)
+    fat: float | None = Field(default=None, ge=0)
+
+
+class FoodDataCandidate(ApiModel):
+    fdc_id: int = Field(gt=0)
+    description: str
+    data_type: str | None = None
+    brand_owner: str | None = None
+    ingredients: str | None = None
+    nutrients_per_100g: UsdaNutrientProfile
+    source: SourceMetadata
+
+
+class FoodDataSearchResponse(ApiModel):
+    query: str
+    candidates: list[FoodDataCandidate] = Field(default_factory=list, max_length=5)
+    available: bool
+    source_id: str = "usda-fdc"
+    warning: str | None = None
+
+
+class EstimatedMealComponentDraft(ApiModel):
+    component_id: str
+    identified_name: str = Field(min_length=1, max_length=250)
+    preparation_clues: list[str] = Field(default_factory=list, max_length=12)
+    household_portion: str = Field(min_length=1, max_length=160)
+    gram_range: NumericRange
+    confidence: float = Field(ge=0, le=1)
+    confidence_band: Literal["high", "medium", "low", "unknown"] = "unknown"
+    candidates: list[FoodDataCandidate] = Field(default_factory=list, max_length=5)
+    selected_fdc_id: int | None = Field(default=None, gt=0)
+    context_only: bool = False
+    qualitative_tags: list[str] = Field(default_factory=list, max_length=20)
+    source_path: Literal["vlm", "manual", "curated"]
+
+
+class EstimatedMealDraft(ApiModel):
+    kind: Literal["estimated_unlabeled_meal"] = "estimated_unlabeled_meal"
+    analysis_id: str
+    status: Literal["draft", "ready"] = "ready"
+    market: Literal["PH"] = "PH"
+    components: list[EstimatedMealComponentDraft] = Field(default_factory=list, max_length=12)
+    warnings: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    provenance: Provenance
+
+
+class CreateEstimatedMealAnalysisResponse(ApiModel):
+    analysis_id: str
+    expires_in_seconds: int = 900
+
+
+class EstimatedMealStageEvent(ApiModel):
+    type: Literal["stage", "result", "error"]
+    stage: str | None = None
+    label: str | None = None
+    status: Literal["running", "complete", "skipped", "failed"] | None = None
+    result: EstimatedMealDraft | None = None
+    message: str | None = None
+
+
+class ConfirmedMealComponentRequest(ApiModel):
+    component_id: str = Field(min_length=1, max_length=160)
+    confirmed_name: str = Field(min_length=1, max_length=250)
+    fdc_id: int | None = Field(default=None, gt=0)
+    household_portion: str = Field(min_length=1, max_length=160)
+    gram_range: NumericRange
+    context_only: bool = False
+    qualitative_tags: list[str] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def validate_confirmed_portion(self) -> "ConfirmedMealComponentRequest":
+        if self.gram_range.minimum < 1 or self.gram_range.maximum > 5000:
+            raise ValueError("Confirmed gram ranges must stay within 1–5000 g.")
+        if self.gram_range.unit.casefold() != "g":
+            raise ValueError("Confirmed portion ranges must use grams.")
+        if not self.context_only and self.fdc_id is None:
+            raise ValueError("Choose a USDA match or mark the component context-only.")
+        return self
+
+
+class FinalizeEstimatedMealRequest(ApiModel):
+    meal_name: str = Field(default="Estimated meal", min_length=1, max_length=250)
+    meal: Literal["Breakfast", "Lunch", "Dinner", "Snack", "Other"] = "Other"
+    components: list[ConfirmedMealComponentRequest] = Field(min_length=1, max_length=12)
+
+
+class EstimatedNutrientRanges(ApiModel):
+    total_carbohydrate: NumericRange | None = None
+    fiber: NumericRange | None = None
+    total_sugars: NumericRange | None = None
+    added_sugars: NumericRange | None = None
+    sugar_alcohols: NumericRange | None = None
+    protein: NumericRange | None = None
+    fat: NumericRange | None = None
+
+
+class EstimatedMealComponentRecord(ApiModel):
+    component_id: str
+    confirmed_name: str
+    household_portion: str
+    gram_range: NumericRange
+    context_only: bool
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    confidence_band: Literal["high", "medium", "low", "unknown"] = "unknown"
+    usda_match: FoodDataCandidate | None = None
+    nutrient_ranges: EstimatedNutrientRanges
+    qualitative_tags: list[str] = Field(default_factory=list)
+    evidence_trail: list[EvidenceTrailItem] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class EstimatedMealRecord(ApiModel):
+    kind: Literal["estimated_unlabeled_meal"] = "estimated_unlabeled_meal"
+    status: Literal["confirmed"] = "confirmed"
+    record_id: str
+    analysis_id: str
+    market: Literal["PH"] = "PH"
+    meal_name: str
+    meal: Literal["Breakfast", "Lunch", "Dinner", "Snack", "Other"]
+    components: list[EstimatedMealComponentRecord]
+    aggregate_nutrient_ranges: EstimatedNutrientRanges
+    matched_component_count: int = Field(ge=0)
+    excluded_component_count: int = Field(ge=0)
+    unknown_nutrient_counts: dict[str, int] = Field(default_factory=dict)
+    partial: bool
+    limitations: list[str]
+    provenance: Provenance
+
+
+class SmartContextNutrient(ApiModel):
+    value: float | None = Field(default=None, ge=0)
+    range: NumericRange | None = None
+    evidence_type: EvidenceType = "unavailable"
+    source_id: str | None = None
+
+
+class SmartContextNutrients(ApiModel):
+    total_carbohydrate: SmartContextNutrient = Field(default_factory=SmartContextNutrient)
+    fiber: SmartContextNutrient = Field(default_factory=SmartContextNutrient)
+    total_sugars: SmartContextNutrient = Field(default_factory=SmartContextNutrient)
+    added_sugars: SmartContextNutrient = Field(default_factory=SmartContextNutrient)
+    sugar_alcohols: SmartContextNutrient = Field(default_factory=SmartContextNutrient)
+    protein: SmartContextNutrient = Field(default_factory=SmartContextNutrient)
+    fat: SmartContextNutrient = Field(default_factory=SmartContextNutrient)
+
+
+class SmartContextResolveRequest(ApiModel):
+    kind: Literal["packaged_label", "curated_unlabeled_demo", "estimated_unlabeled_meal"]
+    display_name: str = Field(min_length=1, max_length=250)
+    market: Literal["PH", "US"] = "PH"
+    meal: Literal["Breakfast", "Lunch", "Dinner", "Snack", "Other"] | None = None
+    portion_label: str | None = Field(default=None, max_length=160)
+    category: str | None = Field(default=None, max_length=80)
+    nutrients: SmartContextNutrients = Field(default_factory=SmartContextNutrients)
+    context_flags: list[SmartContextFlag] = Field(default_factory=list, max_length=80)
+    qualitative_tags: list[str] = Field(default_factory=list, max_length=80)
+    limitations: list[str] = Field(default_factory=list, max_length=80)
+    excluded_component_count: int = Field(default=0, ge=0, le=12)
+
+
+class SmartContextSource(ApiModel):
+    source_id: str
+    title: str
+    publisher: str
+    url: str
+    summary: str
+
+
+class SmartContextCard(ApiModel):
+    id: str
+    rule_id: str
+    title: str
+    body: str
+    evidence_labels: list[str]
+    actions: list[str] = Field(default_factory=list)
+    source_ids: list[str] = Field(default_factory=list)
+
+
+class SmartContextWriterProvenance(ApiModel):
+    rule_version: str
+    evidence_version: str
+    pairing_version: str
+    writer_version: str
+    model: str | None = None
+    cache_hit: bool = False
+    fallback_reason: str | None = None
+
+
+class SmartContextResponse(ApiModel):
+    triggered_rule_ids: list[str]
+    cards: list[SmartContextCard]
+    sources: list[SmartContextSource]
+    evidence_source_ids: list[str]
+    generation_mode: Literal["deterministic", "generated"]
+    warnings: list[str] = Field(default_factory=list)
+    provenance: SmartContextWriterProvenance
 
 
 class CreateAnalysisResponse(ApiModel):

@@ -2,7 +2,34 @@
 
 All notable changes to the project are documented here.
 
-## [Unreleased] - Offline Barcode Lookup
+## [Unreleased] - Evidence-Aware Estimated Meals
+
+### Added
+- `estimated_unlabeled_meal` records with nested confirmed components, USDA source snapshots, portion/nutrient ranges, unknown/excluded counts, limitations, and provenance.
+- Extended evidence types, ranges, confidence bands, source metadata, and timestamped trails while retaining legacy evidence fields.
+- Strict Ollama meal-image schema limited to 12 components and prohibited from returning calories, macros, GI/GL, health claims, or glucose predictions.
+- Server-only USDA FoodData Central search/details integration with five-candidate limits, nutrient mapping, caching, timeouts, and missing-key fallback.
+- Estimated-meal job endpoints, SSE stages, component finalization, and explicit cleanup.
+- Backend Smart Context resolver with range-aware deterministic rules, Philippine pairing examples, evidence/source snapshots, optional grounded writing, validation, caching, and fallback provenance.
+- Estimated-meal Today/History displays, fixed-plus-range aggregation, nested JSON/CSV export fields, read-only detail drawer, and explicit local meal-photo retention.
+- Automated coverage for USDA calculations, strict meal schema, partial meals, Smart Context boundaries/safety/cache, manual estimated meals, multi-item photo editing, and mobile overflow.
+
+### Changed
+- Replaced the current filename-based unlabeled UI with photo/search → component confirmation → estimated breakdown → Smart Context → local save.
+- Kept the curated Filipino-food catalog within the new flow as a qualitative context-only fallback.
+- Packaged-label Smart Context now resolves through the backend asynchronously while preserving immediate deterministic browser cards.
+- Saved packaged and estimated logs retain final Smart Context card/source/version snapshots for reproducible History.
+- Today combines exact values as fixed ranges and estimated values as min–max ranges; unknown and partial totals remain explicit.
+- Playwright runs serially to make route mocks and full-page responsive screenshots deterministic.
+
+### Guardrails
+- Only USDA per-100-g data and user-confirmed gram endpoints originate estimated nutrient ranges.
+- Missing nutrients remain unknown; context-only components never contribute numeric totals.
+- Estimated meals never receive numeric GI/GL or personal glucose predictions.
+- Backend meal images are deleted on finalize/delete/expiry; browser retention remains opt-in.
+- Writer/model/search failure cannot suppress deterministic Smart Context.
+
+## [v2.1.0] - Offline Barcode Lookup
 
 ### Added
 - Generated local Open Food Facts Philippines SQLite database at `backend/app/data/off_ph_products.db`.

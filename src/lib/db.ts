@@ -1,5 +1,5 @@
 import { openDB } from 'idb'
-import { isCuratedUnlabeledLog, isPackagedLabelLog, logEntryKind, logStatusLabel } from '../domain/logs'
+import { isCuratedUnlabeledLog, isEstimatedMealLog, isPackagedLabelLog, logEntryKind, logStatusLabel } from '../domain/logs'
 import type { ChatThread, LogEntry } from '../domain/types'
 
 const DB_NAME = 'sugar-pai-research'
@@ -104,8 +104,16 @@ export function exportLogsCsv(logs: LogEntry[]) {
       'portion_label',
       'consumed_servings',
       'total_carbohydrate_g',
+      'total_carbohydrate_min_g',
+      'total_carbohydrate_max_g',
       'total_sugars_g',
+      'total_sugars_min_g',
+      'total_sugars_max_g',
       'added_sugars_g',
+      'added_sugars_min_g',
+      'added_sugars_max_g',
+      'excluded_components',
+      'partial_estimate',
       'analysis_id',
     ],
     ...logs.map((entry) => [
@@ -115,12 +123,20 @@ export function exportLogsCsv(logs: LogEntry[]) {
       entry.productName,
       logEntryKind(entry),
       logStatusLabel(entry),
-      isPackagedLabelLog(entry) ? entry.result.market : entry.curatedRecord.market,
-      isCuratedUnlabeledLog(entry) ? entry.curatedRecord.selectedPortionLabel : '',
+      isPackagedLabelLog(entry) ? entry.result.market : isEstimatedMealLog(entry) ? entry.estimatedRecord.market : entry.curatedRecord.market,
+      isCuratedUnlabeledLog(entry) ? entry.curatedRecord.selectedPortionLabel : isEstimatedMealLog(entry) ? `${entry.estimatedRecord.components.length} confirmed components` : '',
       entry.consumedServings,
       entry.totals.totalCarbohydrate,
+      isEstimatedMealLog(entry) ? entry.rangeTotals.totalCarbohydrate?.minimum : entry.totals.totalCarbohydrate,
+      isEstimatedMealLog(entry) ? entry.rangeTotals.totalCarbohydrate?.maximum : entry.totals.totalCarbohydrate,
       entry.totals.totalSugars,
+      isEstimatedMealLog(entry) ? entry.rangeTotals.totalSugars?.minimum : entry.totals.totalSugars,
+      isEstimatedMealLog(entry) ? entry.rangeTotals.totalSugars?.maximum : entry.totals.totalSugars,
       entry.totals.addedSugars,
+      isEstimatedMealLog(entry) ? entry.rangeTotals.addedSugars?.minimum : entry.totals.addedSugars,
+      isEstimatedMealLog(entry) ? entry.rangeTotals.addedSugars?.maximum : entry.totals.addedSugars,
+      isEstimatedMealLog(entry) ? entry.estimatedRecord.excludedComponentCount : 0,
+      isEstimatedMealLog(entry) ? entry.estimatedRecord.partial : false,
       entry.analysisId,
     ]),
   ]

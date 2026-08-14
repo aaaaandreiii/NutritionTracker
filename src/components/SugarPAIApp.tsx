@@ -87,7 +87,9 @@ export default function SugarPAIApp({ triggerToast, onLogMeal }: Props) {
     if (scanSession.analysisId) await deleteAnalysis(scanSession.analysisId).catch(() => undefined)
     setScanSession(createInitialScanSession())
     onLogMeal?.(entry)
-    const message = 'Confirmed label values saved on this device.'
+    const message = entry.kind === 'estimated_unlabeled_meal'
+      ? 'Estimated meal and evidence snapshot saved on this device.'
+      : 'Confirmed label values saved on this device.'
     setToast(message)
     triggerToast?.(message, 'success')
     window.setTimeout(() => setToast(null), 4200)

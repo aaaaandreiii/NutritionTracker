@@ -29,18 +29,28 @@ If a multi-tenant cloud version is developed, it will utilize:
 ### Data at Rest
 - **Frontend:** Daily Dozen support state, custom recipes, and Sugar pAI historical records are stored locally on the user's device using `localStorage` and `IndexedDB`. No personal health data is sent to a central database.
 - **Evidence chat:** Thread titles, messages, selected context references, and source snapshots are stored only in browser IndexedDB. The backend receives the active question, at most ten prior turns, and an optional minimal product snapshot; it does not persist them.
-- **Backend:** The FastAPI backend does not persist user data. It utilizes temporary directories (`tempfile.mkdtemp`) to hold uploaded images just long enough for the VLM to process them. Complete barcode database matches can skip image upload entirely.
+- **Backend:** The FastAPI backend does not persist user records. It uses temporary directories (`tempfile.mkdtemp`) for package and meal images. Complete barcode matches can skip upload; estimated-meal finalize/delete removes its directory immediately; unfinished jobs expire after 15 minutes.
 - **Local OFF database:** `backend/app/data/off_ph_products.db` is a static generated Open Food Facts product dataset for offline lookup. It is not a user-data store.
-- A background worker (`cleanup_expired_jobs`) guarantees that temporary files are purged when a job expires, and `shutil.rmtree` is used aggressively upon pipeline completion or error.
-- **Curated unlabeled demo:** Catalog entries are static qualitative data. User-selected demo records are saved only in local IndexedDB unless a future sync feature is explicitly added.
-- **Optional external processors:** Ollama processes evidence-grounded prompts. Tavily receives the search question only when configured and curated coverage is insufficient; product context is not sent to Tavily. Deployments must disclose these processors and their hosting arrangements.
+- A background worker (`cleanup_expired_jobs`) purges expired package and estimated-meal jobs, and shutdown cleanup removes remaining directories.
+- **Estimated records:** Confirmed component identities, USDA source snapshots, ranges, evidence trails, and Smart Context snapshots are saved only in local IndexedDB. A source meal photo is stored locally only through explicit opt-in.
+- **Curated fallback:** Catalog entries are static qualitative data. Existing curated records remain browser-local.
+- **Optional external processors:** Ollama may receive sanitized label/meal images and constrained evidence prompts. USDA FoodData Central receives component food-search terms and selected FDC-detail requests. Tavily receives an evidence-chat search question only when configured and curated coverage is insufficient; product context is not sent to Tavily. Deployments must disclose processors and hosting arrangements.
 
 ### Data in Transit
 - When deployed, the frontend and backend must communicate over **HTTPS/TLS 1.2+** to ensure that multipart form data (including images of food labels) cannot be intercepted in transit.
 
 ### Data Sanitization
 - **EXIF Stripping:** To protect user privacy, the backend aggressively sanitizes all uploaded images. Location data, device metadata, and other EXIF tags are stripped before the image is analyzed by the VLM.
-- **Input Validation:** The backend uses strict Pydantic schemas to validate all incoming data. The deterministic validation layer ensures that numerical values such as carbohydrate and sugar grams cannot be manipulated into malicious payloads such as NaN injections or buffer overflows.
+- **Input Validation:** Strict Pydantic schemas bound image size, strings, list sizes, component counts, candidate counts, confidence, and numeric ranges. Confirmed portions require finite ordered `1–5000 g` endpoints. The meal-image schema forbids extra macro/claim fields.
+- **Server-Originated Nutrients:** Finalize accepts selected USDA FDC IDs and portion ranges, not client/model nutrient grams. FastAPI retrieves source details and performs deterministic calculations.
+- **Generated-Copy Validation:** Smart Context writing cannot change rules, evidence labels, actions, sources, or introduce numbers. Prohibited medical, suitability, medication/insulin, and glucose-prediction language falls back to deterministic copy.
+
+### Secrets
+
+- Keep `USDA_FDC_API_KEY` and `TAVILY_API_KEY` server-side and outside version control.
+- Never prefix backend secrets with `VITE_`; Vite variables are bundled for browsers.
+- Avoid pasting full Compose/process environment dumps into tickets or logs because resolved configuration can contain credentials.
+- Telemetry may record latency, source path, cache hit, component count, and fallback reason. It must not record images, raw user notes, credentials, or unrestricted prompts containing private input.
 
 ## Public Deployment Requirements
 
@@ -51,3 +61,5 @@ Before exposing the backend beyond a local or controlled research environment:
 - Decide whether authentication is required.
 - Document VLM and local barcode lookup processors in user-facing disclosure.
 - Apply rate limits to `/api/v1/chat/stream`, keep the Tavily key server-side, and review the authoritative-domain allowlist periodically.
+- Apply independent upload/search/finalize limits to `/api/v1/unlabeled-meal-analyses`, `/api/v1/food-data/search`, and `/api/v1/smart-context/resolve`; keep USDA credentials server-side.
+- Replace the in-process job and cache dictionaries before multi-worker or multi-tenant deployment.

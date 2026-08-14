@@ -17,9 +17,20 @@ LLM_PROVIDER=ollama
 OLLAMA_BASE_URL=http://host.docker.internal:11434
 SUGAR_PAI_VISION_MODEL=gemma4:12b
 SUGAR_PAI_VISION_TIMEOUT_SECONDS=120
+SUGAR_PAI_MEAL_VISION_MODEL=gemma4:12b
+SUGAR_PAI_MEAL_VISION_TIMEOUT_SECONDS=120
 SUGAR_PAI_CHAT_MODEL=gemma4:12b
 SUGAR_PAI_CHAT_TIMEOUT_SECONDS=120
 TAVILY_API_KEY=
+
+# USDA FoodData Central (server only)
+USDA_FDC_API_KEY=
+USDA_FDC_TIMEOUT_SECONDS=12
+
+# Optional grounded Smart Context writer
+SUGAR_PAI_SMART_CONTEXT_WRITER=false
+SUGAR_PAI_SMART_CONTEXT_MODEL=gemma4:12b
+SUGAR_PAI_SMART_CONTEXT_TIMEOUT_SECONDS=30
 
 # Backend Feature Flags
 SUGAR_PAI_ENABLE_OFF_LOOKUP=false
@@ -33,7 +44,11 @@ VITE_API_BASE_URL=http://localhost:8000
 
 *Note: When running Ollama locally on the host machine while the backend is in a Docker container, `host.docker.internal` is crucial for the container to access the host's Ollama API port.*
 
-`SUGAR_PAI_CHAT_MODEL` falls back to `SUGAR_PAI_VISION_MODEL` when omitted. `TAVILY_API_KEY` is optional: without it, or if Tavily fails, chat retrieval remains curated-only. Never expose the Tavily key through a `VITE_` variable.
+`SUGAR_PAI_MEAL_VISION_MODEL` and `SUGAR_PAI_CHAT_MODEL` fall back to the general vision model when omitted. `TAVILY_API_KEY` is optional: without it, or if Tavily fails, chat retrieval remains curated-only.
+
+`USDA_FDC_API_KEY` must remain server-side. When it is missing, `GET /api/v1/food-data/search` returns `available: false` and the estimated-meal UI remains usable through context-only curated records. Do not expose USDA or Tavily credentials through `VITE_` variables, frontend bundles, Compose diagnostic output, screenshots, or logs.
+
+`SUGAR_PAI_SMART_CONTEXT_WRITER=false` is the recommended default. Deterministic rule resolution does not require Ollama. When writer mode is enabled, timeout, invalid JSON, unknown IDs, invented claims, or model unavailability automatically returns deterministic cards.
 
 ### Local Open Food Facts Database
 
@@ -58,6 +73,7 @@ The primary deployment strategy for self-hosted instances.
    ```
 3. The frontend is accessible at port `5173`, and the backend at `8000`.
 4. The default product route is `/#/sugar-pai/scan`.
+5. Configure a USDA FoodData Central key only when numeric estimated-meal matching is desired; otherwise verify the curated fallback explicitly.
 
 ### Linux VPS / CCS Cloud Deployment (Without Docker)
 If your remote instance does not allow running Docker containers, you can use PM2 to manage the processes directly.
@@ -147,6 +163,7 @@ While not strictly implemented via GitHub Actions in this repository yet, a stan
 3. **Backend Tests:** Run `PYTHONPATH=backend pytest backend/tests`.
 4. **Build Verification:** Run `npm run build` to ensure the Vite bundler completes without errors.
 5. **Docker Build:** Test the Dockerfile builds for both frontend and backend.
+6. **End-to-End Tests:** Run `npm run test:e2e`; the suite is intentionally serial because full-page responsive screenshots and route mocks share one local preview process.
 
 ## Python Version Note
 
@@ -160,7 +177,24 @@ After deployment, verify:
 curl -s http://localhost:8000/health
 curl -s 'http://localhost:8000/api/v1/off-products/4800361403764?market=PH'
 curl -s 'http://localhost:8000/api/v1/unlabeled-foods/catalog?market=PH'
+curl -s 'http://localhost:8000/api/v1/food-data/search?q=white%20rice&limit=5'
+curl -s -X POST http://localhost:8000/api/v1/smart-context/resolve \
+  -H 'Content-Type: application/json' \
+  -d '{"kind":"estimated_unlabeled_meal","displayName":"White rice","market":"PH","meal":"Lunch","nutrients":{"totalCarbohydrate":{"range":{"minimum":20,"maximum":40,"unit":"g"},"evidenceType":"derived"},"fiber":{"range":{"minimum":0.5,"maximum":2,"unit":"g"},"evidenceType":"derived"}},"qualitativeTags":["rice"],"excludedComponentCount":0}'
 curl -N -X POST http://localhost:8000/api/v1/chat/stream -H 'Content-Type: application/json' -d '{"question":"What are added sugars?","turns":[]}'
 ```
 
-The barcode smoke response should report `status: "found"` and `complete: true` when local lookup is enabled. The curated catalog response must not include numeric calories, macros, GI, or GL.
+The barcode smoke response should report `status: "found"` and `complete: true` when local lookup is enabled. The curated catalog response must not include numeric calories, macros, GI, or GL. USDA search should either return candidate source snapshots or the explicit `available: false` fallback. Smart Context must return deterministic cards even with Ollama/Tavily unavailable.
+
+## Operational Fallback Matrix
+
+| Failure | Expected behavior |
+| --- | --- |
+| Ollama meal vision unavailable or times out | Draft shows a warning; manual food search and curated context-only selection remain available. |
+| USDA key missing | Search returns `available: false`; context-only confirmation remains available. |
+| USDA request fails after configuration | Search returns `503`; the user can retry or mark the component context-only. |
+| Smart Context writer invalid, unavailable, or slow | Deterministic rule cards remain visible and are saved. |
+| Tavily missing or unavailable | Evidence chat uses curated sources only; nutrient grams are never taken from Tavily. |
+| Browser storage cleared | Local logs, retained opt-in photos, and chat threads are lost; backend has no recovery copy. |
+
+Production monitoring may record stage latency, source path, cache hit, and fallback reason. It must not record source images, raw meal notes, full prompts containing user notes, or server API keys.

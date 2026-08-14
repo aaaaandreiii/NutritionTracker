@@ -4,10 +4,17 @@ import type {
   ChatProductContext,
   ChatStreamEvent,
   CuratedFoodRecord,
+  ConfirmedMealComponentRequest,
+  EstimatedMealDraft,
+  EstimatedMealRecord,
+  EstimatedMealStageEvent,
+  FoodDataSearchResponse,
   FinalizeCorrections,
   LabelRecordValidation,
   Market,
   OffProductLookupResponse,
+  SmartContextResolveRequest,
+  SmartContextResponse,
   UnlabeledFoodCatalogResponse,
   UnlabeledFoodIdentifyResponse,
   UnlabeledFoodRecordRequest,
@@ -155,6 +162,82 @@ export async function validateUnlabeledFoodRecord(
   })
   if (!response.ok) throw new Error(await responseMessage(response, 'Could not validate this curated demo record.'))
   return jsonResponse<CuratedFoodRecord>(response, 'Could not validate this curated demo record.')
+}
+
+export async function createUnlabeledMealAnalysis(
+  foodImage?: File,
+  description?: string,
+): Promise<string> {
+  if (!foodImage && !description?.trim()) throw new Error('Add a food photo or enter a food name.')
+  const body = new FormData()
+  body.append('market', 'PH')
+  if (foodImage) body.append('food_image', foodImage)
+  if (description?.trim()) body.append('description', description.trim())
+  const response = await fetchApi(`${API_BASE}/api/v1/unlabeled-meal-analyses`, { method: 'POST', body })
+  if (!response.ok) throw new Error(await responseMessage(response, 'Could not start estimated meal analysis.'))
+  const payload = await jsonResponse<{ analysisId: string }>(response, 'Could not start estimated meal analysis.')
+  return payload.analysisId
+}
+
+export function streamUnlabeledMealAnalysis(
+  analysisId: string,
+  onEvent: (event: EstimatedMealStageEvent) => void,
+): Promise<EstimatedMealDraft> {
+  return new Promise((resolve, reject) => {
+    const source = new EventSource(`${API_BASE}/api/v1/unlabeled-meal-analyses/${analysisId}/events`)
+    source.onmessage = (message) => {
+      const event = JSON.parse(message.data) as EstimatedMealStageEvent
+      onEvent(event)
+      if (event.type === 'result' && event.result) {
+        source.close()
+        resolve(event.result)
+      }
+      if (event.type === 'error') {
+        source.close()
+        reject(new Error(event.message ?? 'Estimated meal analysis failed.'))
+      }
+    }
+    source.onerror = () => {
+      source.close()
+      reject(new Error(`${BACKEND_UNAVAILABLE_MESSAGE} The meal-analysis stream disconnected.`))
+    }
+  })
+}
+
+export async function searchFoodData(query: string): Promise<FoodDataSearchResponse> {
+  const response = await fetchApi(`${API_BASE}/api/v1/food-data/search?q=${encodeURIComponent(query)}&limit=5`, {
+    method: 'GET',
+    cache: 'no-store',
+  })
+  if (!response.ok) throw new Error(await responseMessage(response, 'Could not search USDA FoodData Central.'))
+  return jsonResponse<FoodDataSearchResponse>(response, 'Could not search USDA FoodData Central.')
+}
+
+export async function finalizeUnlabeledMealAnalysis(
+  analysisId: string,
+  request: { mealName: string; meal: string; components: ConfirmedMealComponentRequest[] },
+): Promise<EstimatedMealRecord> {
+  const response = await fetchApi(`${API_BASE}/api/v1/unlabeled-meal-analyses/${analysisId}/finalize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) throw new Error(await responseMessage(response, 'Could not finalize this estimated meal.'))
+  return jsonResponse<EstimatedMealRecord>(response, 'Could not finalize this estimated meal.')
+}
+
+export async function deleteUnlabeledMealAnalysis(analysisId: string): Promise<void> {
+  await fetchApi(`${API_BASE}/api/v1/unlabeled-meal-analyses/${analysisId}`, { method: 'DELETE', keepalive: true })
+}
+
+export async function resolveSmartContext(request: SmartContextResolveRequest): Promise<SmartContextResponse> {
+  const response = await fetchApi(`${API_BASE}/api/v1/smart-context/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) throw new Error(await responseMessage(response, 'Could not resolve grounded Smart Context.'))
+  return jsonResponse<SmartContextResponse>(response, 'Could not resolve grounded Smart Context.')
 }
 
 export async function deleteAnalysis(analysisId: string): Promise<void> {

@@ -3,8 +3,11 @@ import type {
   EvidenceValue,
   FinalizeCorrections,
   GlycemicEvidence,
+  LogEntry,
+  NumericRange,
   NutrientKey,
 } from './types'
+import { isEstimatedMealLog } from './logs'
 
 export const NUTRIENT_META: Record<NutrientKey, { label: string; helper: string }> = {
   totalCarbohydrate: {
@@ -46,6 +49,52 @@ export function sumKnown(values: Array<number | null>): { total: number; unknown
     },
     { total: 0, unknown: 0 },
   )
+}
+
+export function rangeMidpoint(range: NumericRange | null): number | null {
+  return range == null ? null : roundOne((range.minimum + range.maximum) / 2)
+}
+
+export function summarizeLogRanges(
+  entries: LogEntry[],
+  key: 'totalCarbohydrate' | 'totalSugars' | 'addedSugars',
+): { minimum: number; maximum: number; midpoint: number; unknown: number; estimated: number } {
+  let minimum = 0
+  let maximum = 0
+  let unknown = 0
+  let estimated = 0
+  for (const entry of entries) {
+    if (isEstimatedMealLog(entry)) {
+      const range = entry.rangeTotals[key]
+      const componentUnknown = (entry.estimatedRecord.unknownNutrientCounts[key] ?? 0) + (entry.estimatedRecord.excludedComponentCount ?? 0)
+      unknown += componentUnknown
+      if (range == null) {
+        if (componentUnknown === 0) unknown += 1
+      } else {
+        minimum += range.minimum
+        maximum += range.maximum
+        estimated += 1
+      }
+      continue
+    }
+    const value = entry.totals[key]
+    if (value == null) unknown += 1
+    else {
+      minimum += value
+      maximum += value
+    }
+  }
+  return {
+    minimum: roundOne(minimum),
+    maximum: roundOne(maximum),
+    midpoint: roundOne((minimum + maximum) / 2),
+    unknown,
+    estimated,
+  }
+}
+
+function roundOne(value: number): number {
+  return Math.round(value * 10) / 10
 }
 
 export function calculateGl(gi: number | null, availableCarbs: number | null): number | null {
