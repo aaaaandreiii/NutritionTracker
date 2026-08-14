@@ -189,11 +189,22 @@ export interface AnalysisResult {
   diagnostics?: AnalysisDiagnostics | null
   retakeRecommended: boolean
   retakeReasons: string[]
+  externalMetadata?: ExternalProductMetadata | null
   provenance: {
     pipelineVersion: string
     completedAt: string
     externalProcessors: string[]
   }
+}
+
+export interface ExternalProductMetadata {
+  novaGroup: string | null
+  novaGroupsTags: string | null
+  nutriscoreGrade: string | null
+  nutriscoreScore: number | null
+  sourceName: string
+  sourceUrl: string | null
+  sourceKind: 'local_open_food_facts' | null
 }
 
 export interface OffProductNutrientPreview {

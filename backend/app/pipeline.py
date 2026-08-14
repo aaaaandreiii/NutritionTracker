@@ -33,6 +33,7 @@ from .schemas import (
     EvidenceReference,
     EvidenceTrailItem,
     EvidenceValue,
+    ExternalProductMetadata,
     MethodDiagnostic,
     NutrientCorrections,
     NutrientFields,
@@ -469,6 +470,27 @@ def _database_nutrient_corrections(nutrients: NutrientFields) -> NutrientCorrect
     )
 
 
+def _external_metadata_from_product(product: dict[str, Any] | None, source_url: str | None) -> ExternalProductMetadata | None:
+    if not product:
+        return None
+    metadata = ExternalProductMetadata(
+        nova_group=clean_text(product.get("nova_group")),
+        nova_groups_tags=clean_text(product.get("nova_groups_tags")),
+        nutriscore_grade=clean_text(product.get("nutriscore_grade")),
+        nutriscore_score=_number(product.get("nutriscore_score")),
+        source_url=source_url or clean_text(product.get("source_url")),
+        source_kind=LOCAL_OFF_SOURCE_KIND if product.get("_lookup_source") == LOCAL_OFF_SOURCE_KIND else None,
+    )
+    if not any((
+        metadata.nova_group,
+        metadata.nova_groups_tags,
+        metadata.nutriscore_grade,
+        metadata.nutriscore_score is not None,
+    )):
+        return None
+    return metadata
+
+
 def _database_context_limitations(product: dict[str, Any] | None) -> list[str]:
     if not product:
         return []
@@ -477,9 +499,9 @@ def _database_context_limitations(product: dict[str, Any] | None) -> list[str]:
     nutriscore = clean_text(product.get("nutriscore_grade"))
     allergens = clean_text(product.get("allergens_tags")) or clean_text(product.get("allergens"))
     if nova:
-        context.append(f"Open Food Facts NOVA context is descriptive only: {nova}.")
+        context.append("Open Food Facts NOVA context is descriptive only and does not predict glucose response.")
     if nutriscore:
-        context.append(f"Open Food Facts Nutri-Score context is descriptive only: {nutriscore}.")
+        context.append("Open Food Facts Nutri-Score is a general nutrition-quality classification, not a diabetes or glucose-response score.")
     if allergens:
         context.append(f"Open Food Facts allergen context is descriptive only: {allergens}.")
     return context
@@ -578,6 +600,7 @@ def result_from_database(
         diagnostics=diagnostics or build_analysis_diagnostics(job),
         retake_recommended=any(check.status == "warn" for check in job.quality_checks) or (not database_complete and bool(retake_reasons)),
         retake_reasons=[] if database_complete else retake_reasons,
+        external_metadata=_external_metadata_from_product(product, source_url),
         provenance=Provenance(
             pipeline_version=PIPELINE_VERSION,
             completed_at=datetime.now(timezone.utc),
@@ -731,6 +754,7 @@ def result_from_extraction(
         diagnostics=diagnostics or build_analysis_diagnostics(job),
         retake_recommended=bool(retake_reasons),
         retake_reasons=retake_reasons,
+        external_metadata=base.external_metadata,
         provenance=Provenance(
             pipeline_version=PIPELINE_VERSION,
             completed_at=datetime.now(timezone.utc),

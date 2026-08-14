@@ -1553,7 +1553,8 @@
   }
   .sugar-pai-embed .product-serving-grid,
   .sugar-pai-embed .context-metric-grid,
-  .sugar-pai-embed .interpretation-grid{
+  .sugar-pai-embed .interpretation-grid,
+  .sugar-pai-embed .external-metadata-row{
     grid-template-columns: 1fr;
   }
   .sugar-pai-embed .nutrient-review-row{
@@ -2275,6 +2276,9 @@
 .sugar-pai-embed .meal-pairing-card,
 .sugar-pai-embed .interpretation-card,
 .sugar-pai-embed .context-glycemic-card,
+.sugar-pai-embed .processing-context-card,
+.sugar-pai-embed .ingredient-context-card,
+.sugar-pai-embed .external-metadata-card,
 .sugar-pai-embed .sources-limitations-card{
   padding: 22px;
   border-radius: 8px;
@@ -2285,7 +2289,10 @@
 .sugar-pai-embed .ingredients-review-card .section-heading,
 .sugar-pai-embed .meal-pairing-card .section-heading,
 .sugar-pai-embed .interpretation-card .section-heading,
-.sugar-pai-embed .context-glycemic-card .section-heading{
+.sugar-pai-embed .context-glycemic-card .section-heading,
+.sugar-pai-embed .processing-context-card .section-heading,
+.sugar-pai-embed .ingredient-context-card .section-heading,
+.sugar-pai-embed .external-metadata-card .section-heading{
   margin-bottom: 16px;
 }
 .sugar-pai-embed .product-serving-card h2,
@@ -2293,7 +2300,10 @@
 .sugar-pai-embed .ingredients-review-card h2,
 .sugar-pai-embed .meal-pairing-card h2,
 .sugar-pai-embed .interpretation-card h2,
-.sugar-pai-embed .context-glycemic-card h2{
+.sugar-pai-embed .context-glycemic-card h2,
+.sugar-pai-embed .processing-context-card h2,
+.sugar-pai-embed .ingredient-context-card h2,
+.sugar-pai-embed .external-metadata-card h2{
   margin: 5px 0 0;
   font-size: 23px;
 }
@@ -2811,6 +2821,108 @@
   font-size: 11px;
   text-decoration: none;
   overflow-wrap: anywhere;
+}
+.sugar-pai-embed .processing-context-card{
+  display: grid;
+  gap: 10px;
+  background: #f7f4ec;
+}
+.sugar-pai-embed .ingredient-context-card{
+  display: grid;
+  gap: 10px;
+  background: #faf8f1;
+}
+.sugar-pai-embed .ingredient-context-card .consumer-flag-list{
+  margin-top: 0;
+}
+.sugar-pai-embed .processing-context-card .section-heading > svg{
+  color: var(--green);
+}
+.sugar-pai-embed .metadata-main-row{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  align-items: baseline;
+}
+.sugar-pai-embed .metadata-main-row strong{
+  font-size: 14px;
+  line-height: 1.3;
+}
+.sugar-pai-embed .metadata-badge{
+  width: max-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 7px;
+  border: 1px solid rgba(80,80,70,.12);
+  border-radius: 5px;
+  color: #4f5a55;
+  background: rgba(255,255,255,.74);
+  font: 600 9px 'DM Mono', monospace;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.sugar-pai-embed .processing-context-card p,
+.sugar-pai-embed .external-metadata-card p{
+  margin: 0;
+  color: #4f5a55;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.sugar-pai-embed .metadata-source-link{
+  width: max-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #5f6b65;
+  font-size: 10px;
+  line-height: 1.4;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.sugar-pai-embed a.metadata-source-link:hover{
+  color: var(--green-dark);
+  text-decoration: underline;
+}
+.sugar-pai-embed .metadata-disclosure{
+  margin-top: 3px;
+}
+.sugar-pai-embed .metadata-disclosure summary{
+  width: max-content;
+  max-width: 100%;
+  color: var(--green-dark);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+.sugar-pai-embed .metadata-disclosure p{
+  margin-top: 7px;
+}
+.sugar-pai-embed .external-metadata-card{
+  display: grid;
+  gap: 10px;
+  background: #faf8f1;
+}
+.sugar-pai-embed .external-metadata-row{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.sugar-pai-embed .external-metadata-row > div{
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+.sugar-pai-embed .external-metadata-row strong{
+  font-size: 13px;
+  line-height: 1.3;
 }
 .sugar-pai-embed .sources-limitations-list{
   display: grid;

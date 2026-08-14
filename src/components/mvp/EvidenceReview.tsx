@@ -44,10 +44,13 @@ import MealPairingIdeas from './MealPairingIdeas'
 import PairingIdeas from './PairingIdeas'
 import {
   formatProductDisplayName,
+  formatNutriScoreGrade,
+  getNovaPresentation,
   formatSmartContextMode,
   normalizeIngredientDisplay,
   normalizeNameDisplay,
   sourceLabel,
+  type NovaPresentation,
 } from './uiDisplay'
 
 interface Props {
@@ -244,6 +247,9 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
   const ingredientTextAccepted = ['label', 'database'].includes(current.rawIngredients.sourceKind) && ingredientFieldHasText
   const ingredientFlags = useMemo(() => buildIngredientContextFlags(current), [current])
   const limitations = useMemo(() => Array.from(new Set(current.limitations)), [current.limitations])
+  const externalMetadata = current.externalMetadata ?? null
+  const novaPresentation = getNovaPresentation(externalMetadata?.novaGroup, externalMetadata?.novaGroupsTags)
+  const nutriScoreGrade = formatNutriScoreGrade(externalMetadata?.nutriscoreGrade)
   const displayName = displayProduct(current, corrections)
   const productNameForInput = edited.has('productName')
     ? corrections.productName
@@ -574,6 +580,10 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
 
             {current.status === 'confirmed' && <PairingIdeas insights={visiblePairingInsights} />}
 
+            {novaPresentation && <ProcessingContextCard presentation={novaPresentation} metadata={externalMetadata} />}
+
+            {ingredientFlags.length > 0 && <IngredientContextCard flags={ingredientFlags} />}
+
             {current.status === 'confirmed' && (
               <MealPairingIdeas
                 suggestions={mealPairingSuggestions}
@@ -603,6 +613,8 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
               <GlycemicEvidenceSummary glycemic={current.glycemic} />
             </section>
 
+            {nutriScoreGrade && <ExternalProductMetadataCard grade={nutriScoreGrade} metadata={externalMetadata} />}
+
             <details className="card sources-limitations-card disclosure-card">
               <summary>Sources & limitations</summary>
               <div className="disclosure-body">
@@ -612,6 +624,8 @@ export default function EvidenceReview({ result, images, onBack, onLogged, onVal
                   <li>Ingredients were {ingredientTextAccepted || current.rawIngredients.sourceKind === 'user' ? 'confirmed for context' : 'not available'}.</li>
                   <li>Ingredient order cannot reveal ingredient quantities.</li>
                   <li>{current.glycemic.status === 'sourced' ? 'A tested glycemic-index source was available for comparison.' : 'No tested product-specific glycemic study was available.'}</li>
+                  {novaPresentation && <li>NOVA processing context was imported from Open Food Facts metadata. It does not predict individual glucose response.</li>}
+                  {nutriScoreGrade && <li>Nutri-Score was imported from Open Food Facts metadata. It is not a diabetes or glucose-response score.</li>}
                   <li>Sugar pAI does not predict individual glucose response.</li>
                   {limitations.map((item) => <li key={item}>{item}</li>)}
                 </ul>
@@ -831,6 +845,109 @@ function CapturedEvidenceList({ images }: { images: CapturedImage[] }) {
         </div>
       ))}
     </div>
+  )
+}
+
+function metadataSourceName(metadata: AnalysisResult['externalMetadata']): string {
+  const source = metadata?.sourceName?.trim()
+  return source && /open food facts/i.test(source) ? 'Open Food Facts' : source || 'Open Food Facts'
+}
+
+function MetadataSource({ metadata }: { metadata: AnalysisResult['externalMetadata'] }) {
+  const label = metadataSourceName(metadata)
+  if (metadata?.sourceUrl) {
+    return (
+      <a className="metadata-source-link" href={metadata.sourceUrl} target="_blank" rel="noreferrer">
+        Source: {label}<ExternalLink size={12} />
+      </a>
+    )
+  }
+  return <span className="metadata-source-link">Source: {label}</span>
+}
+
+function ProcessingContextCard({
+  presentation,
+  metadata,
+}: {
+  presentation: NovaPresentation
+  metadata: AnalysisResult['externalMetadata']
+}) {
+  return (
+    <section className="card processing-context-card">
+      <div className="section-heading">
+        <div>
+          <span className="section-kicker">Processing context</span>
+          <h2>NOVA classification</h2>
+        </div>
+        <Info size={18} />
+      </div>
+      <div className="metadata-main-row">
+        <span className="metadata-badge">{presentation.badge}</span>
+        <strong>{presentation.label}</strong>
+      </div>
+      <p>NOVA describes the extent and purpose of food processing. It does not predict your individual glucose response.</p>
+      <MetadataSource metadata={metadata} />
+      <details className="metadata-disclosure">
+        <summary>About NOVA</summary>
+        <p>NOVA classifies foods by the extent and purpose of processing, from minimally processed foods (Group 1) to ultra-processed products (Group 4). It provides processing context rather than predicting your glucose response.</p>
+      </details>
+    </section>
+  )
+}
+
+function IngredientContextCard({ flags }: { flags: SmartContextFlag[] }) {
+  return (
+    <section className="card ingredient-context-card">
+      <div className="section-heading">
+        <div>
+          <span className="section-kicker">Ingredient context</span>
+          <h2>Detected from ingredients</h2>
+        </div>
+      </div>
+      <div className="consumer-flag-list">
+        {flags.map((flag) => {
+          const copy = consumerFlagCopy(flag)
+          return (
+            <div className={`consumer-context-flag flag-${flag.category}`} key={flag.id}>
+              <strong>{copy.title}</strong>
+              <p>{copy.body}</p>
+              {copy.meta && <small>{copy.meta}</small>}
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function ExternalProductMetadataCard({
+  grade,
+  metadata,
+}: {
+  grade: 'A' | 'B' | 'C' | 'D' | 'E'
+  metadata: AnalysisResult['externalMetadata']
+}) {
+  return (
+    <section className="card external-metadata-card">
+      <div className="section-heading">
+        <div>
+          <span className="section-kicker">External metadata</span>
+          <h2>Community database metadata</h2>
+        </div>
+      </div>
+      <div className="external-metadata-row">
+        <div>
+          <strong>Nutri-Score · Grade {grade}</strong>
+          <p>A general nutrition-quality classification from Open Food Facts. It is not a diabetes or glucose-response score.</p>
+          <MetadataSource metadata={metadata} />
+        </div>
+        <span className="metadata-badge">Grade {grade}</span>
+      </div>
+      <details className="metadata-disclosure">
+        <summary>About Nutri-Score</summary>
+        <p>Nutri-Score summarizes general nutritional composition. It is not designed to predict glucose response or diabetes suitability.</p>
+      </details>
+    </section>
   )
 }
 

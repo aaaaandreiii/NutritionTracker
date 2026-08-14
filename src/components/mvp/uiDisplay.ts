@@ -117,6 +117,73 @@ export function normalizeNameDisplay(value: string | null | undefined, fallback 
   })
 }
 
+const NOVA_LABELS = {
+  1: 'Unprocessed or minimally processed foods',
+  2: 'Processed culinary ingredients',
+  3: 'Processed foods',
+  4: 'Ultra-processed',
+} as const
+
+export type NovaPresentation = {
+  group: 1 | 2 | 3 | 4
+  badge: string
+  label: string
+  fullLabel: string
+}
+
+function metadataString(value: unknown): string | null {
+  if (value == null) return null
+  const text = String(value).replace(/\s+/g, ' ').trim()
+  if (!text) return null
+  const normalized = text.toLowerCase()
+  if (['-', 'unknown', 'null', 'none', 'nan', 'not applicable', 'not-applicable'].includes(normalized)) return null
+  return text
+}
+
+function novaGroupNumber(value: unknown): 1 | 2 | 3 | 4 | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 4) {
+    return value as 1 | 2 | 3 | 4
+  }
+  const text = metadataString(value)
+  if (!text) return null
+  const normalized = text.toLowerCase()
+  const patterns = [
+    /^\s*([1-4])(?:\b|\s*-)/,
+    /\ben:([1-4])[-_\s]/,
+    /\bgroup\s*([1-4])\b/,
+    /\bnova\s*([1-4])\b/,
+  ]
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern)
+    if (match) return Number(match[1]) as 1 | 2 | 3 | 4
+  }
+  return null
+}
+
+export function getNovaPresentation(value: unknown, tags?: unknown): NovaPresentation | null {
+  const group = novaGroupNumber(value) ?? novaGroupNumber(tags)
+  if (!group) return null
+  const fullLabel = NOVA_LABELS[group]
+  return {
+    group,
+    badge: `NOVA ${group}`,
+    label: group === 4 ? 'Ultra-processed' : fullLabel,
+    fullLabel,
+  }
+}
+
+export function formatNovaGroup(value: unknown, tags?: unknown): string | null {
+  const presentation = getNovaPresentation(value, tags)
+  return presentation ? `${presentation.badge} · ${presentation.label}` : null
+}
+
+export function formatNutriScoreGrade(value: unknown): 'A' | 'B' | 'C' | 'D' | 'E' | null {
+  const text = metadataString(value)
+  if (!text) return null
+  const grade = text.trim().toUpperCase()
+  return /^[A-E]$/.test(grade) ? grade as 'A' | 'B' | 'C' | 'D' | 'E' : null
+}
+
 export function formatProductDisplayName(
   productName: string | null | undefined,
   servingSize?: number | null,

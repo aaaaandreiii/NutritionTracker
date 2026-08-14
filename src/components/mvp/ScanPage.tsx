@@ -19,6 +19,8 @@ import {
 import {
   consumerPipelineStageLabel,
   consumerStageStatus,
+  formatNovaGroup,
+  formatNutriScoreGrade,
   scanSetupState,
 } from './uiDisplay'
 
@@ -596,6 +598,7 @@ function BarcodeFirstPanel({
   const inputRef = useRef<HTMLInputElement>(null)
   const product = barcodeLookup?.product
   const productDisplayName = formatOffProductDisplayName(product, barcodeLookup?.barcode ?? barcode)
+  const novaSummary = formatNovaGroup(barcodeLookup?.qualitativeMarkers?.novaGroup, barcodeLookup?.qualitativeMarkers?.novaGroupsTags)
   const productMeta = [
     product?.brand ? formatNameText(product.brand) : null,
     product?.barcode ? `Barcode ${product.barcode}` : null,
@@ -648,9 +651,9 @@ function BarcodeFirstPanel({
             <span><small>Total sugars</small><strong>{barcodeLookup.product.nutrients.totalSugars == null ? 'Not declared' : `${barcodeLookup.product.nutrients.totalSugars} g`}</strong></span>
             <span><small>Fiber</small><strong>{barcodeLookup.product.nutrients.fiber == null ? 'Not declared' : `${barcodeLookup.product.nutrients.fiber} g`}</strong></span>
           </div>
-          {barcodeLookup.qualitativeMarkers?.novaGroup && (
+          {novaSummary && (
             <div className="nova-context">
-              <div><Info size={14} /><strong>{formatNovaGroup(barcodeLookup.qualitativeMarkers.novaGroup)}</strong></div>
+              <div><Info size={14} /><strong>{novaSummary}</strong></div>
               <small>Processing category from the local Open Food Facts record. NOVA is context, not a health score.</small>
             </div>
           )}
@@ -706,9 +709,11 @@ function BarcodeLookupPanel({ lookup, productDisplayName }: { lookup: OffProduct
       ].map(([label, value]) => `${label} ${typeof value === 'number' ? `${value} g` : 'Not declared / unavailable'}`).join(' · ')
     : null
   const context = lookup.qualitativeMarkers
+  const novaSummary = formatNovaGroup(context?.novaGroup, context?.novaGroupsTags)
+  const nutriScoreGrade = formatNutriScoreGrade(context?.nutriscoreGrade)
   const contextBits = [
-    context?.novaGroup ? `NOVA: ${context.novaGroup}` : null,
-    context?.nutriscoreGrade ? `Nutri-Score: ${context.nutriscoreGrade}` : null,
+    novaSummary,
+    nutriScoreGrade ? `Nutri-Score: Grade ${nutriScoreGrade}` : null,
     context?.allergensTags ? `Allergens: ${context.allergensTags}` : null,
   ].filter(Boolean)
 
@@ -769,11 +774,4 @@ function formatNameText(value: string): string {
     if (/^SkyFlakes$/i.test(word)) return 'SkyFlakes'
     return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
   })
-}
-
-function formatNovaGroup(value: string): string {
-  const cleaned = value.replace(/\s+/g, ' ').trim()
-  const match = cleaned.match(/^(\d)\s*-\s*(.+)$/)
-  if (!match) return `NOVA · ${cleaned}`
-  return `NOVA ${match[1]} · ${formatNameText(match[2])}`
 }

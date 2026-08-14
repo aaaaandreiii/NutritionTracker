@@ -141,6 +141,9 @@ def test_complete_local_barcode_skips_vlm(tmp_path, monkeypatch):
     assert job.result.diagnostics.extraction_status == "skipped"
     assert job.result.product.name.status == "Database match"
     assert job.result.provenance.external_processors == ["Open Food Facts local"]
+    assert job.result.external_metadata is not None
+    assert job.result.external_metadata.nova_group == "4 - Ultra processed food and drink products"
+    assert job.result.external_metadata.source_name == "Open Food Facts"
 
 
 def test_partial_local_barcode_runs_vlm_and_keeps_database_fallbacks(tmp_path, monkeypatch):
@@ -185,6 +188,8 @@ def test_partial_local_barcode_runs_vlm_and_keeps_database_fallbacks(tmp_path, m
     assert job.result.nutrients.total_carbohydrate.source_kind == "database"
     assert job.result.nutrients.total_sugars.source_kind == "label"
     assert job.result.product.name.value == "nescafe original 20g"
+    assert job.result.external_metadata is not None
+    assert job.result.external_metadata.nova_groups_tags == "en:4-ultra-processed-food-and-drink-products"
 
 
 def test_off_ingredients_produce_sugar_variants(tmp_path, monkeypatch):

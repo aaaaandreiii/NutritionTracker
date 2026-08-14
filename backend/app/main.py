@@ -386,6 +386,7 @@ async def finalize_analysis(analysis_id: str, request: FinalizeRequest) -> Analy
         diagnostics=previous.diagnostics,
         retake_recommended=previous.retake_recommended,
         retake_reasons=previous.retake_reasons,
+        external_metadata=previous.external_metadata,
         provenance=Provenance(
             pipeline_version=previous.provenance.pipeline_version,
             completed_at=datetime.now(timezone.utc),

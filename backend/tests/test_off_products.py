@@ -23,7 +23,8 @@ def test_ingest_builds_sqlite_and_parses_nescafe(tmp_path, monkeypatch):
         row = connection.execute(
             """
             SELECT code, product_name, serving_size_value, serving_size_unit,
-                   total_carbohydrate_g, total_sugars_g, fiber_g, protein_g, fat_g
+                   total_carbohydrate_g, total_sugars_g, fiber_g, protein_g, fat_g,
+                   nova_group, nova_groups_tags, nutriscore_grade, nutriscore_score
             FROM off_ph_products
             WHERE code = '4800361403764'
             """,
@@ -39,6 +40,10 @@ def test_ingest_builds_sqlite_and_parses_nescafe(tmp_path, monkeypatch):
         0.34,
         0.27,
         3.4,
+        "4 - Ultra processed food and drink products",
+        "en:4-ultra-processed-food-and-drink-products",
+        None,
+        None,
     )
 
     monkeypatch.setenv("SUGAR_PAI_ENABLE_OFF_LOOKUP", "true")
@@ -48,6 +53,9 @@ def test_ingest_builds_sqlite_and_parses_nescafe(tmp_path, monkeypatch):
 
     assert complete.complete is True
     assert complete.missing_fields == []
+    assert complete.qualitative_markers is not None
+    assert complete.qualitative_markers.nova_group == "4 - Ultra processed food and drink products"
+    assert complete.qualitative_markers.nutriscore_grade is None
     assert partial.complete is False
     assert "serving size" in partial.missing_fields
     assert "total carbohydrate" in partial.missing_fields

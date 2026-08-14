@@ -232,6 +232,16 @@ class Provenance(ApiModel):
     external_processors: list[str]
 
 
+class ExternalProductMetadata(ApiModel):
+    nova_group: str | None = None
+    nova_groups_tags: str | None = None
+    nutriscore_grade: str | None = None
+    nutriscore_score: float | None = None
+    source_name: str = "Open Food Facts"
+    source_url: str | None = None
+    source_kind: Literal["local_open_food_facts"] | None = None
+
+
 class AnalysisResult(ApiModel):
     analysis_id: str
     status: Literal["partial", "ready", "confirmed"]
@@ -248,6 +258,7 @@ class AnalysisResult(ApiModel):
     diagnostics: AnalysisDiagnostics | None = None
     retake_recommended: bool = False
     retake_reasons: list[str] = Field(default_factory=list)
+    external_metadata: ExternalProductMetadata | None = None
     provenance: Provenance
 
 

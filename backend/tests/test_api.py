@@ -206,6 +206,11 @@ def test_barcode_only_analysis_can_be_finalized(tmp_path, monkeypatch):
         assert result["rawIngredients"]["status"] == "Database match"
         assert result["diagnostics"]["extractionStatus"] == "skipped"
         assert payload["analysisId"] == result["analysisId"]
+        assert result["externalMetadata"]["novaGroup"] == "4 - Ultra processed food and drink products"
+        assert result["externalMetadata"]["novaGroupsTags"] == "en:4-ultra-processed-food-and-drink-products"
+        assert result["externalMetadata"]["nutriscoreGrade"] is None
+        assert result["externalMetadata"]["sourceName"] == "Open Food Facts"
+        assert result["externalMetadata"]["sourceKind"] == "local_open_food_facts"
 
         finalized = client.post(
             f"/api/v1/analyses/{payload['analysisId']}/finalize",
@@ -228,6 +233,7 @@ def test_barcode_only_analysis_can_be_finalized(tmp_path, monkeypatch):
         )
         assert finalized.status_code == 200, finalized.text
         assert finalized.json()["status"] == "confirmed"
+        assert finalized.json()["externalMetadata"] == result["externalMetadata"]
 
 
 def test_barcode_only_analysis_accepts_upc_a_alias(tmp_path, monkeypatch):
@@ -253,6 +259,8 @@ def test_barcode_only_analysis_accepts_upc_a_alias(tmp_path, monkeypatch):
         result = created.json()["result"]
         assert result["product"]["barcode"]["value"] == "0750515018402"
         assert result["product"]["name"]["value"] == "sky flakes 25g"
+        assert result["externalMetadata"]["novaGroup"] == "3 - Processed foods"
+        assert result["externalMetadata"]["nutriscoreGrade"] == "e"
 
 
 def test_unlabeled_food_catalog_lists_curated_ph_demo_foods():
